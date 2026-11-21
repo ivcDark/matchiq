@@ -1,0 +1,103 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    working_dir: /var/www/html
+    volumes:
+      - ./web:/var/www/html
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      APP_NAME: MatchIQ
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:${APP_PORT:-8000}
+      APP_KEY: ${APP_KEY:-}
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB:-matchiq}
+      DB_USERNAME: ${POSTGRES_USER:-matchiq}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-matchiq}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-null}
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: redis
+      VITE_DEV_SERVER_URL: http://localhost:${VITE_PORT:-5173}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - matchiq
+
+  vite:
+    image: node:22-bookworm
+    working_dir: /var/www/html
+    volumes:
+      - ./web:/var/www/html
+    ports:
+      - "${VITE_PORT:-5173}:5173"
+    environment:
+      VITE_HOST: "0.0.0.0"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    networks:
+      - matchiq
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-matchiq}
+      POSTGRES_USER: ${POSTGRES_USER:-matchiq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-matchiq}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-matchiq} -d ${POSTGRES_DB:-matchiq}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - matchiq
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - matchiq
+
+  collector:
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+    environment:
+      COLLECTOR_ADDR: ":8081"
+      COLLECTOR_LEAGUE: rpl
+      DATABASE_URL: postgres://${POSTGRES_USER:-matchiq}:${POSTGRES_PASSWORD:-matchiq}@postgres:5432/${POSTGRES_DB:-matchiq}?sslmode=disable
+      REDIS_ADDR: redis:6379
+    ports:
+      - "${COLLECTOR_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - matchiq
+
+networks:
+  matchiq:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
