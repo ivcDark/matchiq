@@ -654,21 +654,75 @@
         @apply flex flex-col items-center justify-center text-center;
     }
 
-    .miq-event-row {
-        @apply flex items-center gap-2.5 px-3.5 py-3;
+    /* BK-style markets: группа исходов в карточке */
+    .miq-market-card {
+        @apply rounded-md border px-2.5 py-2.5 sm:px-3;
+        border-color: color-mix(in srgb, var(--miq-line) 85%, transparent);
+        background: color-mix(in srgb, white 82%, var(--miq-chalk));
     }
 
-    .miq-event-row.is-picked {
-        background: color-mix(in srgb, var(--miq-pitch) 8%, white);
+    .miq-market-card.has-pick {
+        border-color: color-mix(in srgb, var(--miq-pitch) 40%, var(--miq-line));
         box-shadow: inset 3px 0 0 var(--miq-pitch);
     }
 
-    .miq-event-prob {
-        @apply shrink-0 font-display text-2xl font-bold leading-none text-miq-pitch-deep;
+    .miq-market-head {
+        @apply mb-2 flex items-baseline justify-between gap-2;
     }
 
-    .miq-event-prob-unit {
-        @apply ml-0.5 text-sm font-semibold text-miq-muted;
+    .miq-market-name {
+        @apply text-[11px] font-bold uppercase tracking-[0.12em] text-miq-muted;
+    }
+
+    .miq-market-pop {
+        @apply shrink-0 text-[10px] font-semibold tabular-nums text-miq-muted;
+    }
+
+    .miq-outcome-grid {
+        @apply grid gap-1.5;
+    }
+
+    .miq-outcome-grid.is-binary {
+        @apply grid-cols-2;
+    }
+
+    .miq-outcome-grid.is-triple {
+        @apply grid-cols-3;
+    }
+
+    .miq-outcome-cell {
+        @apply flex flex-col items-center rounded-md border px-1.5 py-2 text-center sm:px-2.5;
+        border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, white 90%, var(--miq-mist));
+    }
+
+    .miq-outcome-cell.is-picked {
+        border-color: var(--miq-pitch);
+        background: color-mix(in srgb, var(--miq-pitch) 10%, white);
+    }
+
+    .miq-outcome-label {
+        @apply text-[11px] font-bold uppercase tracking-wide text-miq-ink-soft sm:text-xs;
+    }
+
+    .miq-outcome-prob {
+        @apply mt-1 font-display text-xl font-bold leading-none text-miq-pitch-deep sm:text-2xl;
+    }
+
+    .miq-outcome-unit {
+        @apply ml-0.5 text-[11px] font-semibold text-miq-muted;
+    }
+
+    .miq-outcome-meta {
+        @apply mt-1 text-[10px] leading-tight text-miq-muted;
+    }
+
+    .miq-outcome-hit.is-yes {
+        @apply font-semibold text-miq-pitch;
+    }
+
+    .miq-outcome-pick {
+        @apply mt-2 w-full;
     }
 
     .miq-pick-btn {

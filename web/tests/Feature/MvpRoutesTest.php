@@ -106,7 +106,7 @@ class MvpRoutesTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Matches/Show')
                 ->has('match')
-                ->has('events')
+                ->has('markets')
                 ->has('preview')
                 ->has('comparison')
                 ->has('homeAway')
@@ -129,7 +129,15 @@ class MvpRoutesTest extends TestCase
                 ->where('match.away', 'Спартак')
                 ->where('match.league_short', 'РПЛ')
                 ->where('returnLeague', 'rpl')
-                ->has('events', 12)
+                ->has('markets', 10)
+                ->has('markets.0.outcomes')
+                ->where('markets.0.name', 'Исход матча')
+                ->where('markets.0.outcomes.0.prob', 42)
+                ->where('markets.0.outcomes.1.prob', 27)
+                ->where('markets.0.outcomes.2.prob', 31)
+                ->where('markets.2.name', 'Тотал 1.5')
+                ->where('markets.2.outcomes.0.prob', 78)
+                ->where('markets.2.outcomes.1.prob', 22)
                 ->has('preview')
                 ->where('userPickEventId', null));
     }

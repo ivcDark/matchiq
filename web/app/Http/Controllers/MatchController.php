@@ -190,7 +190,7 @@ class MatchController extends Controller
         return Inertia::render('Matches/Show', [
             'match' => $detail['match'],
             'preview' => $detail['preview'],
-            'events' => $detail['events'],
+            'markets' => $detail['markets'],
             'comparison' => $detail['comparison'],
             'homeAway' => $detail['homeAway'],
             'standings' => $detail['standings'],
@@ -231,12 +231,12 @@ class MatchController extends Controller
             'round' => $meta['round'],
         ]);
 
-        $events = $this->demoEventsForMatch($id, $status, $match);
+        $markets = $this->demoMarketsForMatch($id, $status, $match);
 
         return [
             'match' => $enriched,
             'preview' => $this->demoPreview($home, $away, $status),
-            'events' => $events,
+            'markets' => $markets,
             'comparison' => $this->demoComparison($home, $away, $id),
             'homeAway' => $this->demoHomeAwaySplits($home, $away, $id),
             'standings' => $this->demoMiniStandings($home, $away, $league['id'] ?? 'rpl'),
@@ -297,68 +297,162 @@ class MatchController extends Controller
     }
 
     /**
+     * Рынки в виде БК: группа исходов, % ИИ суммируются в 100.
+     *
      * @param  array<string, mixed>  $match
      * @return list<array<string, mixed>>
      */
-    private function demoEventsForMatch(int $id, string $status, array $match): array
+    private function demoMarketsForMatch(int $id, string $status, array $match): array
     {
         $seed = abs($id * 17 + 3);
-        $base = [
-            ['id' => $id * 10 + 1, 'label' => 'Обе забьют — Да', 'prob' => 68, 'popular_pct' => 41],
-            ['id' => $id * 10 + 2, 'label' => 'ТБ 2.5', 'prob' => 61, 'popular_pct' => 28],
-            ['id' => $id * 10 + 3, 'label' => 'ТМ 3.5', 'prob' => 74, 'popular_pct' => 19],
-            ['id' => $id * 10 + 4, 'label' => 'П1', 'prob' => (int) ($match['prob_home'] ?? 42), 'popular_pct' => 22],
-            ['id' => $id * 10 + 5, 'label' => 'X', 'prob' => (int) ($match['prob_draw'] ?? 26), 'popular_pct' => 11],
-            ['id' => $id * 10 + 6, 'label' => 'П2', 'prob' => (int) ($match['prob_away'] ?? 32), 'popular_pct' => 18],
-            ['id' => $id * 10 + 7, 'label' => 'Угловые ТБ 9.5', 'prob' => 57, 'popular_pct' => 14],
-            ['id' => $id * 10 + 8, 'label' => 'Жёлтые ТБ 4.5', 'prob' => 53, 'popular_pct' => 9],
-            ['id' => $id * 10 + 9, 'label' => 'Тотал голов чет', 'prob' => 48, 'popular_pct' => 7],
-            ['id' => $id * 10 + 10, 'label' => 'Хозяева забьют', 'prob' => 79, 'popular_pct' => 16],
-            ['id' => $id * 10 + 11, 'label' => 'Гости забьют', 'prob' => 71, 'popular_pct' => 12],
-            ['id' => $id * 10 + 12, 'label' => 'ТМ 1.5', 'prob' => 22, 'popular_pct' => 5],
-        ];
+        $nudge = static fn (int $base, int $i): int => max(8, min(92, $base + ((($seed + $i * 13) % 9) - 4)));
+        $pop = static fn (int $base, int $i): int => max(3, min(55, $base + ((($seed + $i) % 5) - 2)));
 
-        // Лёгкий разброс по id, чтобы матчи не выглядели копией.
-        foreach ($base as $i => &$event) {
-            $nudge = (($seed + $i * 13) % 9) - 4;
-            $event['prob'] = max(8, min(92, $event['prob'] + $nudge));
-            $event['popular_pct'] = max(3, min(55, $event['popular_pct'] + (($seed + $i) % 5) - 2));
-            $event['hit'] = null;
+        $p1 = (int) ($match['prob_home'] ?? 42);
+        $px = (int) ($match['prob_draw'] ?? 26);
+        $p2 = (int) ($match['prob_away'] ?? 32);
+        // Нормализуем 1X2 к сумме 100 (на случай «кривых» демо).
+        $sum1x2 = max(1, $p1 + $px + $p2);
+        $p1 = (int) round($p1 * 100 / $sum1x2);
+        $px = (int) round($px * 100 / $sum1x2);
+        $p2 = 100 - $p1 - $px;
+
+        if ($id === 101) {
+            $markets = [
+                $this->demoMarket('1x2', 'Исход матча', [
+                    ['id' => $id * 100 + 1, 'label' => 'П1', 'prob' => 42, 'popular_pct' => 24],
+                    ['id' => $id * 100 + 2, 'label' => 'X', 'prob' => 27, 'popular_pct' => 12],
+                    ['id' => $id * 100 + 3, 'label' => 'П2', 'prob' => 31, 'popular_pct' => 19],
+                ]),
+                $this->demoBinaryMarket($id * 100 + 10, 'Обе забьют', 72, 44, 18),
+                $this->demoTotalMarket($id * 100 + 20, 'Тотал 1.5', 78, 16, 5),
+                $this->demoTotalMarket($id * 100 + 30, 'Тотал 2.5', 64, 31, 12),
+                $this->demoTotalMarket($id * 100 + 40, 'Тотал 3.5', 42, 17, 9),
+                $this->demoBinaryMarket($id * 100 + 50, 'Хозяева забьют', 79, 16, 6),
+                $this->demoBinaryMarket($id * 100 + 60, 'Гости забьют', 71, 12, 5),
+                $this->demoTotalMarket($id * 100 + 70, 'Угловые 9.5', 61, 15, 8),
+                $this->demoTotalMarket($id * 100 + 80, 'Жёлтые 4.5', 55, 10, 6),
+                $this->demoBinaryMarket($id * 100 + 90, 'Тотал голов · чёт/нечет', 48, 7, 5, 'Чёт', 'Нечет'),
+            ];
+        } else {
+            $markets = [
+                $this->demoMarket('1x2', 'Исход матча', [
+                    ['id' => $id * 100 + 1, 'label' => 'П1', 'prob' => $nudge($p1, 0), 'popular_pct' => $pop(22, 0)],
+                    ['id' => $id * 100 + 2, 'label' => 'X', 'prob' => $nudge($px, 1), 'popular_pct' => $pop(11, 1)],
+                    ['id' => $id * 100 + 3, 'label' => 'П2', 'prob' => $nudge($p2, 2), 'popular_pct' => $pop(18, 2)],
+                ]),
+                $this->demoBinaryMarket($id * 100 + 10, 'Обе забьют', $nudge(68, 3), $pop(41, 3), $pop(18, 4)),
+                $this->demoTotalMarket($id * 100 + 20, 'Тотал 1.5', $nudge(78, 4), $pop(16, 5), $pop(5, 6)),
+                $this->demoTotalMarket($id * 100 + 30, 'Тотал 2.5', $nudge(61, 5), $pop(28, 7), $pop(12, 8)),
+                $this->demoTotalMarket($id * 100 + 40, 'Тотал 3.5', $nudge(42, 6), $pop(19, 9), $pop(9, 10)),
+                $this->demoBinaryMarket($id * 100 + 50, 'Хозяева забьют', $nudge(79, 7), $pop(16, 11), $pop(6, 12)),
+                $this->demoBinaryMarket($id * 100 + 60, 'Гости забьют', $nudge(71, 8), $pop(12, 13), $pop(5, 14)),
+                $this->demoTotalMarket($id * 100 + 70, 'Угловые 9.5', $nudge(57, 9), $pop(14, 15), $pop(8, 16), null, 'ТБ', 'ТМ'),
+                $this->demoTotalMarket($id * 100 + 80, 'Жёлтые 4.5', $nudge(53, 10), $pop(9, 17), $pop(6, 18), null, 'ТБ', 'ТМ'),
+                $this->demoBinaryMarket($id * 100 + 90, 'Тотал голов · чёт/нечет', $nudge(48, 11), $pop(7, 19), $pop(5, 20), 'Чёт', 'Нечет'),
+            ];
+
+            // После nudge пересоберём 1X2 к сумме 100.
+            $o = &$markets[0]['outcomes'];
+            $s = max(1, $o[0]['prob'] + $o[1]['prob'] + $o[2]['prob']);
+            $o[0]['prob'] = (int) round($o[0]['prob'] * 100 / $s);
+            $o[1]['prob'] = (int) round($o[1]['prob'] * 100 / $s);
+            $o[2]['prob'] = 100 - $o[0]['prob'] - $o[1]['prob'];
+            unset($o);
         }
-        unset($event);
 
         if ($status === 'finished') {
-            foreach ($base as &$event) {
-                $event['hit'] = $event['prob'] >= 50
-                    ? (($seed + $event['id']) % 3 !== 0)
-                    : (($seed + $event['id']) % 4 === 0);
-            }
-            unset($event);
-        }
-
-        // Фирменный матч Зенит — Спартак: чуть более «продающие» цифры.
-        if ($id === 101) {
-            $map = [
-                'Обе забьют — Да' => [72, 44],
-                'ТБ 2.5' => [64, 31],
-                'ТМ 3.5' => [58, 17],
-                'П1' => [42, 24],
-                'X' => [27, 12],
-                'П2' => [31, 19],
-                'Угловые ТБ 9.5' => [61, 15],
-                'Жёлтые ТБ 4.5' => [55, 10],
-            ];
-            foreach ($base as &$event) {
-                if (isset($map[$event['label']])) {
-                    [$p, $pop] = $map[$event['label']];
-                    $event['prob'] = $p;
-                    $event['popular_pct'] = $pop;
+            foreach ($markets as &$market) {
+                foreach ($market['outcomes'] as &$outcome) {
+                    $outcome['hit'] = $outcome['prob'] >= 50
+                        ? (($seed + $outcome['id']) % 3 !== 0)
+                        : (($seed + $outcome['id']) % 4 === 0);
                 }
+                unset($outcome);
             }
-            unset($event);
+            unset($market);
         }
 
-        return $base;
+        return $markets;
+    }
+
+    /**
+     * @param  list<array{id: int, label: string, prob: int, popular_pct: int, hit?: bool|null}>  $outcomes
+     * @return array{id: string, name: string, outcomes: list<array<string, mixed>>, popular_pct: int}
+     */
+    private function demoMarket(string $id, string $name, array $outcomes): array
+    {
+        $normalized = [];
+        foreach ($outcomes as $outcome) {
+            $normalized[] = [
+                'id' => $outcome['id'],
+                'label' => $outcome['label'],
+                'prob' => (int) $outcome['prob'],
+                'popular_pct' => (int) ($outcome['popular_pct'] ?? 0),
+                'hit' => $outcome['hit'] ?? null,
+            ];
+        }
+
+        $popular = 0;
+        foreach ($normalized as $outcome) {
+            $popular = max($popular, $outcome['popular_pct']);
+        }
+
+        return [
+            'id' => $id,
+            'name' => $name,
+            'outcomes' => $normalized,
+            'popular_pct' => $popular,
+        ];
+    }
+
+    /**
+     * Бинарный рынок: Да/Нет (или свои лейблы), p + (100−p).
+     *
+     * @return array{id: string, name: string, outcomes: list<array<string, mixed>>, popular_pct: int}
+     */
+    private function demoBinaryMarket(
+        int $baseId,
+        string $name,
+        int $yesProb,
+        int $yesPopular,
+        int $noPopular,
+        string $yesLabel = 'Да',
+        string $noLabel = 'Нет',
+    ): array {
+        $yes = max(1, min(99, $yesProb));
+
+        return $this->demoMarket((string) $baseId, $name, [
+            ['id' => $baseId + 1, 'label' => $yesLabel, 'prob' => $yes, 'popular_pct' => $yesPopular],
+            ['id' => $baseId + 2, 'label' => $noLabel, 'prob' => 100 - $yes, 'popular_pct' => $noPopular],
+        ]);
+    }
+
+    /**
+     * Тотал ТБ/ТМ: overProb + underProb = 100.
+     *
+     * @return array{id: string, name: string, outcomes: list<array<string, mixed>>, popular_pct: int}
+     */
+    private function demoTotalMarket(
+        int $baseId,
+        string $name,
+        int $overProb,
+        int $overPopular,
+        int $underPopular,
+        ?int $underProb = null,
+        string $overLabel = 'ТБ',
+        string $underLabel = 'ТМ',
+    ): array {
+        $over = max(1, min(99, $overProb));
+        $under = $underProb === null ? (100 - $over) : max(1, min(99, $underProb));
+        if ($underProb !== null && ($over + $under) !== 100) {
+            $under = 100 - $over;
+        }
+
+        return $this->demoMarket((string) $baseId, $name, [
+            ['id' => $baseId + 1, 'label' => $overLabel, 'prob' => $over, 'popular_pct' => $overPopular],
+            ['id' => $baseId + 2, 'label' => $underLabel, 'prob' => $under, 'popular_pct' => $underPopular],
+        ]);
     }
 
     /**

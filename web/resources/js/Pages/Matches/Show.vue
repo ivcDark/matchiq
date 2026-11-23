@@ -6,7 +6,8 @@ import { computed, ref } from 'vue';
 const props = defineProps({
     match: { type: Object, required: true },
     preview: { type: String, default: null },
-    events: { type: Array, default: () => [] },
+    /** Рынки БК-вида: { id, name, popular_pct, outcomes: [{ id, label, prob, popular_pct, hit }] } */
+    markets: { type: Array, default: () => [] },
     comparison: { type: Array, default: () => [] },
     homeAway: { type: Object, default: () => ({ home: null, away: null }) },
     standings: { type: Array, default: () => [] },
@@ -47,14 +48,34 @@ const pickClosed = computed(() => {
     return status === 'live' || status === 'finished';
 });
 
-const filteredEvents = computed(() => {
-    const list = [...(props.events || [])];
+function marketMaxProb(market) {
+    const outcomes = market?.outcomes || [];
+    if (!outcomes.length) return 0;
+    return Math.max(...outcomes.map((o) => Number(o.prob) || 0));
+}
+
+function marketMinProb(market) {
+    const outcomes = market?.outcomes || [];
+    if (!outcomes.length) return 0;
+    return Math.min(...outcomes.map((o) => Number(o.prob) || 0));
+}
+
+function marketPopular(market) {
+    if (typeof market?.popular_pct === 'number') return market.popular_pct;
+    const outcomes = market?.outcomes || [];
+    if (!outcomes.length) return 0;
+    return Math.max(...outcomes.map((o) => Number(o.popular_pct) || 0));
+}
+
+/** Сортировка рынков: лучшие = max p; худшие = min p; популярные = popular. */
+const filteredMarkets = computed(() => {
+    const list = [...(props.markets || [])];
     if (activeFilter.value === 'worst') {
-        list.sort((a, b) => a.prob - b.prob);
+        list.sort((a, b) => marketMinProb(a) - marketMinProb(b));
     } else if (activeFilter.value === 'popular') {
-        list.sort((a, b) => (b.popular_pct ?? 0) - (a.popular_pct ?? 0));
+        list.sort((a, b) => marketPopular(b) - marketPopular(a));
     } else {
-        list.sort((a, b) => b.prob - a.prob);
+        list.sort((a, b) => marketMaxProb(b) - marketMaxProb(a));
     }
     return list;
 });
@@ -142,17 +163,21 @@ function absenceLabel(status) {
     return status === 'doubt' ? 'Сомнительно' : 'Вне заявки';
 }
 
-function onPick(event) {
+function onPick(outcome) {
     if (pickClosed.value) return;
     if (!user.value) {
         guestCtaOpen.value = true;
         return;
     }
-    localPickId.value = localPickId.value === event.id ? null : event.id;
+    localPickId.value = localPickId.value === outcome.id ? null : outcome.id;
 }
 
-function isPicked(eventId) {
-    return localPickId.value === eventId;
+function isPicked(outcomeId) {
+    return localPickId.value === outcomeId;
+}
+
+function marketHasPick(market) {
+    return (market?.outcomes || []).some((o) => isPicked(o.id));
 }
 
 function loginHref() {
@@ -296,7 +321,7 @@ function loginHref() {
                 </p>
             </section>
 
-            <!-- 3. Markets / events -->
+            <!-- 3. Markets (BK-style groups) -->
             <section
                 class="miq-panel animate-miq-fade-up"
                 style="animation-delay: 120ms"
@@ -304,14 +329,14 @@ function loginHref() {
             >
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">События</h2>
-                    <p class="text-[11px] font-medium text-miq-muted">0–100</p>
+                    <p class="text-[11px] font-medium text-miq-muted">рынки · % ИИ</p>
                 </div>
 
                 <div class="px-3 pt-3">
                     <div
                         class="inline-flex max-w-full flex-wrap rounded-md border border-miq-line/80 bg-white/60 p-0.5"
                         role="tablist"
-                        aria-label="Фильтр событий"
+                        aria-label="Фильтр рынков"
                     >
                         <button
                             v-for="f in filters"
@@ -327,7 +352,7 @@ function loginHref() {
                         </button>
                     </div>
                     <p class="mt-2 text-[11px] leading-snug text-miq-muted">
-                        1 событие на матч · больше баллов за смелый верный выбор (низкая вероятность)
+                        1 исход на матч · больше баллов за смелый верный выбор (низкая вероятность)
                     </p>
                     <p
                         v-if="pickClosed"
@@ -342,7 +367,7 @@ function loginHref() {
                     class="mx-3.5 mt-3 rounded-md border border-miq-pitch/25 bg-[color-mix(in_srgb,var(--miq-pitch)_8%,white)] px-3 py-2.5 text-sm text-miq-ink-soft"
                     role="status"
                 >
-                    Чтобы выбрать событие в рейтинг,
+                    Чтобы выбрать исход в рейтинг,
                     <Link :href="loginHref()" class="font-semibold text-miq-pitch underline-offset-2 hover:underline">
                         войдите
                     </Link>
@@ -353,53 +378,73 @@ function loginHref() {
                 </div>
 
                 <ul
-                    v-if="filteredEvents.length"
-                    class="mt-2 divide-y divide-miq-line/50"
+                    v-if="filteredMarkets.length"
+                    class="mt-3 space-y-2.5 px-3 pb-3.5"
                 >
                     <li
-                        v-for="event in filteredEvents"
-                        :key="event.id"
-                        class="miq-event-row"
-                        :class="{ 'is-picked': isPicked(event.id) }"
+                        v-for="market in filteredMarkets"
+                        :key="market.id"
+                        class="miq-market-card"
+                        :class="{ 'has-pick': marketHasPick(market) }"
                     >
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-semibold text-miq-ink">
-                                {{ event.label }}
-                            </p>
-                            <p class="mt-0.5 text-[11px] text-miq-muted">
-                                Выбрали {{ event.popular_pct }}%
-                                <span
-                                    v-if="event.hit === true"
-                                    class="ml-1 font-semibold text-miq-pitch"
-                                >· зашло</span>
-                                <span
-                                    v-else-if="event.hit === false"
-                                    class="ml-1 font-semibold text-miq-muted"
-                                >· мимо</span>
+                        <div class="miq-market-head">
+                            <h3 class="miq-market-name">{{ market.name }}</h3>
+                            <p
+                                v-if="marketPopular(market)"
+                                class="miq-market-pop"
+                            >
+                                топ {{ marketPopular(market) }}%
                             </p>
                         </div>
 
-                        <p class="miq-event-prob tabular-nums">
-                            {{ event.prob }}
-                            <span class="miq-event-prob-unit">%</span>
-                        </p>
-
-                        <button
-                            v-if="!pickClosed"
-                            type="button"
-                            class="miq-pick-btn"
-                            :class="{ 'is-active': isPicked(event.id) }"
-                            :aria-pressed="isPicked(event.id)"
-                            @click="onPick(event)"
+                        <div
+                            class="miq-outcome-grid"
+                            :class="{
+                                'is-triple': (market.outcomes || []).length === 3,
+                                'is-binary': (market.outcomes || []).length === 2,
+                            }"
+                            role="group"
+                            :aria-label="market.name"
                         >
-                            {{ isPicked(event.id) ? 'Выбрано' : 'Выбрать' }}
-                        </button>
-                        <span
-                            v-else-if="isPicked(event.id)"
-                            class="miq-pick-btn is-active is-locked"
-                        >
-                            Ваш pick
-                        </span>
+                            <div
+                                v-for="outcome in market.outcomes"
+                                :key="outcome.id"
+                                class="miq-outcome-cell"
+                                :class="{ 'is-picked': isPicked(outcome.id) }"
+                            >
+                                <p class="miq-outcome-label">{{ outcome.label }}</p>
+                                <p class="miq-outcome-prob tabular-nums">
+                                    {{ outcome.prob }}<span class="miq-outcome-unit">%</span>
+                                </p>
+                                <p class="miq-outcome-meta">
+                                    <span>выбрали {{ outcome.popular_pct }}%</span>
+                                    <span
+                                        v-if="outcome.hit === true"
+                                        class="miq-outcome-hit is-yes"
+                                    >· зашло</span>
+                                    <span
+                                        v-else-if="outcome.hit === false"
+                                        class="miq-outcome-hit"
+                                    >· мимо</span>
+                                </p>
+                                <button
+                                    v-if="!pickClosed"
+                                    type="button"
+                                    class="miq-pick-btn miq-outcome-pick"
+                                    :class="{ 'is-active': isPicked(outcome.id) }"
+                                    :aria-pressed="isPicked(outcome.id)"
+                                    @click="onPick(outcome)"
+                                >
+                                    {{ isPicked(outcome.id) ? 'Выбрано' : 'Выбрать' }}
+                                </button>
+                                <span
+                                    v-else-if="isPicked(outcome.id)"
+                                    class="miq-pick-btn miq-outcome-pick is-active is-locked"
+                                >
+                                    Ваш pick
+                                </span>
+                            </div>
+                        </div>
                     </li>
                 </ul>
                 <div
