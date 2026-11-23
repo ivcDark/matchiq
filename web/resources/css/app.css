@@ -15,6 +15,11 @@
     --miq-line: #c5d6cc;
     --miq-warn: #b45309;
     --miq-live: #c2410c;
+    /* Мягкие акценты чипов 1X2 / рынка */
+    --miq-chip-home: #1f7a4c;
+    --miq-chip-draw: #a16207;
+    --miq-chip-away: #0f766e;
+    --miq-chip-market: #3f6212;
 }
 
 @layer base {
@@ -378,17 +383,77 @@
     }
 
     .miq-result-probs {
-        @apply flex flex-wrap items-center gap-x-1 text-[12px] font-semibold tabular-nums;
-        color: var(--miq-ink-soft);
+        @apply mt-1.5 flex flex-wrap items-center gap-1;
     }
 
-    .miq-result-probs .is-top {
-        color: var(--miq-pitch-deep);
+    .miq-odds-chip {
+        @apply inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 leading-none;
+        border-color: transparent;
     }
 
-    .miq-result-sep {
-        @apply font-medium;
-        color: var(--miq-muted);
+    .miq-odds-chip .miq-odds-label {
+        @apply text-[9px] font-bold uppercase tracking-wide;
+        opacity: 0.78;
+    }
+
+    .miq-odds-chip .miq-odds-val {
+        @apply text-[11px] font-bold tabular-nums;
+    }
+
+    .miq-odds-chip.is-home {
+        color: var(--miq-chip-home);
+        background: color-mix(in srgb, var(--miq-chip-home) 12%, white);
+        border-color: color-mix(in srgb, var(--miq-chip-home) 22%, white);
+    }
+
+    .miq-odds-chip.is-draw {
+        color: var(--miq-chip-draw);
+        background: color-mix(in srgb, var(--miq-chip-draw) 12%, white);
+        border-color: color-mix(in srgb, var(--miq-chip-draw) 22%, white);
+    }
+
+    .miq-odds-chip.is-away {
+        color: var(--miq-chip-away);
+        background: color-mix(in srgb, var(--miq-chip-away) 12%, white);
+        border-color: color-mix(in srgb, var(--miq-chip-away) 22%, white);
+    }
+
+    .miq-odds-chip.is-top {
+        box-shadow: inset 0 -1.5px 0 color-mix(in srgb, currentColor 55%, transparent);
+    }
+
+    .miq-odds-chip.is-home.is-top {
+        background: color-mix(in srgb, var(--miq-chip-home) 18%, white);
+        border-color: color-mix(in srgb, var(--miq-chip-home) 38%, white);
+    }
+
+    .miq-odds-chip.is-draw.is-top {
+        background: color-mix(in srgb, var(--miq-chip-draw) 18%, white);
+        border-color: color-mix(in srgb, var(--miq-chip-draw) 38%, white);
+    }
+
+    .miq-odds-chip.is-away.is-top {
+        background: color-mix(in srgb, var(--miq-chip-away) 18%, white);
+        border-color: color-mix(in srgb, var(--miq-chip-away) 38%, white);
+    }
+
+    .miq-market-chip {
+        @apply inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 leading-none;
+        color: var(--miq-chip-market);
+        background: color-mix(in srgb, var(--miq-lime) 28%, white);
+        border-color: color-mix(in srgb, var(--miq-chip-market) 28%, white);
+    }
+
+    .miq-market-chip .miq-market-label {
+        @apply truncate text-[10px] font-semibold;
+    }
+
+    .miq-market-chip .miq-market-dot {
+        @apply shrink-0 text-[10px] font-semibold opacity-70;
+    }
+
+    .miq-market-chip .miq-odds-val {
+        @apply shrink-0 text-[11px] font-bold tabular-nums;
     }
 
     .miq-rank {

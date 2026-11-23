@@ -907,29 +907,40 @@ const listKey = computed(
                                                             <span class="font-medium text-miq-muted">—</span>
                                                             {{ match.away }}
                                                         </p>
-                                                        <p
+                                                        <div
                                                             v-if="hasResultProbs(match)"
-                                                            class="miq-result-probs mt-1.5"
+                                                            class="miq-result-probs"
+                                                            role="group"
                                                             :aria-label="`П1 ${match.prob_home}% · X ${match.prob_draw}% · П2 ${match.prob_away}%`"
                                                         >
                                                             <span
+                                                                class="miq-odds-chip is-home"
                                                                 :class="{
                                                                     'is-top': resultProbMaxKey(match) === 'home',
                                                                 }"
-                                                            >{{ match.prob_home }}%</span>
-                                                            <span class="miq-result-sep" aria-hidden="true">/</span>
+                                                            >
+                                                                <span class="miq-odds-label">П1</span>
+                                                                <span class="miq-odds-val">{{ match.prob_home }}%</span>
+                                                            </span>
                                                             <span
+                                                                class="miq-odds-chip is-draw"
                                                                 :class="{
                                                                     'is-top': resultProbMaxKey(match) === 'draw',
                                                                 }"
-                                                            >{{ match.prob_draw }}%</span>
-                                                            <span class="miq-result-sep" aria-hidden="true">/</span>
+                                                            >
+                                                                <span class="miq-odds-label">X</span>
+                                                                <span class="miq-odds-val">{{ match.prob_draw }}%</span>
+                                                            </span>
                                                             <span
+                                                                class="miq-odds-chip is-away"
                                                                 :class="{
                                                                     'is-top': resultProbMaxKey(match) === 'away',
                                                                 }"
-                                                            >{{ match.prob_away }}%</span>
-                                                        </p>
+                                                            >
+                                                                <span class="miq-odds-label">П2</span>
+                                                                <span class="miq-odds-val">{{ match.prob_away }}%</span>
+                                                            </span>
+                                                        </div>
                                                     </div>
 
                                                     <div class="flex shrink-0 flex-col items-end gap-1 text-right">
@@ -941,11 +952,11 @@ const listKey = computed(
                                                         </p>
                                                         <span
                                                             v-if="topMarket(match)"
-                                                            class="miq-prob"
+                                                            class="miq-market-chip"
                                                         >
-                                                            {{ topMarket(match).label }}
-                                                            ·
-                                                            {{ topMarket(match).prob }}%
+                                                            <span class="miq-market-label">{{ topMarket(match).label }}</span>
+                                                            <span class="miq-market-dot" aria-hidden="true">·</span>
+                                                            <span class="miq-odds-val">{{ topMarket(match).prob }}%</span>
                                                         </span>
                                                         <span
                                                             v-else-if="!scoreText(match)"
