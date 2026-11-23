@@ -572,48 +572,70 @@ class MatchController extends Controller
     }
 
     /**
-     * @return list<array{pos: int, team: string, played: int, gd: int, pts: int, highlight: bool}>
+     * Мини-таблица: И, В, Н, ЗП, ПР, +/−, О + highlight обеих команд матча.
+     *
+     * @return list<array{pos: int, team: string, played: int, wins: int, draws: int, gf: int, ga: int, gd: int, pts: int, highlight: bool}>
      */
     private function demoMiniStandings(string $home, string $away, string $leagueId): array
     {
         if ($leagueId === 'ucl') {
             $rows = [
-                ['pos' => 1, 'team' => 'Bayern', 'played' => 4, 'gd' => 7, 'pts' => 10],
-                ['pos' => 2, 'team' => 'Real Madrid', 'played' => 4, 'gd' => 5, 'pts' => 9],
-                ['pos' => 3, 'team' => 'Man City', 'played' => 4, 'gd' => 4, 'pts' => 8],
-                ['pos' => 4, 'team' => 'Inter', 'played' => 4, 'gd' => 3, 'pts' => 7],
-                ['pos' => 5, 'team' => 'Arsenal', 'played' => 4, 'gd' => 2, 'pts' => 7],
-                ['pos' => 6, 'team' => 'PSG', 'played' => 4, 'gd' => 1, 'pts' => 6],
+                ['pos' => 1, 'team' => 'Bayern', 'played' => 4, 'wins' => 3, 'draws' => 1, 'gf' => 10, 'ga' => 3, 'gd' => 7, 'pts' => 10],
+                ['pos' => 2, 'team' => 'Real Madrid', 'played' => 4, 'wins' => 3, 'draws' => 0, 'gf' => 9, 'ga' => 4, 'gd' => 5, 'pts' => 9],
+                ['pos' => 3, 'team' => 'Man City', 'played' => 4, 'wins' => 2, 'draws' => 2, 'gf' => 8, 'ga' => 4, 'gd' => 4, 'pts' => 8],
+                ['pos' => 4, 'team' => 'Inter', 'played' => 4, 'wins' => 2, 'draws' => 1, 'gf' => 7, 'ga' => 4, 'gd' => 3, 'pts' => 7],
+                ['pos' => 5, 'team' => 'Arsenal', 'played' => 4, 'wins' => 2, 'draws' => 1, 'gf' => 6, 'ga' => 4, 'gd' => 2, 'pts' => 7],
+                ['pos' => 6, 'team' => 'PSG', 'played' => 4, 'wins' => 2, 'draws' => 0, 'gf' => 5, 'ga' => 4, 'gd' => 1, 'pts' => 6],
             ];
         } elseif ($leagueId === 'fnl') {
             $rows = [
-                ['pos' => 1, 'team' => 'Балтика', 'played' => 16, 'gd' => 12, 'pts' => 32],
-                ['pos' => 2, 'team' => 'Урал', 'played' => 16, 'gd' => 8, 'pts' => 29],
-                ['pos' => 3, 'team' => 'Черноморец', 'played' => 16, 'gd' => 5, 'pts' => 27],
-                ['pos' => 4, 'team' => 'Ротор', 'played' => 16, 'gd' => 2, 'pts' => 24],
-                ['pos' => 5, 'team' => 'СКА-Хабаровск', 'played' => 16, 'gd' => 0, 'pts' => 22],
-                ['pos' => 6, 'team' => 'Нефтехимик', 'played' => 16, 'gd' => -1, 'pts' => 20],
+                ['pos' => 1, 'team' => 'Балтика', 'played' => 16, 'wins' => 10, 'draws' => 2, 'gf' => 28, 'ga' => 16, 'gd' => 12, 'pts' => 32],
+                ['pos' => 2, 'team' => 'Урал', 'played' => 16, 'wins' => 9, 'draws' => 2, 'gf' => 24, 'ga' => 16, 'gd' => 8, 'pts' => 29],
+                ['pos' => 3, 'team' => 'Черноморец', 'played' => 16, 'wins' => 8, 'draws' => 3, 'gf' => 22, 'ga' => 17, 'gd' => 5, 'pts' => 27],
+                ['pos' => 4, 'team' => 'Ротор', 'played' => 16, 'wins' => 7, 'draws' => 3, 'gf' => 19, 'ga' => 17, 'gd' => 2, 'pts' => 24],
+                ['pos' => 5, 'team' => 'СКА-Хабаровск', 'played' => 16, 'wins' => 6, 'draws' => 4, 'gf' => 18, 'ga' => 18, 'gd' => 0, 'pts' => 22],
+                ['pos' => 6, 'team' => 'Нефтехимик', 'played' => 16, 'wins' => 5, 'draws' => 5, 'gf' => 17, 'ga' => 18, 'gd' => -1, 'pts' => 20],
             ];
         } else {
             $rows = [
-                ['pos' => 1, 'team' => 'Зенит', 'played' => 14, 'gd' => 18, 'pts' => 34],
-                ['pos' => 2, 'team' => 'Краснодар', 'played' => 14, 'gd' => 14, 'pts' => 31],
-                ['pos' => 3, 'team' => 'Спартак', 'played' => 14, 'gd' => 10, 'pts' => 28],
-                ['pos' => 4, 'team' => 'ЦСКА', 'played' => 14, 'gd' => 8, 'pts' => 26],
-                ['pos' => 5, 'team' => 'Динамо', 'played' => 14, 'gd' => 5, 'pts' => 24],
-                ['pos' => 6, 'team' => 'Локомотив', 'played' => 14, 'gd' => 3, 'pts' => 22],
-                ['pos' => 7, 'team' => 'Ростов', 'played' => 14, 'gd' => 1, 'pts' => 20],
-                ['pos' => 8, 'team' => 'Рубин', 'played' => 14, 'gd' => -2, 'pts' => 18],
+                ['pos' => 1, 'team' => 'Зенит', 'played' => 14, 'wins' => 11, 'draws' => 1, 'gf' => 32, 'ga' => 14, 'gd' => 18, 'pts' => 34],
+                ['pos' => 2, 'team' => 'Краснодар', 'played' => 14, 'wins' => 9, 'draws' => 4, 'gf' => 28, 'ga' => 14, 'gd' => 14, 'pts' => 31],
+                ['pos' => 3, 'team' => 'Спартак', 'played' => 14, 'wins' => 8, 'draws' => 4, 'gf' => 26, 'ga' => 16, 'gd' => 10, 'pts' => 28],
+                ['pos' => 4, 'team' => 'ЦСКА', 'played' => 14, 'wins' => 7, 'draws' => 5, 'gf' => 24, 'ga' => 16, 'gd' => 8, 'pts' => 26],
+                ['pos' => 5, 'team' => 'Динамо', 'played' => 14, 'wins' => 7, 'draws' => 3, 'gf' => 22, 'ga' => 17, 'gd' => 5, 'pts' => 24],
+                ['pos' => 6, 'team' => 'Локомотив', 'played' => 14, 'wins' => 6, 'draws' => 4, 'gf' => 20, 'ga' => 17, 'gd' => 3, 'pts' => 22],
+                ['pos' => 7, 'team' => 'Ростов', 'played' => 14, 'wins' => 5, 'draws' => 5, 'gf' => 18, 'ga' => 17, 'gd' => 1, 'pts' => 20],
+                ['pos' => 8, 'team' => 'Рубин', 'played' => 14, 'wins' => 5, 'draws' => 3, 'gf' => 16, 'ga' => 18, 'gd' => -2, 'pts' => 18],
             ];
         }
 
         // Гарантируем, что обе команды видны: если нет — подмешиваем рядом.
         $names = collect($rows)->pluck('team');
         if (! $names->contains($home)) {
-            $rows[] = ['pos' => count($rows) + 1, 'team' => $home, 'played' => 14, 'gd' => 0, 'pts' => 16];
+            $rows[] = [
+                'pos' => count($rows) + 1,
+                'team' => $home,
+                'played' => 14,
+                'wins' => 4,
+                'draws' => 4,
+                'gf' => 16,
+                'ga' => 16,
+                'gd' => 0,
+                'pts' => 16,
+            ];
         }
         if (! $names->contains($away) && $away !== $home) {
-            $rows[] = ['pos' => count($rows) + 1, 'team' => $away, 'played' => 14, 'gd' => -1, 'pts' => 14];
+            $rows[] = [
+                'pos' => count($rows) + 1,
+                'team' => $away,
+                'played' => 14,
+                'wins' => 4,
+                'draws' => 2,
+                'gf' => 14,
+                'ga' => 15,
+                'gd' => -1,
+                'pts' => 14,
+            ];
         }
 
         $homePos = null;

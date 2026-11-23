@@ -794,14 +794,18 @@ function loginHref() {
                         <p class="truncate text-xs text-miq-muted">{{ match.league_short }}</p>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[15rem] text-left text-sm">
+                        <table class="w-full min-w-[22rem] text-left text-sm">
                             <thead>
                                 <tr class="border-b border-miq-line/60 text-[10px] uppercase tracking-wider text-miq-muted">
-                                    <th class="px-3 py-2 font-semibold">#</th>
+                                    <th class="px-2 py-2 font-semibold sm:px-3">#</th>
                                     <th class="px-1 py-2 font-semibold">Команда</th>
-                                    <th class="px-2 py-2 text-right font-semibold">И</th>
-                                    <th class="px-2 py-2 text-right font-semibold">РМ</th>
-                                    <th class="px-3 py-2 text-right font-semibold">О</th>
+                                    <th class="px-1.5 py-2 text-right font-semibold" title="Игры">И</th>
+                                    <th class="px-1.5 py-2 text-right font-semibold" title="Победы">В</th>
+                                    <th class="px-1.5 py-2 text-right font-semibold" title="Ничьи">Н</th>
+                                    <th class="px-1.5 py-2 text-right font-semibold" title="Забитые">ЗП</th>
+                                    <th class="px-1.5 py-2 text-right font-semibold" title="Пропущенные">ПР</th>
+                                    <th class="px-1.5 py-2 text-right font-semibold" title="Разница">+/−</th>
+                                    <th class="px-2 py-2 text-right font-semibold sm:px-3" title="Очки">О</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -811,7 +815,7 @@ function loginHref() {
                                     class="border-b border-miq-line/40 last:border-0"
                                     :class="{ 'miq-table-highlight': row.highlight }"
                                 >
-                                    <td class="px-3 py-2">
+                                    <td class="px-2 py-2 sm:px-3">
                                         <span class="miq-rank" :class="{ 'is-top': row.pos <= 3 }">
                                             {{ row.pos }}
                                         </span>
@@ -819,13 +823,25 @@ function loginHref() {
                                     <td class="truncate px-1 py-2 font-medium text-miq-ink">
                                         {{ row.team }}
                                     </td>
-                                    <td class="px-2 py-2 text-right tabular-nums text-miq-muted">
+                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
                                         {{ row.played }}
                                     </td>
-                                    <td class="px-2 py-2 text-right tabular-nums text-miq-muted">
+                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                        {{ row.wins }}
+                                    </td>
+                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                        {{ row.draws }}
+                                    </td>
+                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                        {{ row.gf }}
+                                    </td>
+                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                        {{ row.ga }}
+                                    </td>
+                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
                                         {{ row.gd > 0 ? `+${row.gd}` : row.gd }}
                                     </td>
-                                    <td class="px-3 py-2 text-right font-semibold tabular-nums text-miq-ink">
+                                    <td class="px-2 py-2 text-right font-semibold tabular-nums text-miq-ink sm:px-3">
                                         {{ row.pts }}
                                     </td>
                                 </tr>
