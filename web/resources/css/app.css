@@ -1063,7 +1063,7 @@
     }
 
     .miq-compare-ab-grid {
-        @apply grid gap-3 px-3.5 pb-3 pt-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(12rem,0.9fr)] lg:items-start;
+        @apply grid gap-3 px-3.5 pb-3 pt-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(13.5rem,0.95fr)] lg:items-stretch;
     }
 
     .miq-compare-ab-bars {
@@ -1071,13 +1071,40 @@
     }
 
     .miq-compare-ab-donuts {
-        @apply rounded-md border px-2.5 py-2.5;
+        @apply flex h-full min-h-0 flex-col rounded-md border px-3 py-3;
         border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
         background: color-mix(in srgb, white 70%, var(--miq-mist));
     }
 
     .miq-compare-ab-donuts-title {
-        @apply mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-miq-muted;
+        @apply mb-1 shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-miq-muted;
+    }
+
+    .miq-compare-ab-donuts-list {
+        @apply flex flex-1 flex-col justify-evenly gap-3;
+    }
+
+    .miq-compare-ab-donut-item {
+        @apply flex flex-col items-center justify-center py-1;
+    }
+
+    .miq-compare-ab-donut-item .miq-donut-metric-label {
+        @apply mb-2 text-[11px] font-semibold normal-case tracking-normal text-miq-ink-soft;
+    }
+
+    .miq-pie-side {
+        @apply h-[4.25rem] w-[4.25rem] sm:h-[4.75rem] sm:w-[4.75rem];
+    }
+
+    @media (min-width: 1024px) {
+        .miq-pie-side {
+            width: 5.5rem;
+            height: 5.5rem;
+        }
+    }
+
+    .miq-pie-vals-side {
+        @apply gap-2.5 text-xs sm:text-[13px];
     }
 
     .miq-compare-row {

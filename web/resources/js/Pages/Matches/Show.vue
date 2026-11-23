@@ -864,10 +864,10 @@ function loginHref() {
             <section
                 class="miq-panel animate-miq-fade-up"
                 style="animation-delay: 160ms"
-                aria-label="Сравнение за 5 матчей"
+                aria-label="Последние 5 матчей"
             >
                 <div class="miq-panel-head">
-                    <h2 class="miq-panel-title">Сравнение · последние 5</h2>
+                    <h2 class="miq-panel-title">Последние 5 матчей</h2>
                     <p class="truncate text-[10px] font-medium text-miq-muted">
                         цвета команд · шкала от нормы
                     </p>
@@ -981,15 +981,15 @@ function loginHref() {
 
                     <div class="miq-compare-ab-donuts" aria-label="Круги для процентов">
                         <p class="miq-compare-ab-donuts-title">Только %</p>
-                        <ul class="space-y-3">
+                        <ul class="miq-compare-ab-donuts-list">
                             <li
                                 v-for="row in percentComparison"
                                 :key="`b-pie-${comparePeriod}-${row.key}`"
-                                class="miq-donut-metric"
+                                class="miq-donut-metric miq-compare-ab-donut-item"
                             >
                                 <p class="miq-donut-metric-label">{{ row.label }}</p>
                                 <div class="miq-pie-block">
-                                    <svg class="miq-pie" viewBox="0 0 40 40" aria-hidden="true">
+                                    <svg class="miq-pie miq-pie-side" viewBox="0 0 40 40" aria-hidden="true">
                                         <path
                                             class="miq-pie-slice is-team-home"
                                             :d="pieSlices(row).homePath"
@@ -999,7 +999,7 @@ function loginHref() {
                                             :d="pieSlices(row).awayPath"
                                         />
                                     </svg>
-                                    <div class="miq-pie-vals tabular-nums">
+                                    <div class="miq-pie-vals miq-pie-vals-side tabular-nums">
                                         <span class="is-team-home">{{ formatStat(row.home, '%') }}</span>
                                         <span class="is-team-away">{{ formatStat(row.away, '%') }}</span>
                                     </div>
