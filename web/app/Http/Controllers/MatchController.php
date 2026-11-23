@@ -883,54 +883,212 @@ class MatchController extends Controller
     }
 
     /**
-     * @return list<array{player: string, goals: int, assists?: int}>
+     * Топ-5 бомбардиров команды: голы, передачи, пенальти (входят в голы), Г+П.
+     *
+     * @return list<array{player: string, goals: int, assists: int, pens: int, ga: int}>
      */
     private function demoTeamScorers(string $team, int $id, string $side): array
     {
         $catalog = [
             'Зенит' => [
-                ['player' => 'М. Глушенков', 'goals' => 11, 'assists' => 4],
-                ['player' => 'М. Кассьерра', 'goals' => 8, 'assists' => 2],
-                ['player' => 'Вендел', 'goals' => 5, 'assists' => 6],
+                ['player' => 'М. Глушенков', 'goals' => 11, 'assists' => 4, 'pens' => 2],
+                ['player' => 'М. Кассьерра', 'goals' => 8, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Вендел', 'goals' => 5, 'assists' => 6, 'pens' => 0],
+                ['player' => 'А. Мостовой', 'goals' => 4, 'assists' => 3, 'pens' => 0],
+                ['player' => 'Н. Гонду', 'goals' => 3, 'assists' => 2, 'pens' => 1],
             ],
             'Спартак' => [
-                ['player' => 'Т. Барко', 'goals' => 8, 'assists' => 5],
-                ['player' => 'Э. Промес', 'goals' => 6, 'assists' => 3],
-                ['player' => 'М. Угальде', 'goals' => 5, 'assists' => 2],
+                ['player' => 'Т. Барко', 'goals' => 8, 'assists' => 5, 'pens' => 1],
+                ['player' => 'Э. Промес', 'goals' => 6, 'assists' => 3, 'pens' => 2],
+                ['player' => 'М. Угальде', 'goals' => 5, 'assists' => 2, 'pens' => 0],
+                ['player' => 'Х. Медина', 'goals' => 4, 'assists' => 4, 'pens' => 0],
+                ['player' => 'Р. Литвинов', 'goals' => 3, 'assists' => 3, 'pens' => 0],
             ],
             'ЦСКА' => [
-                ['player' => 'И. Обляков', 'goals' => 7, 'assists' => 4],
-                ['player' => 'В. Давила', 'goals' => 5, 'assists' => 2],
-                ['player' => 'Т. Мусаев', 'goals' => 4, 'assists' => 1],
+                ['player' => 'И. Обляков', 'goals' => 7, 'assists' => 4, 'pens' => 1],
+                ['player' => 'В. Давила', 'goals' => 5, 'assists' => 2, 'pens' => 0],
+                ['player' => 'Т. Мусаев', 'goals' => 4, 'assists' => 1, 'pens' => 1],
+                ['player' => 'С. Гуардадо', 'goals' => 3, 'assists' => 5, 'pens' => 0],
+                ['player' => 'К. Фаядов', 'goals' => 3, 'assists' => 2, 'pens' => 0],
             ],
             'Динамо' => [
-                ['player' => 'К. Тюкавин', 'goals' => 7, 'assists' => 3],
-                ['player' => 'Б. Захарян', 'goals' => 4, 'assists' => 5],
-                ['player' => 'Я. Гладышев', 'goals' => 4, 'assists' => 2],
+                ['player' => 'К. Тюкавин', 'goals' => 7, 'assists' => 3, 'pens' => 2],
+                ['player' => 'Б. Захарян', 'goals' => 4, 'assists' => 5, 'pens' => 0],
+                ['player' => 'Я. Гладышев', 'goals' => 4, 'assists' => 2, 'pens' => 0],
+                ['player' => 'Н. Моро', 'goals' => 3, 'assists' => 4, 'pens' => 0],
+                ['player' => 'Л. Карраскаль', 'goals' => 2, 'assists' => 3, 'pens' => 1],
+            ],
+            'Краснодар' => [
+                ['player' => 'Дж. Кордоба', 'goals' => 9, 'assists' => 2, 'pens' => 2],
+                ['player' => 'Э. Сперанцон', 'goals' => 6, 'assists' => 4, 'pens' => 0],
+                ['player' => 'К. Олусегун', 'goals' => 5, 'assists' => 1, 'pens' => 1],
+                ['player' => 'А. Кривцов', 'goals' => 3, 'assists' => 3, 'pens' => 0],
+                ['player' => 'Э. Ахметов', 'goals' => 2, 'assists' => 4, 'pens' => 0],
+            ],
+            'Локомотив' => [
+                ['player' => 'Т. Батраков', 'goals' => 7, 'assists' => 3, 'pens' => 1],
+                ['player' => 'Д. Воробьёв', 'goals' => 5, 'assists' => 2, 'pens' => 2],
+                ['player' => 'С. Пиняев', 'goals' => 4, 'assists' => 5, 'pens' => 0],
+                ['player' => 'Н. Тикнизян', 'goals' => 3, 'assists' => 2, 'pens' => 0],
+                ['player' => 'А. Баринов', 'goals' => 2, 'assists' => 3, 'pens' => 0],
+            ],
+            'Ростов' => [
+                ['player' => 'Р. Голенков', 'goals' => 6, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Е. Голенков', 'goals' => 4, 'assists' => 3, 'pens' => 0],
+                ['player' => 'К. Щетинин', 'goals' => 3, 'assists' => 4, 'pens' => 0],
+                ['player' => 'Н. Комличенко', 'goals' => 5, 'assists' => 1, 'pens' => 2],
+                ['player' => 'И. Вахания', 'goals' => 2, 'assists' => 2, 'pens' => 0],
+            ],
+            'Рубин' => [
+                ['player' => 'М. Дрейер', 'goals' => 6, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Д. Кабутов', 'goals' => 4, 'assists' => 3, 'pens' => 0],
+                ['player' => 'И. Васильевич', 'goals' => 3, 'assists' => 2, 'pens' => 0],
+                ['player' => 'А. Зотове', 'goals' => 3, 'assists' => 4, 'pens' => 0],
+                ['player' => 'Н. Кузяев', 'goals' => 2, 'assists' => 1, 'pens' => 1],
+            ],
+            'Крылья Советов' => [
+                ['player' => 'Б. Гарре', 'goals' => 7, 'assists' => 3, 'pens' => 1],
+                ['player' => 'И. Сергеев', 'goals' => 5, 'assists' => 1, 'pens' => 2],
+                ['player' => 'Ф. Ороско', 'goals' => 4, 'assists' => 4, 'pens' => 0],
+                ['player' => 'А. Рахманович', 'goals' => 3, 'assists' => 2, 'pens' => 0],
+                ['player' => 'Д. Цуприн', 'goals' => 2, 'assists' => 3, 'pens' => 0],
+            ],
+            'Пари НН' => [
+                ['player' => 'З. Кехрия', 'goals' => 6, 'assists' => 2, 'pens' => 1],
+                ['player' => 'А. Емельянов', 'goals' => 4, 'assists' => 3, 'pens' => 0],
+                ['player' => 'Н. Калинский', 'goals' => 3, 'assists' => 4, 'pens' => 0],
+                ['player' => 'Д. Стрельцов', 'goals' => 3, 'assists' => 1, 'pens' => 1],
+                ['player' => 'И. Маевский', 'goals' => 2, 'assists' => 2, 'pens' => 0],
+            ],
+            'Оренбург' => [
+                ['player' => 'Д. Воробьёв', 'goals' => 5, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Д. Пасич', 'goals' => 4, 'assists' => 3, 'pens' => 0],
+                ['player' => 'Д. Гогулев', 'goals' => 3, 'assists' => 2, 'pens' => 0],
+                ['player' => 'А. Марихин', 'goals' => 3, 'assists' => 1, 'pens' => 1],
+                ['player' => 'К. Капленко', 'goals' => 2, 'assists' => 3, 'pens' => 0],
+            ],
+            'Ахмат' => [
+                ['player' => 'М. Коновалов', 'goals' => 5, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Л. Садулаев', 'goals' => 4, 'assists' => 3, 'pens' => 0],
+                ['player' => 'А. Адамов', 'goals' => 3, 'assists' => 2, 'pens' => 0],
+                ['player' => 'Н. Феликс', 'goals' => 3, 'assists' => 1, 'pens' => 1],
+                ['player' => 'И. Бершадский', 'goals' => 2, 'assists' => 2, 'pens' => 0],
+            ],
+            'Балтика' => [
+                ['player' => 'А. Дутов', 'goals' => 6, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Г. Лисакович', 'goals' => 5, 'assists' => 1, 'pens' => 2],
+                ['player' => 'К. Ковалёв', 'goals' => 3, 'assists' => 4, 'pens' => 0],
+                ['player' => 'Д. Радисавлевич', 'goals' => 3, 'assists' => 2, 'pens' => 0],
+                ['player' => 'Н. Титов', 'goals' => 2, 'assists' => 3, 'pens' => 0],
+            ],
+            'Урал' => [
+                ['player' => 'А. Бегич', 'goals' => 5, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Е. Аверьянов', 'goals' => 4, 'assists' => 3, 'pens' => 0],
+                ['player' => 'И. Помазун', 'goals' => 0, 'assists' => 1, 'pens' => 0],
+                ['player' => 'Д. Мишкич', 'goals' => 3, 'assists' => 2, 'pens' => 0],
+                ['player' => 'А. Емельянов', 'goals' => 3, 'assists' => 4, 'pens' => 1],
             ],
             'Real Madrid' => [
-                ['player' => 'K. Mbappé', 'goals' => 9, 'assists' => 3],
-                ['player' => 'V. Júnior', 'goals' => 6, 'assists' => 5],
-                ['player' => 'J. Bellingham', 'goals' => 4, 'assists' => 4],
+                ['player' => 'К. Мбаппе', 'goals' => 9, 'assists' => 3, 'pens' => 2],
+                ['player' => 'В. Жуниор', 'goals' => 6, 'assists' => 5, 'pens' => 0],
+                ['player' => 'Дж. Беллингем', 'goals' => 4, 'assists' => 4, 'pens' => 0],
+                ['player' => 'Р. Диас', 'goals' => 3, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Ф. Вальверде', 'goals' => 2, 'assists' => 3, 'pens' => 0],
             ],
             'Man City' => [
-                ['player' => 'E. Haaland', 'goals' => 11, 'assists' => 2],
-                ['player' => 'P. Foden', 'goals' => 5, 'assists' => 4],
-                ['player' => 'J. Álvarez', 'goals' => 4, 'assists' => 3],
+                ['player' => 'Э. Холанн', 'goals' => 11, 'assists' => 2, 'pens' => 3],
+                ['player' => 'Ф. Фоден', 'goals' => 5, 'assists' => 4, 'pens' => 0],
+                ['player' => 'Х. Альварес', 'goals' => 4, 'assists' => 3, 'pens' => 1],
+                ['player' => 'К. Де Брёйне', 'goals' => 2, 'assists' => 6, 'pens' => 0],
+                ['player' => 'Б. Силва', 'goals' => 3, 'assists' => 2, 'pens' => 0],
+            ],
+            'Bayern' => [
+                ['player' => 'Г. Кане', 'goals' => 10, 'assists' => 3, 'pens' => 2],
+                ['player' => 'Дж. Мусиала', 'goals' => 5, 'assists' => 5, 'pens' => 0],
+                ['player' => 'Л. Сане', 'goals' => 4, 'assists' => 3, 'pens' => 0],
+                ['player' => 'Т. Мюллер', 'goals' => 3, 'assists' => 4, 'pens' => 0],
+                ['player' => 'М. Олисе', 'goals' => 3, 'assists' => 2, 'pens' => 1],
+            ],
+            'PSG' => [
+                ['player' => 'О. Дембеле', 'goals' => 8, 'assists' => 4, 'pens' => 1],
+                ['player' => 'Б. Баркола', 'goals' => 5, 'assists' => 3, 'pens' => 0],
+                ['player' => 'В. Перейра', 'goals' => 4, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Ф. Руис', 'goals' => 3, 'assists' => 5, 'pens' => 0],
+                ['player' => 'А. Акали', 'goals' => 2, 'assists' => 2, 'pens' => 0],
+            ],
+            'Inter' => [
+                ['player' => 'Л. Мартинес', 'goals' => 9, 'assists' => 2, 'pens' => 2],
+                ['player' => 'М. Тюрам', 'goals' => 6, 'assists' => 3, 'pens' => 0],
+                ['player' => 'Н. Барелла', 'goals' => 3, 'assists' => 5, 'pens' => 0],
+                ['player' => 'Х. Мхитарян', 'goals' => 2, 'assists' => 4, 'pens' => 0],
+                ['player' => 'Ф. Димерко', 'goals' => 4, 'assists' => 1, 'pens' => 1],
+            ],
+            'Arsenal' => [
+                ['player' => 'Б. Сака', 'goals' => 7, 'assists' => 5, 'pens' => 1],
+                ['player' => 'К. Ака', 'goals' => 6, 'assists' => 2, 'pens' => 0],
+                ['player' => 'М. Эдегор', 'goals' => 3, 'assists' => 6, 'pens' => 0],
+                ['player' => 'Г. Жезус', 'goals' => 4, 'assists' => 2, 'pens' => 1],
+                ['player' => 'Д. Райс', 'goals' => 2, 'assists' => 3, 'pens' => 0],
             ],
         ];
 
-        if (isset($catalog[$team])) {
-            return $catalog[$team];
+        $rows = $catalog[$team] ?? $this->demoFallbackScorers($team, $id, $side);
+
+        $normalized = [];
+        foreach ($rows as $row) {
+            $goals = (int) ($row['goals'] ?? 0);
+            $assists = (int) ($row['assists'] ?? 0);
+            $pens = min($goals, (int) ($row['pens'] ?? 0));
+            $normalized[] = [
+                'player' => (string) $row['player'],
+                'goals' => $goals,
+                'assists' => $assists,
+                'pens' => $pens,
+                'ga' => $goals + $assists,
+            ];
         }
 
-        $base = 4 + ($id % 5);
+        usort($normalized, static function (array $a, array $b): int {
+            if ($a['ga'] !== $b['ga']) {
+                return $b['ga'] <=> $a['ga'];
+            }
+            if ($a['goals'] !== $b['goals']) {
+                return $b['goals'] <=> $a['goals'];
+            }
 
-        return [
-            ['player' => $side === 'home' ? "Форвард {$team}" : "Нападающий {$team}", 'goals' => $base, 'assists' => 2],
-            ['player' => "Полузащитник {$team}", 'goals' => max(2, $base - 2), 'assists' => 3],
-            ['player' => "Вингер {$team}", 'goals' => max(1, $base - 3), 'assists' => 1],
+            return $b['assists'] <=> $a['assists'];
+        });
+
+        return array_slice($normalized, 0, 5);
+    }
+
+    /**
+     * @return list<array{player: string, goals: int, assists: int, pens: int}>
+     */
+    private function demoFallbackScorers(string $team, int $id, string $side): array
+    {
+        $names = [
+            'А. Иванов', 'Д. Смирнов', 'И. Кузнецов', 'М. Попов', 'Н. Соколов',
+            'С. Лебедев', 'П. Козлов', 'Е. Новиков', 'В. Морозов', 'К. Петров',
+            'Р. Волков', 'Т. Алексеев', 'Ю. Фёдоров', 'Л. Михайлов', 'Г. Орлов',
         ];
+        $offset = abs(($id * 3) + ($side === 'home' ? 0 : 7)) % count($names);
+        $base = 5 + ($id % 4);
+
+        $rows = [];
+        for ($i = 0; $i < 5; $i++) {
+            $goals = max(1, $base - $i);
+            $assists = max(0, 4 - intdiv($i, 1) + (($id + $i) % 3));
+            $pens = $i === 0 ? min(2, $goals) : ($i === 1 ? min(1, $goals) : 0);
+            $rows[] = [
+                'player' => $names[($offset + $i) % count($names)],
+                'goals' => $goals,
+                'assists' => $assists,
+                'pens' => $pens,
+            ];
+        }
+
+        return $rows;
     }
 
     /**

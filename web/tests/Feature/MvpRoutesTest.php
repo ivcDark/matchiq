@@ -157,6 +157,13 @@ class MvpRoutesTest extends TestCase
                 ->where('formBlocks.0.matches.0.competition', 'РПЛ')
                 ->has('formBlocks.0.matches.0.ht_home')
                 ->has('formBlocks.0.matches.0.ht_away')
+                ->has('scorers.home', 5)
+                ->has('scorers.away', 5)
+                ->where('scorers.home.0.player', 'М. Глушенков')
+                ->where('scorers.home.0.goals', 11)
+                ->where('scorers.home.0.assists', 4)
+                ->where('scorers.home.0.pens', 2)
+                ->where('scorers.home.0.ga', 15)
                 ->where('userPickEventId', null));
     }
 

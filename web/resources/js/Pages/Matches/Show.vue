@@ -331,6 +331,57 @@ function formHtText(match) {
     return `(${match.ht_home}∶${match.ht_away})`;
 }
 
+/**
+ * Топ бомбардиров команды, отсортированный по Г+П / голам.
+ * @param {Array} rows
+ */
+function sortedScorers(rows) {
+    const list = [...(rows || [])].map((row) => {
+        const goals = Number(row.goals) || 0;
+        const assists = Number(row.assists) || 0;
+        const pens = Math.min(goals, Number(row.pens) || 0);
+        const ga = typeof row.ga === 'number' ? row.ga : goals + assists;
+        return { ...row, goals, assists, pens, ga };
+    });
+    list.sort((a, b) => {
+        if (b.ga !== a.ga) return b.ga - a.ga;
+        if (b.goals !== a.goals) return b.goals - a.goals;
+        return b.assists - a.assists;
+    });
+    return list.slice(0, 5);
+}
+
+function scorerLeaders(rows) {
+    const list = sortedScorers(rows);
+    if (!list.length) {
+        return { goals: null, assists: null, pens: null, ga: null };
+    }
+    const maxOf = (key) => Math.max(...list.map((r) => Number(r[key]) || 0));
+    return {
+        goals: maxOf('goals'),
+        assists: maxOf('assists'),
+        pens: maxOf('pens'),
+        ga: maxOf('ga'),
+    };
+}
+
+const scorerTables = computed(() => [
+    {
+        key: 'home',
+        team: props.match?.home || 'Хозяева',
+        tone: 'home',
+        rows: sortedScorers(props.scorers?.home),
+        leaders: scorerLeaders(props.scorers?.home),
+    },
+    {
+        key: 'away',
+        team: props.match?.away || 'Гости',
+        tone: 'away',
+        rows: sortedScorers(props.scorers?.away),
+        leaders: scorerLeaders(props.scorers?.away),
+    },
+]);
+
 /** Карточки формы с активным фильтром турнира и сводкой. */
 const formBlockViews = computed(() => {
     return (props.formBlocks || []).map((block) => {
@@ -1195,134 +1246,156 @@ function loginHref() {
                 </div>
             </section>
 
-            <!-- 5 + 6: standings + scorers -->
-            <div class="grid gap-5 lg:grid-cols-2 lg:gap-6">
-                <section class="miq-panel" aria-label="Мини-таблица">
-                    <div class="miq-panel-head">
-                        <h2 class="miq-panel-title">Таблица</h2>
-                        <p class="truncate text-xs text-miq-muted">{{ match.league_short }}</p>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full min-w-[26rem] text-left text-sm">
-                            <thead>
-                                <tr class="border-b border-miq-line/60 text-[10px] uppercase tracking-wider text-miq-muted">
-                                    <th class="px-2 py-2 font-semibold sm:px-3">#</th>
-                                    <th class="px-1 py-2 font-semibold">Команда</th>
-                                    <th class="px-1.5 py-2 text-right font-semibold" title="Игры">И</th>
-                                    <th class="px-1.5 py-2 text-right font-semibold" title="Победы">В</th>
-                                    <th class="px-1.5 py-2 text-right font-semibold" title="Ничьи">Н</th>
-                                    <th class="px-1.5 py-2 text-right font-semibold" title="Забитые">ЗП</th>
-                                    <th class="px-1.5 py-2 text-right font-semibold" title="Пропущенные">ПР</th>
-                                    <th class="px-1.5 py-2 text-right font-semibold" title="Разница">+/−</th>
-                                    <th class="px-1.5 py-2 text-right font-semibold" title="Очки">О</th>
-                                    <th class="px-1.5 py-2 text-right font-semibold" title="Очки за игру">О/И</th>
-                                    <th class="px-2 py-2 text-right font-semibold sm:px-3" title="Форма · последние 5">Ф</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr
-                                    v-for="row in standings"
-                                    :key="row.pos"
-                                    class="border-b border-miq-line/40 last:border-0"
-                                    :class="{ 'miq-table-highlight': row.highlight }"
-                                >
-                                    <td class="px-2 py-2 sm:px-3">
-                                        <span class="miq-rank" :class="{ 'is-top': row.pos <= 3 }">
-                                            {{ row.pos }}
-                                        </span>
-                                    </td>
-                                    <td class="truncate px-1 py-2 font-medium text-miq-ink">
-                                        {{ row.team }}
-                                    </td>
-                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
-                                        {{ row.played }}
-                                    </td>
-                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
-                                        {{ row.wins }}
-                                    </td>
-                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
-                                        {{ row.draws }}
-                                    </td>
-                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
-                                        {{ row.gf }}
-                                    </td>
-                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
-                                        {{ row.ga }}
-                                    </td>
-                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
-                                        {{ row.gd > 0 ? `+${row.gd}` : row.gd }}
-                                    </td>
-                                    <td class="px-1.5 py-2 text-right font-semibold tabular-nums text-miq-ink">
-                                        {{ row.pts }}
-                                    </td>
-                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
-                                        {{ row.ppg != null ? formatStat(row.ppg) : '—' }}
-                                    </td>
-                                    <td class="px-2 py-2 text-right sm:px-3">
-                                        <span
-                                            v-if="row.form"
-                                            class="miq-table-form tabular-nums"
-                                            :title="`Форма: ${row.form}`"
-                                        >{{ row.form }}</span>
-                                        <span v-else class="text-miq-muted">—</span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+            <!-- 5. Standings -->
+            <section class="miq-panel" aria-label="Мини-таблица">
+                <div class="miq-panel-head">
+                    <h2 class="miq-panel-title">Таблица</h2>
+                    <p class="truncate text-xs text-miq-muted">{{ match.league_short }}</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[26rem] text-left text-sm">
+                        <thead>
+                            <tr class="border-b border-miq-line/60 text-[10px] uppercase tracking-wider text-miq-muted">
+                                <th class="px-2 py-2 font-semibold sm:px-3">#</th>
+                                <th class="px-1 py-2 font-semibold">Команда</th>
+                                <th class="px-1.5 py-2 text-right font-semibold" title="Игры">И</th>
+                                <th class="px-1.5 py-2 text-right font-semibold" title="Победы">В</th>
+                                <th class="px-1.5 py-2 text-right font-semibold" title="Ничьи">Н</th>
+                                <th class="px-1.5 py-2 text-right font-semibold" title="Забитые">ЗП</th>
+                                <th class="px-1.5 py-2 text-right font-semibold" title="Пропущенные">ПР</th>
+                                <th class="px-1.5 py-2 text-right font-semibold" title="Разница">+/−</th>
+                                <th class="px-1.5 py-2 text-right font-semibold" title="Очки">О</th>
+                                <th class="px-1.5 py-2 text-right font-semibold" title="Очки за игру">О/И</th>
+                                <th class="px-2 py-2 text-right font-semibold sm:px-3" title="Форма · последние 5">Ф</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="row in standings"
+                                :key="row.pos"
+                                class="border-b border-miq-line/40 last:border-0"
+                                :class="{ 'miq-table-highlight': row.highlight }"
+                            >
+                                <td class="px-2 py-2 sm:px-3">
+                                    <span class="miq-rank" :class="{ 'is-top': row.pos <= 3 }">
+                                        {{ row.pos }}
+                                    </span>
+                                </td>
+                                <td class="truncate px-1 py-2 font-medium text-miq-ink">
+                                    {{ row.team }}
+                                </td>
+                                <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                    {{ row.played }}
+                                </td>
+                                <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                    {{ row.wins }}
+                                </td>
+                                <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                    {{ row.draws }}
+                                </td>
+                                <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                    {{ row.gf }}
+                                </td>
+                                <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                    {{ row.ga }}
+                                </td>
+                                <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                    {{ row.gd > 0 ? `+${row.gd}` : row.gd }}
+                                </td>
+                                <td class="px-1.5 py-2 text-right font-semibold tabular-nums text-miq-ink">
+                                    {{ row.pts }}
+                                </td>
+                                <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                    {{ row.ppg != null ? formatStat(row.ppg) : '—' }}
+                                </td>
+                                <td class="px-2 py-2 text-right sm:px-3">
+                                    <span
+                                        v-if="row.form"
+                                        class="miq-table-form tabular-nums"
+                                        :title="`Форма: ${row.form}`"
+                                    >{{ row.form }}</span>
+                                    <span v-else class="text-miq-muted">—</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
-                <section class="miq-panel" aria-label="Бомбардиры команд">
-                    <div class="miq-panel-head">
-                        <h2 class="miq-panel-title">Бомбардиры</h2>
-                        <p class="text-xs text-miq-muted">по командам</p>
-                    </div>
-                    <div class="grid gap-3 px-3.5 py-3 sm:grid-cols-2">
-                        <div>
-                            <p class="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-miq-pitch">
-                                {{ match.home }}
-                            </p>
-                            <ul class="space-y-2">
-                                <li
-                                    v-for="(row, idx) in scorers.home"
-                                    :key="`sh-${idx}`"
-                                    class="flex items-baseline justify-between gap-2 text-sm"
-                                >
-                                    <span class="min-w-0 truncate font-medium text-miq-ink">{{ row.player }}</span>
-                                    <span class="shrink-0 font-bold tabular-nums text-miq-pitch-deep">
-                                        {{ row.goals }}
-                                        <span
-                                            v-if="row.assists != null"
-                                            class="font-medium text-miq-muted"
-                                        >+{{ row.assists }}</span>
-                                    </span>
-                                </li>
-                            </ul>
+            <!-- 6. Scorers — две таблицы по командам -->
+            <section class="miq-panel" aria-label="Бомбардиры команд">
+                <div class="miq-panel-head">
+                    <h2 class="miq-panel-title">Бомбардиры</h2>
+                    <p class="text-xs text-miq-muted">топ-5 · по Г+П</p>
+                </div>
+                <div class="miq-scorers-grid">
+                    <div
+                        v-for="table in scorerTables"
+                        :key="table.key"
+                        class="miq-scorers-team"
+                    >
+                        <p
+                            class="miq-scorers-team-title"
+                            :class="table.tone === 'home' ? 'is-team-home' : 'is-team-away'"
+                        >
+                            {{ table.team }}
+                        </p>
+                        <div class="overflow-x-auto">
+                            <table class="miq-scorers-table">
+                                <thead>
+                                    <tr>
+                                        <th class="is-player" title="Игрок">Игрок</th>
+                                        <th title="Голы (включая пенальти)">Гол</th>
+                                        <th title="Голевые передачи">ГП</th>
+                                        <th title="Голы с пенальти (входят в Гол)">Пен</th>
+                                        <th title="Голы + голевые передачи">Г+П</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr
+                                        v-for="(row, idx) in table.rows"
+                                        :key="`${table.key}-${row.player}-${idx}`"
+                                        :class="{ 'is-alt': idx % 2 === 1 }"
+                                    >
+                                        <td class="is-player">
+                                            <span class="truncate">{{ row.player }}</span>
+                                        </td>
+                                        <td
+                                            class="tabular-nums"
+                                            :class="{ 'is-lead': row.goals === table.leaders.goals && table.leaders.goals > 0 }"
+                                        >
+                                            {{ row.goals }}
+                                        </td>
+                                        <td
+                                            class="tabular-nums"
+                                            :class="{ 'is-lead': row.assists === table.leaders.assists && table.leaders.assists > 0 }"
+                                        >
+                                            {{ row.assists }}
+                                        </td>
+                                        <td
+                                            class="tabular-nums"
+                                            :class="{ 'is-lead': row.pens === table.leaders.pens && table.leaders.pens > 0 }"
+                                        >
+                                            {{ row.pens }}
+                                        </td>
+                                        <td
+                                            class="tabular-nums is-ga"
+                                            :class="{ 'is-lead': row.ga === table.leaders.ga && table.leaders.ga > 0 }"
+                                        >
+                                            {{ row.ga }}
+                                        </td>
+                                    </tr>
+                                    <tr v-if="table.rows.length === 0">
+                                        <td colspan="5" class="miq-scorers-empty">
+                                            Нет данных
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-                        <div>
-                            <p class="mb-1.5 text-[11px] font-bold uppercase tracking-wide" style="color: var(--miq-chip-away)">
-                                {{ match.away }}
-                            </p>
-                            <ul class="space-y-2">
-                                <li
-                                    v-for="(row, idx) in scorers.away"
-                                    :key="`sa-${idx}`"
-                                    class="flex items-baseline justify-between gap-2 text-sm"
-                                >
-                                    <span class="min-w-0 truncate font-medium text-miq-ink">{{ row.player }}</span>
-                                    <span class="shrink-0 font-bold tabular-nums text-miq-pitch-deep">
-                                        {{ row.goals }}
-                                        <span
-                                            v-if="row.assists != null"
-                                            class="font-medium text-miq-muted"
-                                        >+{{ row.assists }}</span>
-                                    </span>
-                                </li>
-                            </ul>
-                        </div>
                     </div>
-                </section>
-            </div>
+                </div>
+            </section>
 
             <!-- 7. Absences -->
             <section class="miq-panel" aria-label="Потери">

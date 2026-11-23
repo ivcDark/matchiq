@@ -721,6 +721,72 @@
         letter-spacing: 0.04em;
     }
 
+    /* Бомбардиры — две таблицы по командам */
+    .miq-scorers-grid {
+        @apply grid gap-4 px-3 pb-3.5 pt-1 sm:px-3.5 lg:grid-cols-2 lg:gap-5;
+    }
+
+    .miq-scorers-team-title {
+        @apply mb-2 truncate text-[12px] font-bold tracking-wide;
+        color: var(--miq-ink-soft);
+    }
+
+    .miq-scorers-team-title.is-team-home {
+        color: var(--miq-team-home-ink);
+    }
+
+    .miq-scorers-team-title.is-team-away {
+        color: var(--miq-team-away-ink);
+    }
+
+    .miq-scorers-table {
+        @apply w-full min-w-[18rem] border-collapse text-left text-sm;
+    }
+
+    .miq-scorers-table thead tr {
+        @apply text-[10px] font-semibold uppercase tracking-wider text-miq-muted;
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-scorers-table th {
+        @apply px-1.5 py-2 text-right font-semibold;
+    }
+
+    .miq-scorers-table th.is-player {
+        @apply pl-0 text-left;
+    }
+
+    .miq-scorers-table td {
+        @apply px-1.5 py-1.5 text-right text-miq-ink-soft;
+    }
+
+    .miq-scorers-table td.is-player {
+        @apply max-w-[9rem] pl-0 text-left font-medium text-miq-ink sm:max-w-[12rem];
+    }
+
+    .miq-scorers-table td.is-player span {
+        @apply block truncate;
+    }
+
+    .miq-scorers-table tbody tr.is-alt {
+        background: color-mix(in srgb, var(--miq-mist-deep) 50%, white);
+    }
+
+    .miq-scorers-table td.is-ga {
+        @apply font-semibold text-miq-ink;
+    }
+
+    .miq-scorers-table td.is-lead {
+        color: var(--miq-pitch-deep);
+        background: color-mix(in srgb, var(--miq-lime) 28%, transparent);
+        border-radius: 0.25rem;
+        font-weight: 700;
+    }
+
+    .miq-scorers-empty {
+        @apply py-4 text-center text-sm text-miq-muted;
+    }
+
     /* Карточки формы (5 блоков last-5) */
     .miq-form-block-card .miq-form-card-head {
         @apply flex flex-col items-stretch gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between;
