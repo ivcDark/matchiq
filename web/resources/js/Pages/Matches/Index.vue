@@ -526,7 +526,7 @@ function showSoonHint() {
 function statusLabel(status) {
     if (status === 'live') return 'Идёт';
     if (status === 'finished') return 'Завершён';
-    return 'Ожидается';
+    return 'Ждём';
 }
 
 /** Внутри лиги: не начались → идут → завершены. */
