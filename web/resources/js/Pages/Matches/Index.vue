@@ -33,12 +33,10 @@ const mobileWidgetTabs = [
     { id: 'news', label: 'Новости' },
 ];
 
-/** Сворачивать страны, если лиг много (не плоская бесконечная сетка). */
-const COLLAPSE_THRESHOLD = 6;
-
 const soonHint = ref(null);
 const mobileWidget = ref('standings');
-const openCountries = ref({});
+/** Активная страна в горизонтальных табах (не аккордеон). */
+const activeCountry = ref(null);
 let soonTimer = null;
 
 const liveLeagueIds = computed(
@@ -53,35 +51,6 @@ const leagueById = computed(() => {
     return map;
 });
 
-const useCollapsibleCountries = computed(
-    () => props.leagues.length >= COLLAPSE_THRESHOLD,
-);
-
-const leaguesByCountry = computed(() => {
-    const order = [];
-    const map = new Map();
-
-    for (const league of props.leagues) {
-        const country = league.country || 'Другие';
-        if (!map.has(country)) {
-            const group = {
-                country,
-                leagues: [],
-                hasLive: false,
-            };
-            map.set(country, group);
-            order.push(group);
-        }
-        const group = map.get(country);
-        group.leagues.push(league);
-        if (league.status === 'live') {
-            group.hasLive = true;
-        }
-    }
-
-    return order;
-});
-
 const isAllMode = computed(
     () => props.selectedLeagues.length === 1 && props.selectedLeagues[0] === 'all',
 );
@@ -92,6 +61,44 @@ const selectedLeagueIds = computed(() => {
     }
     return props.selectedLeagues.filter((id) => liveLeagueIds.value.has(id));
 });
+
+const leaguesByCountry = computed(() => {
+    const order = [];
+    const map = new Map();
+    const selected = new Set(selectedLeagueIds.value);
+
+    for (const league of props.leagues) {
+        const country = league.country || 'Другие';
+        if (!map.has(country)) {
+            const group = {
+                country,
+                leagues: [],
+                hasLive: false,
+                selectedCount: 0,
+            };
+            map.set(country, group);
+            order.push(group);
+        }
+        const group = map.get(country);
+        group.leagues.push(league);
+        if (league.status === 'live') {
+            group.hasLive = true;
+        }
+        if (selected.has(league.id)) {
+            group.selectedCount += 1;
+        }
+    }
+
+    return order;
+});
+
+const activeCountryGroup = computed(
+    () => leaguesByCountry.value.find((g) => g.country === activeCountry.value) ?? null,
+);
+
+const activeCountryLeagues = computed(
+    () => activeCountryGroup.value?.leagues ?? [],
+);
 
 const selectedChips = computed(() => {
     if (isAllMode.value) {
@@ -188,39 +195,45 @@ function isLeagueSelected(leagueId) {
     return selectedLeagueIds.value.includes(leagueId);
 }
 
-function initOpenCountries() {
-    const next = {};
-    for (const group of leaguesByCountry.value) {
-        const selectedHere = group.leagues.some((l) => isLeagueSelected(l.id));
-        // Live-страны и страна выбранной лиги открыты; «скоро»-только — свёрнуты при коллапсе.
-        next[group.country] = !useCollapsibleCountries.value
-            || group.hasLive
-            || selectedHere;
+function pickDefaultCountry() {
+    const groups = leaguesByCountry.value;
+    if (groups.length === 0) {
+        return null;
     }
-    openCountries.value = next;
+
+    // Страна первой выбранной лиги, иначе первая live, иначе первая в списке.
+    for (const id of selectedLeagueIds.value) {
+        const league = leagueById.value.get(id);
+        if (league?.country) {
+            return league.country;
+        }
+    }
+
+    const liveGroup = groups.find((g) => g.hasLive);
+    return liveGroup?.country ?? groups[0].country;
+}
+
+function syncActiveCountry() {
+    const groups = leaguesByCountry.value;
+    if (groups.length === 0) {
+        activeCountry.value = null;
+        return;
+    }
+
+    const stillValid = groups.some((g) => g.country === activeCountry.value);
+    if (!stillValid) {
+        activeCountry.value = pickDefaultCountry();
+    }
 }
 
 watch(
-    () => [props.leagues, props.selectedLeagues, useCollapsibleCountries.value],
-    () => initOpenCountries(),
+    () => [props.leagues, props.selectedLeagues],
+    () => syncActiveCountry(),
     { immediate: true },
 );
 
-function toggleCountry(country) {
-    if (!useCollapsibleCountries.value) {
-        return;
-    }
-    openCountries.value = {
-        ...openCountries.value,
-        [country]: !openCountries.value[country],
-    };
-}
-
-function isCountryOpen(country) {
-    if (!useCollapsibleCountries.value) {
-        return true;
-    }
-    return Boolean(openCountries.value[country]);
+function setActiveCountry(country) {
+    activeCountry.value = country;
 }
 
 function selectAll() {
@@ -376,7 +389,7 @@ const listKey = computed(
         <section class="animate-miq-fade-up" style="animation-delay: 60ms" aria-label="Лиги">
             <div class="miq-panel">
                 <div
-                    class="miq-selected-chips px-3 pt-3"
+                    class="miq-selected-chips px-3 pt-2.5"
                     role="list"
                     aria-label="Выбранные турниры"
                 >
@@ -408,115 +421,86 @@ const listKey = computed(
                     >
                         {{ soonHint }}
                     </p>
-                    <p v-else class="text-xs text-miq-muted">
-                        Мультивыбор · «Все» · «скоро»
-                    </p>
                 </div>
 
                 <div
-                    class="miq-league-menu animate-miq-stagger p-3"
+                    class="miq-league-picker animate-miq-stagger"
                     role="listbox"
                     aria-label="Переключатель лиг"
                     aria-multiselectable="true"
                 >
-                    <button
-                        type="button"
-                        role="option"
-                        class="miq-league-all"
-                        :class="{ 'is-active': isAllMode }"
-                        :aria-selected="isAllMode"
-                        @click="selectAll"
-                    >
-                        <span class="min-w-0">
-                            <span class="block font-semibold text-miq-ink">Все</span>
-                            <span class="mt-0.5 block text-[11px] font-medium text-miq-muted">
-                                Активные лиги
+                    <div class="miq-league-nav" role="tablist" aria-label="Страны">
+                        <button
+                            type="button"
+                            role="option"
+                            class="miq-league-all"
+                            :class="{ 'is-active': isAllMode }"
+                            :aria-selected="isAllMode"
+                            @click="selectAll"
+                        >
+                            Все
+                        </button>
+
+                        <div class="miq-league-nav-sep" aria-hidden="true" />
+
+                        <button
+                            v-for="group in leaguesByCountry"
+                            :key="group.country"
+                            type="button"
+                            role="tab"
+                            class="miq-league-tab"
+                            :class="{
+                                'is-active': activeCountry === group.country,
+                                'has-pick': group.selectedCount > 0,
+                            }"
+                            :aria-selected="activeCountry === group.country"
+                            @click="setActiveCountry(group.country)"
+                        >
+                            <span>{{ group.country }}</span>
+                            <span
+                                v-if="group.selectedCount > 0"
+                                class="miq-league-tab-count"
+                                aria-hidden="true"
+                            >
+                                {{ group.selectedCount }}
                             </span>
-                        </span>
-                        <span
-                            v-if="isAllMode"
-                            class="h-1.5 w-1.5 shrink-0 rounded-full bg-miq-pitch"
-                            aria-hidden="true"
-                        />
-                    </button>
+                            <span
+                                v-else-if="group.hasLive"
+                                class="miq-league-tab-dot"
+                                aria-hidden="true"
+                            />
+                        </button>
+                    </div>
 
                     <div
-                        v-for="group in leaguesByCountry"
-                        :key="group.country"
-                        class="miq-league-country"
+                        v-if="activeCountryGroup"
+                        class="miq-league-pills"
+                        role="group"
+                        :aria-label="activeCountryGroup.country"
                     >
                         <button
-                            v-if="useCollapsibleCountries"
+                            v-for="league in activeCountryLeagues"
+                            :key="league.id"
                             type="button"
-                            class="miq-league-country-toggle"
-                            :aria-expanded="isCountryOpen(group.country)"
-                            @click="toggleCountry(group.country)"
+                            role="option"
+                            class="miq-league-pill"
+                            :class="{
+                                'is-active': isLeagueSelected(league.id) && league.status === 'live',
+                                'is-soon': league.status === 'soon',
+                            }"
+                            :aria-selected="isLeagueSelected(league.id)"
+                            :aria-disabled="league.status === 'soon'"
+                            :title="league.name"
+                            @click="selectLeague(league)"
                         >
-                            <span class="text-[11px] font-semibold uppercase tracking-[0.14em]">
-                                {{ group.country }}
-                            </span>
-                            <span class="flex items-center gap-2">
-                                <span
-                                    v-if="group.hasLive"
-                                    class="rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-pitch-deep"
-                                    style="background: color-mix(in srgb, var(--miq-pitch) 12%, white)"
-                                >
-                                    Live
-                                </span>
-                                <span
-                                    class="text-miq-muted transition"
-                                    :class="{ 'rotate-180': isCountryOpen(group.country) }"
-                                    aria-hidden="true"
-                                >
-                                    ▾
-                                </span>
+                            <span class="truncate">{{ league.short || league.name }}</span>
+                            <span
+                                v-if="league.status === 'soon'"
+                                class="miq-league-pill-soon"
+                            >
+                                скоро
                             </span>
                         </button>
-                        <p v-else class="miq-league-country-head">
-                            {{ group.country }}
-                        </p>
-
-                        <div
-                            v-show="isCountryOpen(group.country)"
-                            class="miq-league-country-grid"
-                            role="group"
-                            :aria-label="group.country"
-                        >
-                            <button
-                                v-for="league in group.leagues"
-                                :key="league.id"
-                                type="button"
-                                role="option"
-                                class="miq-league-item"
-                                :class="{
-                                    'is-active': isLeagueSelected(league.id) && league.status === 'live',
-                                    'is-soon': league.status === 'soon',
-                                }"
-                                :aria-selected="isLeagueSelected(league.id)"
-                                :aria-disabled="league.status === 'soon'"
-                                @click="selectLeague(league)"
-                            >
-                                <span class="min-w-0">
-                                    <span class="block truncate font-semibold text-miq-ink">
-                                        {{ league.short || league.name }}
-                                    </span>
-                                    <span class="mt-0.5 block truncate text-[11px] font-medium text-miq-muted">
-                                        {{ league.name }}
-                                    </span>
-                                </span>
-                                <span
-                                    v-if="league.status === 'soon'"
-                                    class="shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted"
-                                >
-                                    Скоро
-                                </span>
-                                <span
-                                    v-else-if="isLeagueSelected(league.id)"
-                                    class="h-1.5 w-1.5 shrink-0 rounded-full bg-miq-pitch"
-                                    aria-hidden="true"
-                                />
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
