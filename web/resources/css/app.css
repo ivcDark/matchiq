@@ -382,26 +382,61 @@
         color: var(--miq-pitch-deep);
     }
 
-    .miq-match-teams {
-        @apply flex flex-col gap-1.5;
+    /* Classic scoreboard: time | sticks Home — score — Away sticks | bets */
+    .miq-match-row-inner {
+        @apply flex items-center gap-3;
     }
 
-    .miq-team-block {
-        @apply min-w-0;
+    .miq-match-time {
+        @apply w-12 shrink-0 self-start pt-0.5 text-center;
+    }
+
+    .miq-match-main {
+        @apply flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5;
+    }
+
+    .miq-match-scoreline {
+        @apply flex min-w-0 items-center gap-2;
+        flex: 1 1 13rem;
+    }
+
+    .miq-side {
+        @apply flex min-w-0 items-center gap-1.5;
+        flex: 1 1 0;
+    }
+
+    .miq-side--home {
+        @apply justify-end text-right;
+    }
+
+    .miq-side--away {
+        @apply justify-start text-left;
     }
 
     .miq-team-name {
-        @apply truncate;
+        @apply min-w-0 truncate;
+    }
+
+    .miq-match-score {
+        @apply flex w-11 shrink-0 items-center justify-center;
+    }
+
+    .miq-match-score-val {
+        @apply font-display text-base font-bold tabular-nums leading-none text-miq-ink sm:text-lg;
+    }
+
+    .miq-match-score-dash {
+        @apply text-base font-semibold leading-none text-miq-muted;
     }
 
     .miq-form-sticks {
-        @apply mt-0.5 flex items-center gap-[3px];
+        @apply flex shrink-0 items-center gap-[3px];
     }
 
     .miq-form-stick {
         display: inline-block;
         width: 3px;
-        height: 11px;
+        height: 12px;
         border-radius: 1px;
         flex-shrink: 0;
     }
@@ -418,8 +453,14 @@
         background: #dc2626;
     }
 
+    /* If bets don't fit right of teams, wrap under the scoreline */
+    .miq-match-bets {
+        @apply ml-auto flex flex-wrap items-center justify-end gap-1.5;
+        flex: 0 1 auto;
+    }
+
     .miq-result-probs {
-        @apply flex flex-wrap items-center justify-end gap-1;
+        @apply flex flex-nowrap items-center justify-end gap-1;
     }
 
     .miq-odds-chip {
