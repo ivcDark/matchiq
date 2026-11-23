@@ -382,8 +382,41 @@
         color: var(--miq-pitch-deep);
     }
 
+    .miq-form-sticks {
+        @apply mt-1.5 flex flex-wrap items-center gap-1.5;
+    }
+
+    .miq-form-row {
+        @apply flex items-center gap-[3px];
+    }
+
+    .miq-form-sep {
+        @apply h-2.5 w-px shrink-0;
+        background: color-mix(in srgb, var(--miq-line) 85%, transparent);
+    }
+
+    .miq-form-stick {
+        display: inline-block;
+        width: 3px;
+        height: 11px;
+        border-radius: 1px;
+        flex-shrink: 0;
+    }
+
+    .miq-form-stick.is-w {
+        background: #16a34a;
+    }
+
+    .miq-form-stick.is-d {
+        background: #ca8a04;
+    }
+
+    .miq-form-stick.is-l {
+        background: #dc2626;
+    }
+
     .miq-result-probs {
-        @apply mt-1.5 flex flex-wrap items-center gap-1;
+        @apply flex flex-wrap items-center justify-end gap-1;
     }
 
     .miq-odds-chip {

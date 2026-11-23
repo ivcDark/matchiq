@@ -572,6 +572,32 @@ function hasResultProbs(match) {
     );
 }
 
+/** Последние результаты команды: W / D / L (демо-массивы с бэка). */
+function formResults(match, side) {
+    const key = side === 'away' ? 'form_away' : 'form_home';
+    const raw = match?.[key];
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    return raw
+        .map((r) => String(r).toUpperCase())
+        .filter((r) => r === 'W' || r === 'D' || r === 'L');
+}
+
+function hasForm(match) {
+    return formResults(match, 'home').length > 0 || formResults(match, 'away').length > 0;
+}
+
+function formStickClass(result) {
+    if (result === 'W') return 'is-w';
+    if (result === 'D') return 'is-d';
+    return 'is-l';
+}
+
+function formAriaLabel(results, side) {
+    if (!results.length) return '';
+    const sideLabel = side === 'away' ? 'гости' : 'хозяева';
+    return `${sideLabel}: ${results.join(' ')}`;
+}
+
 function resultProbMaxKey(match) {
     if (!hasResultProbs(match)) return null;
     const vals = [
@@ -908,6 +934,47 @@ const listKey = computed(
                                                             {{ match.away }}
                                                         </p>
                                                         <div
+                                                            v-if="hasForm(match)"
+                                                            class="miq-form-sticks"
+                                                            role="group"
+                                                            aria-label="Последние результаты"
+                                                        >
+                                                            <div
+                                                                v-if="formResults(match, 'home').length"
+                                                                class="miq-form-row"
+                                                                :aria-label="formAriaLabel(formResults(match, 'home'), 'home')"
+                                                            >
+                                                                <span
+                                                                    v-for="(result, idx) in formResults(match, 'home')"
+                                                                    :key="`h-${match.id}-${idx}`"
+                                                                    class="miq-form-stick"
+                                                                    :class="formStickClass(result)"
+                                                                    :title="result"
+                                                                ></span>
+                                                            </div>
+                                                            <span
+                                                                v-if="formResults(match, 'home').length && formResults(match, 'away').length"
+                                                                class="miq-form-sep"
+                                                                aria-hidden="true"
+                                                            ></span>
+                                                            <div
+                                                                v-if="formResults(match, 'away').length"
+                                                                class="miq-form-row"
+                                                                :aria-label="formAriaLabel(formResults(match, 'away'), 'away')"
+                                                            >
+                                                                <span
+                                                                    v-for="(result, idx) in formResults(match, 'away')"
+                                                                    :key="`a-${match.id}-${idx}`"
+                                                                    class="miq-form-stick"
+                                                                    :class="formStickClass(result)"
+                                                                    :title="result"
+                                                                ></span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="flex shrink-0 items-center gap-2 sm:gap-2.5">
+                                                        <div
                                                             v-if="hasResultProbs(match)"
                                                             class="miq-result-probs"
                                                             role="group"
@@ -941,30 +1008,30 @@ const listKey = computed(
                                                                 <span class="miq-odds-val">{{ match.prob_away }}%</span>
                                                             </span>
                                                         </div>
-                                                    </div>
 
-                                                    <div class="flex shrink-0 flex-col items-end gap-1 text-right">
-                                                        <p
-                                                            v-if="scoreText(match)"
-                                                            class="font-display text-lg font-bold tabular-nums text-miq-ink"
-                                                        >
-                                                            {{ scoreText(match) }}
-                                                        </p>
-                                                        <span
-                                                            v-if="topMarket(match)"
-                                                            class="miq-market-chip"
-                                                        >
-                                                            <span class="miq-market-label">{{ topMarket(match).label }}</span>
-                                                            <span class="miq-market-dot" aria-hidden="true">·</span>
-                                                            <span class="miq-odds-val">{{ topMarket(match).prob }}%</span>
-                                                        </span>
-                                                        <span
-                                                            v-else-if="!scoreText(match)"
-                                                            class="text-xs font-medium text-miq-muted"
-                                                            aria-hidden="true"
-                                                        >
-                                                            →
-                                                        </span>
+                                                        <div class="flex min-w-[2.5rem] flex-col items-end gap-1 text-right">
+                                                            <p
+                                                                v-if="scoreText(match)"
+                                                                class="font-display text-lg font-bold tabular-nums text-miq-ink"
+                                                            >
+                                                                {{ scoreText(match) }}
+                                                            </p>
+                                                            <span
+                                                                v-if="topMarket(match)"
+                                                                class="miq-market-chip"
+                                                            >
+                                                                <span class="miq-market-label">{{ topMarket(match).label }}</span>
+                                                                <span class="miq-market-dot" aria-hidden="true">·</span>
+                                                                <span class="miq-odds-val">{{ topMarket(match).prob }}%</span>
+                                                            </span>
+                                                            <span
+                                                                v-else-if="!scoreText(match)"
+                                                                class="text-xs font-medium text-miq-muted"
+                                                                aria-hidden="true"
+                                                            >
+                                                                →
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </Link>
