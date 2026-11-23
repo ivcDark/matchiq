@@ -214,6 +214,11 @@
         color: var(--miq-muted);
     }
 
+    .miq-league-tab-flag {
+        @apply inline-block shrink-0 text-[0.95rem] leading-none;
+        font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+    }
+
     .miq-league-tab:hover {
         color: var(--miq-ink);
         background: color-mix(in srgb, var(--miq-mist-deep) 55%, transparent);

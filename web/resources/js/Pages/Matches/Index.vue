@@ -26,6 +26,22 @@ const periods = [
     { id: 'finished', label: 'Завершённые' },
 ];
 
+/** Компактные emoji-флаги для табов стран (Европа → EU). */
+const COUNTRY_FLAGS = {
+    Россия: '🇷🇺',
+    Англия: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+    Испания: '🇪🇸',
+    Италия: '🇮🇹',
+    Германия: '🇩🇪',
+    Франция: '🇫🇷',
+    Европа: '🇪🇺',
+    Нидерланды: '🇳🇱',
+};
+
+function countryFlag(country) {
+    return COUNTRY_FLAGS[country] || '🏳️';
+}
+
 const mobileWidgetTabs = [
     { id: 'standings', label: 'Таблица' },
     { id: 'scorers', label: 'Бомбардиры' },
@@ -456,6 +472,9 @@ const listKey = computed(
                             :aria-selected="activeCountry === group.country"
                             @click="setActiveCountry(group.country)"
                         >
+                            <span class="miq-league-tab-flag" aria-hidden="true">{{
+                                countryFlag(group.country)
+                            }}</span>
                             <span>{{ group.country }}</span>
                             <span
                                 v-if="group.selectedCount > 0"
