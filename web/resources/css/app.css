@@ -672,7 +672,8 @@
     }
 
     .miq-goalprof-htft {
-        @apply border-t border-miq-line/50 px-3.5 py-3;
+        @apply px-3.5 py-3;
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 50%, transparent);
     }
 
     .miq-goalprof-htft-list {
@@ -685,7 +686,8 @@
     }
 
     .miq-goalprof-halves {
-        @apply grid gap-2 border-t border-miq-line/50 px-3.5 py-3 sm:grid-cols-2;
+        @apply grid gap-2 px-3.5 py-3 sm:grid-cols-2;
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 50%, transparent);
     }
 
     .miq-goalprof-half-grid {
