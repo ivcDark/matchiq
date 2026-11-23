@@ -91,6 +91,18 @@
         letter-spacing: -0.03em;
     }
 
+    /**
+     * Крупные цифры: Manrope + lining/tabular (не Syne old-style).
+     * Для вероятностей, счёта, %, оценок, плиток статистики.
+     */
+    .num-display {
+        font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        font-variant-numeric: lining-nums tabular-nums;
+        font-feature-settings: 'lnum' 1, 'tnum' 1;
+    }
+
     .miq-chip {
         @apply inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition;
         border-color: var(--miq-line);
@@ -445,7 +457,7 @@
     }
 
     .miq-match-score-val {
-        @apply font-display text-base font-bold tabular-nums leading-none text-miq-ink sm:text-lg;
+        @apply num-display text-base leading-none text-miq-ink sm:text-lg;
     }
 
     .miq-match-score-val.is-live {
@@ -522,8 +534,7 @@
     }
 
     .miq-forecast-score-value {
-        @apply text-3xl font-bold leading-none text-miq-ink sm:text-4xl;
-        font-family: var(--font-display, Syne, sans-serif);
+        @apply num-display text-3xl leading-none text-miq-ink sm:text-4xl;
     }
 
     .miq-forecast-1x2 {
@@ -558,12 +569,14 @@
     }
 
     .miq-forecast-cell-pct {
-        @apply mt-1 text-2xl font-bold leading-none text-miq-ink sm:text-[1.75rem];
-        font-family: var(--font-display, Syne, sans-serif);
+        @apply num-display mt-1 text-2xl leading-none text-miq-ink sm:text-[1.75rem];
     }
 
     .miq-forecast-cell-pct span {
         @apply ml-0.5 text-sm font-semibold text-miq-muted;
+        font-family: Manrope, ui-sans-serif, system-ui, sans-serif;
+        font-weight: 700;
+        font-variant-numeric: lining-nums tabular-nums;
     }
 
     .miq-forecast-cs-title {
@@ -631,7 +644,8 @@
     }
 
     .miq-trends-value {
-        @apply text-[13px] font-bold text-miq-ink;
+        @apply num-display text-[13px] text-miq-ink;
+        font-weight: 700;
     }
 
     .miq-trends-unit {
@@ -852,7 +866,7 @@
     }
 
     .miq-rating-badge {
-        @apply shrink-0 rounded-md px-1.5 py-0.5 text-sm font-extrabold tabular-nums leading-none text-white;
+        @apply num-display shrink-0 rounded-md px-1.5 py-0.5 text-sm leading-none text-white;
     }
 
     .miq-rating-badge.is-good {
@@ -885,7 +899,7 @@
     }
 
     .miq-best-stats dd {
-        @apply text-base font-extrabold leading-none tracking-tight text-miq-ink sm:text-lg;
+        @apply num-display text-base leading-none text-miq-ink sm:text-lg;
     }
 
     .miq-stat-icon {
@@ -1009,7 +1023,8 @@
     }
 
     .miq-form-score-pill {
-        @apply flex w-full items-center justify-center rounded-md px-1 py-0.5 text-center text-[12px] font-bold leading-none text-white sm:text-[13px];
+        @apply num-display flex w-full items-center justify-center rounded-md px-1 py-0.5 text-center text-[12px] leading-none text-white sm:text-[13px];
+        font-weight: 700;
     }
 
     .miq-form-score-pill.is-w {
@@ -1092,7 +1107,8 @@
     }
 
     .miq-form-summary-value {
-        @apply mt-0.5 text-sm font-bold text-miq-ink;
+        @apply num-display mt-0.5 text-sm text-miq-ink;
+        font-weight: 700;
     }
 
     .miq-form-summary-value span {
@@ -1380,7 +1396,7 @@
     }
 
     .miq-outcome-prob {
-        @apply mt-0.5 font-display text-base font-bold leading-none text-miq-pitch-deep sm:text-lg;
+        @apply num-display mt-0.5 text-base leading-none text-miq-pitch-deep sm:text-lg;
     }
 
     .miq-outcome-unit {
@@ -1887,7 +1903,7 @@
     }
 
     .miq-ref-tile-value {
-        @apply mt-1 text-2xl font-bold leading-none tracking-tight text-miq-ink;
+        @apply num-display mt-1 text-2xl leading-none text-miq-ink;
     }
 
     .miq-card-icon {

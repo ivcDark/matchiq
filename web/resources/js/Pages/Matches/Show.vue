@@ -800,7 +800,7 @@ function loginHref() {
                         <div class="miq-match-hero-mid">
                             <p
                                 v-if="scoreText()"
-                                class="miq-display text-3xl font-bold tabular-nums leading-none"
+                                class="num-display text-3xl leading-none"
                                 :class="match.status === 'live' ? 'text-miq-live' : 'text-miq-ink'"
                             >
                                 {{ scoreText() }}
