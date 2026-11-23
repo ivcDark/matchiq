@@ -8,7 +8,11 @@ const props = defineProps({
     preview: { type: String, default: null },
     /** Рынки БК-вида: { id, name, popular_pct, outcomes: [{ id, label, prob, popular_pct, hit }] } */
     markets: { type: Array, default: () => [] },
-    comparison: { type: Array, default: () => [] },
+    /** { match, first_half, second_half } — строки метрик с scale */
+    comparison: {
+        type: Object,
+        default: () => ({ match: [], first_half: [], second_half: [] }),
+    },
     homeAway: { type: Object, default: () => ({ home: null, away: null }) },
     standings: { type: Array, default: () => [] },
     scorers: { type: Object, default: () => ({ home: [], away: [] }) },
@@ -32,6 +36,22 @@ const filters = [
 const activeFilter = ref('best');
 const localPickId = ref(props.userPickEventId);
 const guestCtaOpen = ref(false);
+
+/** B = bars + pie % · C = все pie */
+const compareView = ref('b');
+/** match | first_half | second_half */
+const comparePeriod = ref('match');
+
+const comparePeriods = [
+    { id: 'match', label: 'Матч' },
+    { id: 'first_half', label: '1-й тайм' },
+    { id: 'second_half', label: '2-й тайм' },
+];
+
+const compareViews = [
+    { id: 'b', label: 'B · шкалы + pie %' },
+    { id: 'c', label: 'C · все pie' },
+];
 
 const backHref = computed(() => {
     if (props.returnLeague) {
@@ -88,61 +108,69 @@ const goalMax = computed(() => {
     return max;
 });
 
-const comparisonMax = computed(() => {
-    const map = {};
-    for (const row of props.comparison || []) {
-        map[row.key] = Math.max(Number(row.home) || 0, Number(row.away) || 0, 0.01);
-    }
-    return map;
+const activeComparison = computed(() => {
+    const bag = props.comparison || {};
+    const rows = bag[comparePeriod.value];
+    if (Array.isArray(rows) && rows.length) return rows;
+    if (Array.isArray(bag.match)) return bag.match;
+    return Array.isArray(props.comparison) ? props.comparison : [];
 });
 
-/** Меньше = лучше (как фолы / жёлтые). */
-const COMPARISON_LOWER_BETTER = new Set(['fouls', 'yellows']);
+const percentComparison = computed(
+    () => activeComparison.value.filter((row) => row?.unit === '%'),
+);
 
 /**
- * Кто лидирует по метрике: lead | trail | tie.
- * @param {{ key: string, home: number, away: number }} row
- * @param {'home'|'away'} side
+ * Номинальная шкала метрики: max(scale, home, away) — видно заполненность, не только «кто длиннее».
+ * @param {{ home: number, away: number, scale?: number, unit?: string }} row
  */
-function compareRank(row, side) {
-    const home = Number(row.home);
-    const away = Number(row.away);
-    if (Number.isNaN(home) || Number.isNaN(away) || home === away) {
-        return 'tie';
-    }
-    const lowerBetter = COMPARISON_LOWER_BETTER.has(row.key);
-    const homeLeads = lowerBetter ? home < away : home > away;
-    if (side === 'home') {
-        return homeLeads ? 'lead' : 'trail';
-    }
-    return homeLeads ? 'trail' : 'lead';
+function barScale(row) {
+    if (row?.unit === '%') return 100;
+    const scale = Number(row?.scale) || 0;
+    return Math.max(scale, Number(row?.home) || 0, Number(row?.away) || 0, 0.01);
 }
 
 function isPercentMetric(row) {
     return row?.unit === '%';
 }
 
-/** %-метрики для donut-колонки (варианты A/B). */
-const percentComparison = computed(
-    () => (props.comparison || []).filter((row) => isPercentMetric(row)),
-);
-
-/**
- * SVG stroke-dasharray для donut (доля от max, по умолчанию 100).
- * @param {number} value
- * @param {number} [max=100]
- */
-function donutDash(value, max = 100) {
-    const r = 15;
-    const c = 2 * Math.PI * r;
-    const m = Number(max) || 100;
-    const pct = Math.max(0, Math.min(1, (Number(value) || 0) / m));
-    return `${(pct * c).toFixed(2)} ${c.toFixed(2)}`;
+function polar(cx, cy, r, angleDeg) {
+    const a = ((angleDeg - 90) * Math.PI) / 180;
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
 }
 
-function donutMax(row) {
-    if (isPercentMetric(row)) return 100;
-    return comparisonMax.value[row.key] || 1;
+function pieSlicePath(cx, cy, r, startAngle, endAngle) {
+    const sweep = endAngle - startAngle;
+    if (sweep <= 0.01) return '';
+    if (sweep >= 359.99) {
+        const mid = startAngle + 180;
+        const a = polar(cx, cy, r, startAngle);
+        const b = polar(cx, cy, r, mid);
+        const c = polar(cx, cy, r, startAngle + 360);
+        return `M ${cx} ${cy} L ${a.x} ${a.y} A ${r} ${r} 0 1 1 ${b.x} ${b.y} A ${r} ${r} 0 1 1 ${c.x} ${c.y} Z`;
+    }
+    const large = sweep > 180 ? 1 : 0;
+    const s = polar(cx, cy, r, startAngle);
+    const e = polar(cx, cy, r, endAngle);
+    return `M ${cx} ${cy} L ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y} Z`;
+}
+
+/** Pie: секторы двух команд (доля от суммы значений). */
+function pieSlices(row) {
+    const h = Math.max(0, Number(row?.home) || 0);
+    const a = Math.max(0, Number(row?.away) || 0);
+    const sum = h + a;
+    if (sum <= 0) {
+        return {
+            homePath: pieSlicePath(20, 20, 16, 0, 180),
+            awayPath: pieSlicePath(20, 20, 16, 180, 360),
+        };
+    }
+    const homeDeg = (h / sum) * 360;
+    return {
+        homePath: pieSlicePath(20, 20, 16, 0, homeDeg),
+        awayPath: pieSlicePath(20, 20, 16, homeDeg, 360),
+    };
 }
 
 function statusLabel(status) {
@@ -504,339 +532,158 @@ function loginHref() {
                 </div>
             </section>
 
-            <!-- 4. Comparison last 5 — 4 UI variants for product pick -->
-            <div class="space-y-4 sm:space-y-5" aria-label="Варианты сравнения last 5">
-                <!-- A: oneside lead/trail + donuts for % on the right -->
-                <section
-                    class="miq-panel animate-miq-fade-up"
-                    style="animation-delay: 160ms"
-                    aria-label="Вариант A сравнения"
-                >
-                    <div class="miq-panel-head">
-                        <h2 class="miq-panel-title">Вариант A · oneside + donut %</h2>
-                        <p class="truncate text-[10px] font-medium text-miq-muted">
-                            зелёный — лучше · красный — хуже
-                        </p>
-                    </div>
+            <!-- 4. Comparison last 5 — final: B (default) | C + period -->
+            <section
+                class="miq-panel animate-miq-fade-up"
+                style="animation-delay: 160ms"
+                aria-label="Сравнение за 5 матчей"
+            >
+                <div class="miq-panel-head">
+                    <h2 class="miq-panel-title">Сравнение · последние 5</h2>
+                    <p class="truncate text-[10px] font-medium text-miq-muted">
+                        цвета команд · шкала от baseline
+                    </p>
+                </div>
 
-                    <div class="miq-compare-legend px-3.5 pt-2.5">
-                        <span class="miq-compare-legend-item">
-                            <span class="miq-compare-legend-swatch is-home" aria-hidden="true" />
-                            {{ match.home }}
-                            <span class="font-medium text-miq-muted">· верх</span>
-                        </span>
-                        <span class="miq-compare-legend-item">
-                            <span class="miq-compare-legend-swatch is-away" aria-hidden="true" />
-                            {{ match.away }}
-                            <span class="font-medium text-miq-muted">· низ</span>
-                        </span>
-                    </div>
-
-                    <div class="miq-compare-ab-grid">
-                        <ul class="miq-compare-ab-bars divide-y divide-miq-line/40">
-                            <li
-                                v-for="row in comparison"
-                                :key="`a-${row.key}`"
-                                class="miq-compare-row"
-                            >
-                                <span class="miq-compare-label">{{ row.label }}</span>
-                                <div class="miq-compare-bars" aria-hidden="true">
-                                    <div
-                                        class="miq-compare-bar"
-                                        :class="`is-${compareRank(row, 'home')}`"
-                                    >
-                                        <span :style="{ width: barWidth(row.home, comparisonMax[row.key]) }" />
-                                    </div>
-                                    <div
-                                        class="miq-compare-bar"
-                                        :class="`is-${compareRank(row, 'away')}`"
-                                    >
-                                        <span :style="{ width: barWidth(row.away, comparisonMax[row.key]) }" />
-                                    </div>
-                                </div>
-                                <div class="miq-compare-nums tabular-nums">
-                                    <span :class="`is-${compareRank(row, 'home')}`">
-                                        {{ formatStat(row.home, row.unit) }}
-                                    </span>
-                                    <span :class="`is-${compareRank(row, 'away')}`">
-                                        {{ formatStat(row.away, row.unit) }}
-                                    </span>
-                                </div>
-                            </li>
-                        </ul>
-
-                        <div class="miq-compare-ab-donuts" aria-label="Круговые для %">
-                            <p class="miq-compare-ab-donuts-title">Только %</p>
-                            <ul class="space-y-3">
-                                <li
-                                    v-for="row in percentComparison"
-                                    :key="`a-d-${row.key}`"
-                                    class="miq-donut-metric"
-                                >
-                                    <p class="miq-donut-metric-label">{{ row.label }}</p>
-                                    <div class="miq-donut-pair">
-                                        <div class="miq-donut-wrap">
-                                            <svg class="miq-donut" viewBox="0 0 40 40" aria-hidden="true">
-                                                <circle class="miq-donut-track" cx="20" cy="20" r="15" />
-                                                <circle
-                                                    class="miq-donut-arc"
-                                                    :class="`is-${compareRank(row, 'home')}`"
-                                                    cx="20"
-                                                    cy="20"
-                                                    r="15"
-                                                    :stroke-dasharray="donutDash(row.home)"
-                                                />
-                                            </svg>
-                                            <span
-                                                class="miq-donut-val tabular-nums"
-                                                :class="`is-${compareRank(row, 'home')}`"
-                                            >{{ formatStat(row.home, '%') }}</span>
-                                            <span class="miq-donut-side">{{ match.home }}</span>
-                                        </div>
-                                        <div class="miq-donut-wrap">
-                                            <svg class="miq-donut" viewBox="0 0 40 40" aria-hidden="true">
-                                                <circle class="miq-donut-track" cx="20" cy="20" r="15" />
-                                                <circle
-                                                    class="miq-donut-arc"
-                                                    :class="`is-${compareRank(row, 'away')}`"
-                                                    cx="20"
-                                                    cy="20"
-                                                    r="15"
-                                                    :stroke-dasharray="donutDash(row.away)"
-                                                />
-                                            </svg>
-                                            <span
-                                                class="miq-donut-val tabular-nums"
-                                                :class="`is-${compareRank(row, 'away')}`"
-                                            >{{ formatStat(row.away, '%') }}</span>
-                                            <span class="miq-donut-side">{{ match.away }}</span>
-                                        </div>
-                                    </div>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- B: oneside + donuts, team colors -->
-                <section
-                    class="miq-panel"
-                    aria-label="Вариант B сравнения"
-                >
-                    <div class="miq-panel-head">
-                        <h2 class="miq-panel-title">Вариант B · oneside + donut · цвета команд</h2>
-                        <p class="truncate text-[10px] font-medium text-miq-muted">
-                            цвет = команда, не лидер
-                        </p>
-                    </div>
-
-                    <div class="miq-compare-legend px-3.5 pt-2.5">
-                        <span class="miq-compare-legend-item">
-                            <span class="miq-compare-legend-swatch is-team-home" aria-hidden="true" />
-                            {{ match.home }}
-                        </span>
-                        <span class="miq-compare-legend-item">
-                            <span class="miq-compare-legend-swatch is-team-away" aria-hidden="true" />
-                            {{ match.away }}
-                        </span>
-                    </div>
-
-                    <div class="miq-compare-ab-grid">
-                        <ul class="miq-compare-ab-bars divide-y divide-miq-line/40">
-                            <li
-                                v-for="row in comparison"
-                                :key="`b-${row.key}`"
-                                class="miq-compare-row is-team"
-                            >
-                                <span class="miq-compare-label">{{ row.label }}</span>
-                                <div class="miq-compare-bars" aria-hidden="true">
-                                    <div class="miq-compare-bar is-team-home">
-                                        <span :style="{ width: barWidth(row.home, comparisonMax[row.key]) }" />
-                                    </div>
-                                    <div class="miq-compare-bar is-team-away">
-                                        <span :style="{ width: barWidth(row.away, comparisonMax[row.key]) }" />
-                                    </div>
-                                </div>
-                                <div class="miq-compare-nums tabular-nums is-team">
-                                    <span class="is-team-home">{{ formatStat(row.home, row.unit) }}</span>
-                                    <span class="is-team-away">{{ formatStat(row.away, row.unit) }}</span>
-                                </div>
-                            </li>
-                        </ul>
-
-                        <div class="miq-compare-ab-donuts" aria-label="Круговые для %">
-                            <p class="miq-compare-ab-donuts-title">Только %</p>
-                            <ul class="space-y-3">
-                                <li
-                                    v-for="row in percentComparison"
-                                    :key="`b-d-${row.key}`"
-                                    class="miq-donut-metric"
-                                >
-                                    <p class="miq-donut-metric-label">{{ row.label }}</p>
-                                    <div class="miq-donut-pair">
-                                        <div class="miq-donut-wrap">
-                                            <svg class="miq-donut" viewBox="0 0 40 40" aria-hidden="true">
-                                                <circle class="miq-donut-track" cx="20" cy="20" r="15" />
-                                                <circle
-                                                    class="miq-donut-arc is-team-home"
-                                                    cx="20"
-                                                    cy="20"
-                                                    r="15"
-                                                    :stroke-dasharray="donutDash(row.home)"
-                                                />
-                                            </svg>
-                                            <span class="miq-donut-val tabular-nums is-team-home">
-                                                {{ formatStat(row.home, '%') }}
-                                            </span>
-                                            <span class="miq-donut-side">{{ match.home }}</span>
-                                        </div>
-                                        <div class="miq-donut-wrap">
-                                            <svg class="miq-donut" viewBox="0 0 40 40" aria-hidden="true">
-                                                <circle class="miq-donut-track" cx="20" cy="20" r="15" />
-                                                <circle
-                                                    class="miq-donut-arc is-team-away"
-                                                    cx="20"
-                                                    cy="20"
-                                                    r="15"
-                                                    :stroke-dasharray="donutDash(row.away)"
-                                                />
-                                            </svg>
-                                            <span class="miq-donut-val tabular-nums is-team-away">
-                                                {{ formatStat(row.away, '%') }}
-                                            </span>
-                                            <span class="miq-donut-side">{{ match.away }}</span>
-                                        </div>
-                                    </div>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- C: all metrics as mini donut pairs -->
-                <section class="miq-panel" aria-label="Вариант C сравнения">
-                    <div class="miq-panel-head">
-                        <h2 class="miq-panel-title">Вариант C · все метрики кругами</h2>
-                        <p class="truncate text-[10px] font-medium text-miq-muted">
-                            пара home / away
-                        </p>
-                    </div>
-
-                    <div class="miq-compare-legend px-3.5 pt-2.5">
-                        <span class="miq-compare-legend-item">
-                            <span class="miq-compare-legend-swatch is-team-home" aria-hidden="true" />
-                            {{ match.home }}
-                        </span>
-                        <span class="miq-compare-legend-item">
-                            <span class="miq-compare-legend-swatch is-team-away" aria-hidden="true" />
-                            {{ match.away }}
-                        </span>
-                    </div>
-
-                    <ul class="miq-donut-grid px-3 pb-3.5 pt-2">
-                        <li
-                            v-for="row in comparison"
-                            :key="`c-${row.key}`"
-                            class="miq-donut-metric is-card"
+                <div class="flex flex-col gap-2 px-3 pt-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <div
+                        class="inline-flex max-w-full flex-wrap rounded-md border border-miq-line/80 bg-white/60 p-0.5"
+                        role="tablist"
+                        aria-label="Период сравнения"
+                    >
+                        <button
+                            v-for="p in comparePeriods"
+                            :key="p.id"
+                            type="button"
+                            role="tab"
+                            class="miq-period"
+                            :class="{ 'is-active': comparePeriod === p.id }"
+                            :aria-selected="comparePeriod === p.id"
+                            @click="comparePeriod = p.id"
                         >
-                            <p class="miq-donut-metric-label">{{ row.label }}</p>
-                            <div class="miq-donut-pair">
-                                <div class="miq-donut-wrap">
-                                    <svg class="miq-donut" viewBox="0 0 40 40" aria-hidden="true">
-                                        <circle class="miq-donut-track" cx="20" cy="20" r="15" />
-                                        <circle
-                                            class="miq-donut-arc"
-                                            :class="`is-${compareRank(row, 'home')}`"
-                                            cx="20"
-                                            cy="20"
-                                            r="15"
-                                            :stroke-dasharray="donutDash(row.home, donutMax(row))"
-                                        />
-                                    </svg>
-                                    <span
-                                        class="miq-donut-val tabular-nums"
-                                        :class="`is-${compareRank(row, 'home')}`"
-                                    >{{ formatStat(row.home, row.unit) }}</span>
+                            {{ p.label }}
+                        </button>
+                    </div>
+                    <div
+                        class="inline-flex max-w-full flex-wrap rounded-md border border-miq-line/80 bg-white/60 p-0.5"
+                        role="tablist"
+                        aria-label="Вид сравнения"
+                    >
+                        <button
+                            v-for="v in compareViews"
+                            :key="v.id"
+                            type="button"
+                            role="tab"
+                            class="miq-period"
+                            :class="{ 'is-active': compareView === v.id }"
+                            :aria-selected="compareView === v.id"
+                            @click="compareView = v.id"
+                        >
+                            {{ v.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="miq-compare-legend px-3.5 pt-2.5">
+                    <span class="miq-compare-legend-item">
+                        <span class="miq-compare-legend-swatch is-team-home" aria-hidden="true" />
+                        {{ match.home }}
+                        <span v-if="compareView === 'b'" class="font-medium text-miq-muted">· верх</span>
+                    </span>
+                    <span class="miq-compare-legend-item">
+                        <span class="miq-compare-legend-swatch is-team-away" aria-hidden="true" />
+                        {{ match.away }}
+                        <span v-if="compareView === 'b'" class="font-medium text-miq-muted">· низ</span>
+                    </span>
+                </div>
+
+                <!-- View B: oneside bars + pie for % -->
+                <div
+                    v-if="compareView === 'b'"
+                    class="miq-compare-ab-grid"
+                >
+                    <ul class="miq-compare-ab-bars divide-y divide-miq-line/40">
+                        <li
+                            v-for="row in activeComparison"
+                            :key="`b-${comparePeriod}-${row.key}`"
+                            class="miq-compare-row is-team"
+                        >
+                            <span class="miq-compare-label">{{ row.label }}</span>
+                            <div class="miq-compare-bars" aria-hidden="true">
+                                <div class="miq-compare-bar is-team-home">
+                                    <span :style="{ width: barWidth(row.home, barScale(row)) }" />
                                 </div>
-                                <div class="miq-donut-wrap">
-                                    <svg class="miq-donut" viewBox="0 0 40 40" aria-hidden="true">
-                                        <circle class="miq-donut-track" cx="20" cy="20" r="15" />
-                                        <circle
-                                            class="miq-donut-arc"
-                                            :class="`is-${compareRank(row, 'away')}`"
-                                            cx="20"
-                                            cy="20"
-                                            r="15"
-                                            :stroke-dasharray="donutDash(row.away, donutMax(row))"
-                                        />
-                                    </svg>
-                                    <span
-                                        class="miq-donut-val tabular-nums"
-                                        :class="`is-${compareRank(row, 'away')}`"
-                                    >{{ formatStat(row.away, row.unit) }}</span>
+                                <div class="miq-compare-bar is-team-away">
+                                    <span :style="{ width: barWidth(row.away, barScale(row)) }" />
                                 </div>
+                            </div>
+                            <div class="miq-compare-nums tabular-nums is-team">
+                                <span class="is-team-home">{{ formatStat(row.home, row.unit) }}</span>
+                                <span class="is-team-away">{{ formatStat(row.away, row.unit) }}</span>
                             </div>
                         </li>
                     </ul>
-                </section>
 
-                <!-- D: mirrored dual-bar, warm green/red -->
-                <section class="miq-panel" aria-label="Вариант D сравнения">
-                    <div class="miq-panel-head">
-                        <h2 class="miq-panel-title">Вариант D · dual-bar · тёплый green/red</h2>
-                        <p class="truncate text-[10px] font-medium text-miq-muted">
-                            зеркало · лидер / отстающий
-                        </p>
+                    <div class="miq-compare-ab-donuts" aria-label="Pie для %">
+                        <p class="miq-compare-ab-donuts-title">Только %</p>
+                        <ul class="space-y-3">
+                            <li
+                                v-for="row in percentComparison"
+                                :key="`b-pie-${comparePeriod}-${row.key}`"
+                                class="miq-donut-metric"
+                            >
+                                <p class="miq-donut-metric-label">{{ row.label }}</p>
+                                <div class="miq-pie-block">
+                                    <svg class="miq-pie" viewBox="0 0 40 40" aria-hidden="true">
+                                        <path
+                                            class="miq-pie-slice is-team-home"
+                                            :d="pieSlices(row).homePath"
+                                        />
+                                        <path
+                                            class="miq-pie-slice is-team-away"
+                                            :d="pieSlices(row).awayPath"
+                                        />
+                                    </svg>
+                                    <div class="miq-pie-vals tabular-nums">
+                                        <span class="is-team-home">{{ formatStat(row.home, '%') }}</span>
+                                        <span class="is-team-away">{{ formatStat(row.away, '%') }}</span>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
                     </div>
+                </div>
 
-                    <div class="miq-compare-legend px-3.5 pt-2.5">
-                        <span class="miq-compare-legend-item">
-                            <span class="font-bold text-miq-ink">{{ match.home }}</span>
-                            <span class="font-medium text-miq-muted">слева</span>
-                        </span>
-                        <span class="miq-compare-legend-item">
-                            <span class="font-bold text-miq-ink">{{ match.away }}</span>
-                            <span class="font-medium text-miq-muted">справа</span>
-                        </span>
-                    </div>
-
-                    <ul class="divide-y divide-miq-line/40 px-3.5 py-1 pb-2">
-                        <li
-                            v-for="row in comparison"
-                            :key="`d-${row.key}`"
-                            class="miq-compare-mirror-row"
-                        >
-                            <span
-                                class="miq-compare-mirror-num is-left tabular-nums"
-                                :class="`is-${compareRank(row, 'home')}`"
-                            >
-                                {{ formatStat(row.home, row.unit) }}
-                            </span>
-                            <div
-                                class="miq-compare-mirror-bar is-left"
-                                :class="`is-${compareRank(row, 'home')}`"
-                                aria-hidden="true"
-                            >
-                                <span :style="{ width: barWidth(row.home, comparisonMax[row.key]) }" />
+                <!-- View C: all metrics as pie -->
+                <ul
+                    v-else
+                    class="miq-donut-grid px-3 pb-3.5 pt-2"
+                >
+                    <li
+                        v-for="row in activeComparison"
+                        :key="`c-${comparePeriod}-${row.key}`"
+                        class="miq-donut-metric is-card"
+                    >
+                        <p class="miq-donut-metric-label">{{ row.label }}</p>
+                        <div class="miq-pie-block">
+                            <svg class="miq-pie is-lg" viewBox="0 0 40 40" aria-hidden="true">
+                                <path
+                                    class="miq-pie-slice is-team-home"
+                                    :d="pieSlices(row).homePath"
+                                />
+                                <path
+                                    class="miq-pie-slice is-team-away"
+                                    :d="pieSlices(row).awayPath"
+                                />
+                            </svg>
+                            <div class="miq-pie-vals tabular-nums">
+                                <span class="is-team-home">{{ formatStat(row.home, row.unit) }}</span>
+                                <span class="is-team-away">{{ formatStat(row.away, row.unit) }}</span>
                             </div>
-                            <span class="miq-compare-mirror-label">{{ row.label }}</span>
-                            <div
-                                class="miq-compare-mirror-bar is-right"
-                                :class="`is-${compareRank(row, 'away')}`"
-                                aria-hidden="true"
-                            >
-                                <span :style="{ width: barWidth(row.away, comparisonMax[row.key]) }" />
-                            </div>
-                            <span
-                                class="miq-compare-mirror-num is-right tabular-nums"
-                                :class="`is-${compareRank(row, 'away')}`"
-                            >
-                                {{ formatStat(row.away, row.unit) }}
-                            </span>
-                        </li>
-                    </ul>
-                </section>
-            </div>
+                        </div>
+                    </li>
+                </ul>
+            </section>
 
             <!-- Extra: home/away splits -->
             <section

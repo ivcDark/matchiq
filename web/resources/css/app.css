@@ -25,6 +25,11 @@
     --miq-cmp-lead-ink: #5a7549;
     --miq-cmp-trail: #e8a090;
     --miq-cmp-trail-ink: #c47868;
+    /* Цвета команд в сравнении (тёплые, не cold teal) */
+    --miq-team-home: #7d9f6a;
+    --miq-team-home-ink: #5a7549;
+    --miq-team-away: #d4926e;
+    --miq-team-away-ink: #a86a4a;
 }
 
 @layer base {
@@ -777,11 +782,11 @@
     }
 
     .miq-compare-legend-swatch.is-team-home {
-        background: color-mix(in srgb, var(--miq-pitch) 80%, var(--miq-lime));
+        background: var(--miq-team-home);
     }
 
     .miq-compare-legend-swatch.is-team-away {
-        background: color-mix(in srgb, var(--miq-chip-away) 85%, white);
+        background: var(--miq-team-away);
     }
 
     .miq-compare-ab-grid {
@@ -837,11 +842,11 @@
     }
 
     .miq-compare-bar.is-team-home span {
-        background: color-mix(in srgb, var(--miq-pitch) 78%, var(--miq-lime));
+        background: var(--miq-team-home);
     }
 
     .miq-compare-bar.is-team-away span {
-        background: color-mix(in srgb, var(--miq-chip-away) 85%, white);
+        background: var(--miq-team-away);
     }
 
     .miq-compare-nums {
@@ -861,11 +866,43 @@
     }
 
     .miq-compare-nums.is-team .is-team-home {
-        color: var(--miq-pitch-deep);
+        color: var(--miq-team-home-ink);
     }
 
     .miq-compare-nums.is-team .is-team-away {
-        color: var(--miq-chip-away);
+        color: var(--miq-team-away-ink);
+    }
+
+    .miq-pie-block {
+        @apply flex flex-col items-center gap-1;
+    }
+
+    .miq-pie {
+        @apply h-12 w-12;
+    }
+
+    .miq-pie.is-lg {
+        @apply h-14 w-14;
+    }
+
+    .miq-pie-slice.is-team-home {
+        fill: var(--miq-team-home);
+    }
+
+    .miq-pie-slice.is-team-away {
+        fill: var(--miq-team-away);
+    }
+
+    .miq-pie-vals {
+        @apply flex items-center gap-2 text-[10px] font-bold leading-none;
+    }
+
+    .miq-pie-vals .is-team-home {
+        color: var(--miq-team-home-ink);
+    }
+
+    .miq-pie-vals .is-team-away {
+        color: var(--miq-team-away-ink);
     }
 
     /* Donuts */
@@ -921,11 +958,11 @@
     }
 
     .miq-donut-arc.is-team-home {
-        stroke: color-mix(in srgb, var(--miq-pitch) 78%, var(--miq-lime));
+        stroke: var(--miq-team-home);
     }
 
     .miq-donut-arc.is-team-away {
-        stroke: color-mix(in srgb, var(--miq-chip-away) 85%, white);
+        stroke: var(--miq-team-away);
     }
 
     .miq-donut-val {
@@ -938,7 +975,7 @@
     }
 
     .miq-donut-val.is-team-home {
-        color: var(--miq-pitch-deep);
+        color: var(--miq-team-home-ink);
     }
 
     .miq-donut-val.is-trail {
@@ -946,7 +983,7 @@
     }
 
     .miq-donut-val.is-team-away {
-        color: var(--miq-chip-away);
+        color: var(--miq-team-away-ink);
     }
 
     .miq-donut-side {

@@ -237,7 +237,11 @@ class MatchController extends Controller
             'match' => $enriched,
             'preview' => $this->demoPreview($home, $away, $status),
             'markets' => $markets,
-            'comparison' => $this->demoComparison($home, $away, $id),
+            'comparison' => [
+                'match' => $this->demoComparison($home, $away, $id, 'match'),
+                'first_half' => $this->demoComparison($home, $away, $id, 'first_half'),
+                'second_half' => $this->demoComparison($home, $away, $id, 'second_half'),
+            ],
             'homeAway' => $this->demoHomeAwaySplits($home, $away, $id),
             'standings' => $this->demoMiniStandings($home, $away, $league['id'] ?? 'rpl'),
             'scorers' => [
@@ -456,23 +460,56 @@ class MatchController extends Controller
     }
 
     /**
-     * @return list<array{key: string, label: string, home: float|int, away: float|int, unit?: string}>
+     * Сравнение last-5 (или доли по таймам) с номинальной шкалой `scale`.
+     *
+     * @return list<array{key: string, label: string, home: float|int, away: float|int, scale: float|int, unit?: string}>
      */
-    private function demoComparison(string $home, string $away, int $id): array
+    private function demoComparison(string $home, string $away, int $id, string $period = 'match'): array
     {
         $n = abs($id % 7);
+        // Таймы — урезанные/смещённые средние (mock), матч = полный профиль.
+        [$fHome, $fAway] = match ($period) {
+            'first_half' => [0.48, 0.42],
+            'second_half' => [0.52, 0.58],
+            default => [1.0, 1.0],
+        };
+
+        $round1 = static fn (float $v): float => round($v, 1);
+        $goalsH = $round1((1.8 + ($n % 3) * 0.2) * $fHome);
+        $goalsA = $round1((1.4 + ($n % 2) * 0.3) * $fAway);
+        $xgH = $round1((1.65 + ($n % 4) * 0.1) * $fHome);
+        $xgA = $round1((1.35 + ($n % 3) * 0.1) * $fAway);
+        $shotsH = (int) round((14 + $n) * $fHome);
+        $shotsA = (int) round((11 + ($n % 5)) * $fAway);
+        $sotH = $round1((5.2 + ($n % 3) * 0.4) * $fHome);
+        $sotA = $round1((4.1 + ($n % 2) * 0.5) * $fAway);
+        $corH = $round1((5.4 + ($n % 3) * 0.3) * $fHome);
+        $corA = $round1((4.6 + ($n % 4) * 0.2) * $fAway);
+        $yelH = $round1((1.8 + ($n % 2) * 0.2) * ($period === 'match' ? 1 : 0.55));
+        $yelA = $round1((2.2 + ($n % 3) * 0.2) * ($period === 'match' ? 1 : 0.55));
+        $foulsH = (int) round((11 + ($n % 4)) * ($period === 'match' ? 1 : 0.5));
+        $foulsA = (int) round((13 + ($n % 3)) * ($period === 'match' ? 1 : 0.5));
+
+        $possH = (int) round(54 + ($n % 5) + ($period === 'first_half' ? 3 : ($period === 'second_half' ? -2 : 0)));
+        $possH = max(35, min(65, $possH));
+        $possA = 100 - $possH;
+
+        $bttsH = max(20, min(90, (int) round((60 + ($n % 4) * 5) * ($period === 'match' ? 1 : 0.9))));
+        $bttsA = max(20, min(90, (int) round((55 + ($n % 3) * 5) * ($period === 'match' ? 1 : 0.85))));
+        $csH = max(10, min(70, (int) round((35 + ($n % 3) * 5) * ($period === 'first_half' ? 1.1 : 1))));
+        $csA = max(10, min(70, (int) round((25 + ($n % 4) * 5) * ($period === 'second_half' ? 0.9 : 1))));
 
         return [
-            ['key' => 'goals', 'label' => 'Голы', 'home' => 1.8 + ($n % 3) * 0.2, 'away' => 1.4 + ($n % 2) * 0.3],
-            ['key' => 'xg', 'label' => 'xG', 'home' => 1.65 + ($n % 4) * 0.1, 'away' => 1.35 + ($n % 3) * 0.1],
-            ['key' => 'shots', 'label' => 'Удары', 'home' => 14 + $n, 'away' => 11 + ($n % 5)],
-            ['key' => 'sot', 'label' => 'В створ', 'home' => 5.2 + ($n % 3) * 0.4, 'away' => 4.1 + ($n % 2) * 0.5],
-            ['key' => 'corners', 'label' => 'Угловые', 'home' => 5.4 + ($n % 3) * 0.3, 'away' => 4.6 + ($n % 4) * 0.2],
-            ['key' => 'yellows', 'label' => 'Жёлтые', 'home' => 1.8 + ($n % 2) * 0.2, 'away' => 2.2 + ($n % 3) * 0.2],
-            ['key' => 'fouls', 'label' => 'Фолы', 'home' => 11 + ($n % 4), 'away' => 13 + ($n % 3)],
-            ['key' => 'possession', 'label' => 'Владение %', 'home' => 54 + ($n % 5), 'away' => 46 - ($n % 5), 'unit' => '%'],
-            ['key' => 'btts', 'label' => 'BTTS %', 'home' => 60 + ($n % 4) * 5, 'away' => 55 + ($n % 3) * 5, 'unit' => '%'],
-            ['key' => 'cs', 'label' => 'Сухие %', 'home' => 35 + ($n % 3) * 5, 'away' => 25 + ($n % 4) * 5, 'unit' => '%'],
+            ['key' => 'goals', 'label' => 'Голы', 'home' => $goalsH, 'away' => $goalsA, 'scale' => 3],
+            ['key' => 'xg', 'label' => 'xG', 'home' => $xgH, 'away' => $xgA, 'scale' => 2.5],
+            ['key' => 'shots', 'label' => 'Удары', 'home' => $shotsH, 'away' => $shotsA, 'scale' => 20],
+            ['key' => 'sot', 'label' => 'В створ', 'home' => $sotH, 'away' => $sotA, 'scale' => 8],
+            ['key' => 'corners', 'label' => 'Угловые', 'home' => $corH, 'away' => $corA, 'scale' => 8],
+            ['key' => 'yellows', 'label' => 'Жёлтые', 'home' => $yelH, 'away' => $yelA, 'scale' => 4],
+            ['key' => 'fouls', 'label' => 'Фолы', 'home' => $foulsH, 'away' => $foulsA, 'scale' => 18],
+            ['key' => 'possession', 'label' => 'Владение %', 'home' => $possH, 'away' => $possA, 'scale' => 100, 'unit' => '%'],
+            ['key' => 'btts', 'label' => 'BTTS %', 'home' => $bttsH, 'away' => $bttsA, 'scale' => 100, 'unit' => '%'],
+            ['key' => 'cs', 'label' => 'Сухие %', 'home' => $csH, 'away' => $csA, 'scale' => 100, 'unit' => '%'],
         ];
     }
 
