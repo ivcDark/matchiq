@@ -748,37 +748,44 @@
         @apply cursor-default;
     }
 
+    /* Сравнение: односторонние шкалы (как минуты голов), цвет = лидер/отстающий */
+    .miq-compare-legend {
+        @apply flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-miq-ink-soft;
+    }
+
+    .miq-compare-legend-item {
+        @apply inline-flex items-center gap-1.5;
+    }
+
+    .miq-compare-legend-swatch {
+        @apply inline-block h-1.5 w-3.5 rounded-sm;
+        background: color-mix(in srgb, var(--miq-ink-soft) 55%, white);
+    }
+
+    .miq-compare-legend-swatch.is-home {
+        background: color-mix(in srgb, var(--miq-ink) 70%, white);
+    }
+
+    .miq-compare-legend-swatch.is-away {
+        background: color-mix(in srgb, var(--miq-ink-soft) 40%, white);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--miq-ink) 25%, transparent);
+    }
+
     .miq-compare-row {
-        @apply py-2.5;
+        @apply grid grid-cols-[4.5rem_1fr_2.75rem] items-center gap-2 py-2 sm:grid-cols-[5.5rem_1fr_3rem];
     }
 
-    .miq-compare-vals {
-        @apply mb-1.5 grid grid-cols-[3.5rem_1fr_3.5rem] items-center gap-2 text-sm;
-    }
-
-    .miq-compare-vals > :first-child {
-        @apply text-left;
-    }
-
-    .miq-compare-vals > :nth-child(2) {
-        @apply text-center;
-    }
-
-    .miq-compare-vals > :last-child {
-        @apply text-right;
+    .miq-compare-label {
+        @apply text-[11px] font-semibold leading-tight text-miq-muted;
     }
 
     .miq-compare-bars {
-        @apply grid grid-cols-2 gap-2;
+        @apply grid gap-1;
     }
 
     .miq-compare-bar {
-        @apply flex h-1.5 overflow-hidden rounded-sm;
+        @apply h-1.5 overflow-hidden rounded-sm;
         background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
-    }
-
-    .miq-compare-bar.is-home {
-        @apply justify-end;
     }
 
     .miq-compare-bar span {
@@ -786,12 +793,32 @@
         transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .miq-compare-bar.is-home span {
-        background: color-mix(in srgb, var(--miq-pitch) 75%, var(--miq-lime));
+    .miq-compare-bar.is-lead span {
+        background: color-mix(in srgb, var(--miq-pitch) 78%, var(--miq-lime));
     }
 
-    .miq-compare-bar.is-away span {
-        background: color-mix(in srgb, var(--miq-chip-away) 80%, white);
+    .miq-compare-bar.is-trail span {
+        background: color-mix(in srgb, #be123c 72%, white);
+    }
+
+    .miq-compare-bar.is-tie span {
+        background: color-mix(in srgb, var(--miq-ink-soft) 45%, white);
+    }
+
+    .miq-compare-nums {
+        @apply flex flex-col items-end gap-0.5 text-[11px] font-semibold leading-none;
+    }
+
+    .miq-compare-nums .is-lead {
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-compare-nums .is-trail {
+        color: #9f1239;
+    }
+
+    .miq-compare-nums .is-tie {
+        color: var(--miq-muted);
     }
 
     .miq-split-card {

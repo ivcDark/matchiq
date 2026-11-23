@@ -96,6 +96,28 @@ const comparisonMax = computed(() => {
     return map;
 });
 
+/** Меньше = лучше (как фолы / жёлтые). */
+const COMPARISON_LOWER_BETTER = new Set(['fouls', 'yellows']);
+
+/**
+ * Кто лидирует по метрике: lead | trail | tie.
+ * @param {{ key: string, home: number, away: number }} row
+ * @param {'home'|'away'} side
+ */
+function compareRank(row, side) {
+    const home = Number(row.home);
+    const away = Number(row.away);
+    if (Number.isNaN(home) || Number.isNaN(away) || home === away) {
+        return 'tie';
+    }
+    const lowerBetter = COMPARISON_LOWER_BETTER.has(row.key);
+    const homeLeads = lowerBetter ? home < away : home > away;
+    if (side === 'home') {
+        return homeLeads ? 'lead' : 'trail';
+    }
+    return homeLeads ? 'trail' : 'lead';
+}
+
 function statusLabel(status) {
     if (status === 'live') return 'Идёт';
     if (status === 'finished') return 'Завершён';
@@ -455,7 +477,7 @@ function loginHref() {
                 </div>
             </section>
 
-            <!-- 4. Comparison last 5 -->
+            <!-- 4. Comparison last 5 — one-sided bars, green leader / red trailer -->
             <section
                 class="miq-panel animate-miq-fade-up"
                 style="animation-delay: 160ms"
@@ -463,10 +485,22 @@ function loginHref() {
             >
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Сравнение · последние 5</h2>
-                    <div class="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wide">
-                        <span class="text-miq-pitch">{{ match.home }}</span>
-                        <span style="color: var(--miq-chip-away)">{{ match.away }}</span>
-                    </div>
+                    <p class="truncate text-[10px] font-medium text-miq-muted">
+                        зелёный — лучше · красный — хуже
+                    </p>
+                </div>
+
+                <div class="miq-compare-legend px-3.5 pt-2.5" aria-label="Легенда команд">
+                    <span class="miq-compare-legend-item">
+                        <span class="miq-compare-legend-swatch is-home" aria-hidden="true" />
+                        {{ match.home }}
+                        <span class="font-medium text-miq-muted">· верх</span>
+                    </span>
+                    <span class="miq-compare-legend-item">
+                        <span class="miq-compare-legend-swatch is-away" aria-hidden="true" />
+                        {{ match.away }}
+                        <span class="font-medium text-miq-muted">· низ</span>
+                    </span>
                 </div>
 
                 <ul class="divide-y divide-miq-line/40 px-3.5 py-1">
@@ -475,28 +509,32 @@ function loginHref() {
                         :key="row.key"
                         class="miq-compare-row"
                     >
-                        <div class="miq-compare-vals">
-                            <span class="tabular-nums font-semibold text-miq-pitch-deep">
-                                {{ formatStat(row.home, row.unit) }}
-                            </span>
-                            <span class="text-[11px] font-semibold uppercase tracking-wide text-miq-muted">
-                                {{ row.label }}
-                            </span>
-                            <span class="tabular-nums font-semibold" style="color: var(--miq-chip-away)">
-                                {{ formatStat(row.away, row.unit) }}
-                            </span>
-                        </div>
+                        <span class="miq-compare-label">{{ row.label }}</span>
                         <div class="miq-compare-bars" aria-hidden="true">
-                            <div class="miq-compare-bar is-home">
+                            <div
+                                class="miq-compare-bar"
+                                :class="`is-${compareRank(row, 'home')}`"
+                            >
                                 <span
                                     :style="{ width: barWidth(row.home, comparisonMax[row.key]) }"
                                 />
                             </div>
-                            <div class="miq-compare-bar is-away">
+                            <div
+                                class="miq-compare-bar"
+                                :class="`is-${compareRank(row, 'away')}`"
+                            >
                                 <span
                                     :style="{ width: barWidth(row.away, comparisonMax[row.key]) }"
                                 />
                             </div>
+                        </div>
+                        <div class="miq-compare-nums tabular-nums">
+                            <span :class="`is-${compareRank(row, 'home')}`">
+                                {{ formatStat(row.home, row.unit) }}
+                            </span>
+                            <span :class="`is-${compareRank(row, 'away')}`">
+                                {{ formatStat(row.away, row.unit) }}
+                            </span>
                         </div>
                     </li>
                 </ul>
