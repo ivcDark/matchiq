@@ -1301,27 +1301,43 @@ class MatchController extends Controller
     }
 
     /**
-     * Средние голы по отрезкам минут (home vs away).
+     * Голы по 15-минутным отрезкам: забитые и пропущенные, общая шкала.
      *
-     * @return list<array{band: string, home: float, away: float}>
-     */
-    /**
-     * Суммы голов по интервалам (не средние) + номинальная шкала `scale`.
-     *
-     * @return list<array{band: string, home: int, away: int, scale: int}>
+     * @return array{
+     *     scale: int,
+     *     scored: list<array{band: string, home: int, away: int}>,
+     *     conceded: list<array{band: string, home: int, away: int}>
+     * }
      */
     private function demoGoalMinutes(int $id): array
     {
         $n = abs($id % 4);
         $scale = 12;
 
+        // Забитые: пик хозяев ближе к концовке, гости ровнее.
+        $scored = [
+            ['band' => '0–15', 'home' => 5 + $n, 'away' => 4],
+            ['band' => '15–30', 'home' => 7, 'away' => 5 + $n],
+            ['band' => '30–45', 'home' => 8 + $n, 'away' => 6],
+            ['band' => '45–60', 'home' => 6, 'away' => 7 + $n],
+            ['band' => '60–75', 'home' => 9 + $n, 'away' => 5],
+            ['band' => '75–90', 'home' => 10, 'away' => 8 + $n],
+        ];
+
+        // Пропущенные: иные профили (хозяева пропускают меньше рано, больше поздно).
+        $conceded = [
+            ['band' => '0–15', 'home' => 3 + ($n % 2), 'away' => 5 + $n],
+            ['band' => '15–30', 'home' => 4, 'away' => 6],
+            ['band' => '30–45', 'home' => 5 + $n, 'away' => 4 + ($n % 2)],
+            ['band' => '45–60', 'home' => 4 + $n, 'away' => 7],
+            ['band' => '60–75', 'home' => 6, 'away' => 5 + $n],
+            ['band' => '75–90', 'home' => 7 + $n, 'away' => 9],
+        ];
+
         return [
-            ['band' => '0–15', 'home' => 5 + $n, 'away' => 4, 'scale' => $scale],
-            ['band' => '15–30', 'home' => 7, 'away' => 5 + $n, 'scale' => $scale],
-            ['band' => '30–45', 'home' => 8 + $n, 'away' => 6, 'scale' => $scale],
-            ['band' => '45–60', 'home' => 6, 'away' => 7 + $n, 'scale' => $scale],
-            ['band' => '60–75', 'home' => 9 + $n, 'away' => 5, 'scale' => $scale],
-            ['band' => '75–90', 'home' => 10, 'away' => 8 + $n, 'scale' => $scale],
+            'scale' => $scale,
+            'scored' => $scored,
+            'conceded' => $conceded,
         ];
     }
 

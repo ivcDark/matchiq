@@ -1619,6 +1619,19 @@
         background: color-mix(in srgb, var(--miq-warn) 12%, white);
     }
 
+    /* Голы по минутам: забитые / пропущенные */
+    .miq-minute-section + .miq-minute-section {
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 70%, transparent);
+    }
+
+    .miq-minute-section-head {
+        @apply px-3.5 pt-3;
+    }
+
+    .miq-minute-section-note {
+        @apply mt-0.5 text-[11px] leading-snug text-miq-muted;
+    }
+
     /* Голы по минутам: вертикальные пары столбцов */
     .miq-minute-chart {
         @apply flex items-stretch gap-1.5 sm:gap-2.5;

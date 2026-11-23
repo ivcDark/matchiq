@@ -21,7 +21,11 @@ const props = defineProps({
     standings: { type: Array, default: () => [] },
     scorers: { type: Object, default: () => ({ home: [], away: [] }) },
     absences: { type: Object, default: () => ({ home: [], away: [] }) },
-    goalMinutes: { type: Array, default: () => [] },
+    /** { scale, scored: [{band,home,away}], conceded: [...] } */
+    goalMinutes: {
+        type: Object,
+        default: () => ({ scale: 12, scored: [], conceded: [] }),
+    },
     /** 5 карточек формы: { id, title, matches: [{ date, home, away, score_home, score_away, result }] } */
     formBlocks: { type: Array, default: () => [] },
     /** Крупный 1X2 + correct score */
@@ -278,10 +282,26 @@ const marketGroups = computed(() => {
     return groups;
 });
 
-/** Общий max шкалы голов: max(номинальный scale, все значения). */
+const goalMinutesScored = computed(() => {
+    const bag = props.goalMinutes;
+    if (Array.isArray(bag)) return bag;
+    return Array.isArray(bag?.scored) ? bag.scored : [];
+});
+
+const goalMinutesConceded = computed(() => {
+    const bag = props.goalMinutes;
+    if (Array.isArray(bag)) return [];
+    return Array.isArray(bag?.conceded) ? bag.conceded : [];
+});
+
+/** Общая шкала для забитых и пропущенных: max(scale, все значения). */
 const goalMax = computed(() => {
     let max = 0.01;
-    for (const band of props.goalMinutes || []) {
+    const bag = props.goalMinutes;
+    if (!Array.isArray(bag) && bag?.scale != null) {
+        max = Math.max(max, Number(bag.scale) || 0);
+    }
+    for (const band of [...goalMinutesScored.value, ...goalMinutesConceded.value]) {
         max = Math.max(
             max,
             Number(band.scale) || 0,
@@ -1699,13 +1719,13 @@ function loginHref() {
                 </div>
             </section>
 
-            <!-- 8. Goal minutes — vertical paired columns (суммы, номинальная шкала) -->
-            <section class="miq-panel" aria-label="Минуты голов">
-                <div class="miq-panel-head">
-                    <h2 class="miq-panel-title">Голы по минутам</h2>
-                </div>
-
-                <div class="miq-compare-legend px-3.5 pt-2.5">
+            <!-- 8. Goal minutes — забитые + пропущенные, общая шкала -->
+            <section
+                v-if="goalMinutesScored.length || goalMinutesConceded.length"
+                class="miq-panel"
+                aria-label="Голы по минутам"
+            >
+                <div class="miq-compare-legend px-3.5 pt-3">
                     <span class="miq-compare-legend-item">
                         <span class="miq-compare-legend-swatch is-team-home" aria-hidden="true" />
                         {{ match.home }}
@@ -1714,31 +1734,92 @@ function loginHref() {
                         <span class="miq-compare-legend-swatch is-team-away" aria-hidden="true" />
                         {{ match.away }}
                     </span>
+                    <span class="ml-auto text-[10px] text-miq-muted">общая шкала</span>
                 </div>
 
                 <div
-                    class="miq-minute-chart px-3 pb-3.5 pt-2"
-                    role="img"
-                    :aria-label="`Голы по интервалам: ${match.home} и ${match.away}`"
+                    v-if="goalMinutesScored.length"
+                    class="miq-minute-section"
                 >
+                    <div class="miq-minute-section-head">
+                        <h2 class="miq-panel-title">Голы по минутам · забитые</h2>
+                        <p class="miq-minute-section-note">
+                            сколько голов забито командой в каждом 15-минутном отрезке
+                        </p>
+                    </div>
                     <div
-                        v-for="band in goalMinutes"
-                        :key="band.band"
-                        class="miq-minute-col"
+                        class="miq-minute-chart px-3 pb-3 pt-2"
+                        role="img"
+                        :aria-label="`Забитые голы по интервалам: ${match.home} и ${match.away}`"
                     >
-                        <div class="miq-minute-vpair" aria-hidden="true">
-                            <div class="miq-minute-vbar is-team-home" :title="`${match.home}: ${formatStat(band.home)}`">
-                                <span :style="{ height: barHeight(band.home, goalMax) }" />
+                        <div
+                            v-for="band in goalMinutesScored"
+                            :key="`scored-${band.band}`"
+                            class="miq-minute-col"
+                        >
+                            <div class="miq-minute-vpair" aria-hidden="true">
+                                <div
+                                    class="miq-minute-vbar is-team-home"
+                                    :title="`${match.home}: ${formatStat(band.home)}`"
+                                >
+                                    <span :style="{ height: barHeight(band.home, goalMax) }" />
+                                </div>
+                                <div
+                                    class="miq-minute-vbar is-team-away"
+                                    :title="`${match.away}: ${formatStat(band.away)}`"
+                                >
+                                    <span :style="{ height: barHeight(band.away, goalMax) }" />
+                                </div>
                             </div>
-                            <div class="miq-minute-vbar is-team-away" :title="`${match.away}: ${formatStat(band.away)}`">
-                                <span :style="{ height: barHeight(band.away, goalMax) }" />
+                            <div class="miq-minute-vals tabular-nums">
+                                <span class="is-team-home">{{ formatStat(band.home) }}</span>
+                                <span class="is-team-away">{{ formatStat(band.away) }}</span>
                             </div>
+                            <span class="miq-minute-xlabel tabular-nums">{{ band.band }}</span>
                         </div>
-                        <div class="miq-minute-vals tabular-nums">
-                            <span class="is-team-home">{{ formatStat(band.home) }}</span>
-                            <span class="is-team-away">{{ formatStat(band.away) }}</span>
+                    </div>
+                </div>
+
+                <div
+                    v-if="goalMinutesConceded.length"
+                    class="miq-minute-section is-conceded"
+                >
+                    <div class="miq-minute-section-head">
+                        <h2 class="miq-panel-title">Голы по минутам · пропущенные</h2>
+                        <p class="miq-minute-section-note">
+                            сколько голов пропущено командой в каждом 15-минутном отрезке
+                        </p>
+                    </div>
+                    <div
+                        class="miq-minute-chart px-3 pb-3.5 pt-2"
+                        role="img"
+                        :aria-label="`Пропущенные голы по интервалам: ${match.home} и ${match.away}`"
+                    >
+                        <div
+                            v-for="band in goalMinutesConceded"
+                            :key="`conceded-${band.band}`"
+                            class="miq-minute-col"
+                        >
+                            <div class="miq-minute-vpair" aria-hidden="true">
+                                <div
+                                    class="miq-minute-vbar is-team-home"
+                                    :title="`${match.home}: ${formatStat(band.home)}`"
+                                >
+                                    <span :style="{ height: barHeight(band.home, goalMax) }" />
+                                </div>
+                                <div
+                                    class="miq-minute-vbar is-team-away"
+                                    :title="`${match.away}: ${formatStat(band.away)}`"
+                                >
+                                    <span :style="{ height: barHeight(band.away, goalMax) }" />
+                                </div>
+                            </div>
+                            <div class="miq-minute-vals tabular-nums">
+                                <span class="is-team-home">{{ formatStat(band.home) }}</span>
+                                <span class="is-team-away">{{ formatStat(band.away) }}</span>
+                            </div>
+                            <span class="miq-minute-xlabel tabular-nums">{{ band.band }}</span>
                         </div>
-                        <span class="miq-minute-xlabel tabular-nums">{{ band.band }}</span>
                     </div>
                 </div>
             </section>
