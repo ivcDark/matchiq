@@ -332,7 +332,7 @@ function loginHref() {
                     <p class="text-[11px] font-medium text-miq-muted">рынки · % ИИ</p>
                 </div>
 
-                <div class="px-3 pt-3">
+                <div class="px-2.5 pt-2.5 sm:px-3 sm:pt-3">
                     <div
                         class="inline-flex max-w-full flex-wrap rounded-md border border-miq-line/80 bg-white/60 p-0.5"
                         role="tablist"
@@ -351,12 +351,12 @@ function loginHref() {
                             {{ f.label }}
                         </button>
                     </div>
-                    <p class="mt-2 text-[11px] leading-snug text-miq-muted">
+                    <p class="mt-1.5 text-[10px] leading-snug text-miq-muted sm:text-[11px]">
                         1 исход на матч · больше баллов за смелый верный выбор (низкая вероятность)
                     </p>
                     <p
                         v-if="pickClosed"
-                        class="mt-1 text-[11px] font-semibold text-miq-warn"
+                        class="mt-1 text-[10px] font-semibold text-miq-warn sm:text-[11px]"
                     >
                         Выбор закрыт — вероятности как снимок на kickoff
                     </p>
@@ -364,7 +364,7 @@ function loginHref() {
 
                 <div
                     v-if="guestCtaOpen && !user"
-                    class="mx-3.5 mt-3 rounded-md border border-miq-pitch/25 bg-[color-mix(in_srgb,var(--miq-pitch)_8%,white)] px-3 py-2.5 text-sm text-miq-ink-soft"
+                    class="mx-2.5 mt-2 rounded-md border border-miq-pitch/25 bg-[color-mix(in_srgb,var(--miq-pitch)_8%,white)] px-2.5 py-2 text-sm text-miq-ink-soft sm:mx-3"
                     role="status"
                 >
                     Чтобы выбрать исход в рейтинг,
@@ -379,7 +379,7 @@ function loginHref() {
 
                 <ul
                     v-if="filteredMarkets.length"
-                    class="mt-3 space-y-2.5 px-3 pb-3.5"
+                    class="mt-2 space-y-1.5 px-2.5 pb-2.5 sm:px-3 sm:pb-3"
                 >
                     <li
                         v-for="market in filteredMarkets"

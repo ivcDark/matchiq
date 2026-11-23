@@ -654,32 +654,32 @@
         @apply flex flex-col items-center justify-center text-center;
     }
 
-    /* BK-style markets: группа исходов в карточке */
+    /* BK-style markets: компактная группа исходов */
     .miq-market-card {
-        @apply rounded-md border px-2.5 py-2.5 sm:px-3;
+        @apply rounded-md border px-1.5 py-1.5 sm:px-2 sm:py-1.5;
         border-color: color-mix(in srgb, var(--miq-line) 85%, transparent);
         background: color-mix(in srgb, white 82%, var(--miq-chalk));
     }
 
     .miq-market-card.has-pick {
         border-color: color-mix(in srgb, var(--miq-pitch) 40%, var(--miq-line));
-        box-shadow: inset 3px 0 0 var(--miq-pitch);
+        box-shadow: inset 2px 0 0 var(--miq-pitch);
     }
 
     .miq-market-head {
-        @apply mb-2 flex items-baseline justify-between gap-2;
+        @apply mb-1 flex items-baseline justify-between gap-1.5;
     }
 
     .miq-market-name {
-        @apply text-[11px] font-bold uppercase tracking-[0.12em] text-miq-muted;
+        @apply text-[10px] font-bold uppercase tracking-[0.1em] text-miq-muted;
     }
 
     .miq-market-pop {
-        @apply shrink-0 text-[10px] font-semibold tabular-nums text-miq-muted;
+        @apply shrink-0 text-[9px] font-semibold tabular-nums text-miq-muted;
     }
 
     .miq-outcome-grid {
-        @apply grid gap-1.5;
+        @apply grid gap-1;
     }
 
     .miq-outcome-grid.is-binary {
@@ -691,7 +691,7 @@
     }
 
     .miq-outcome-cell {
-        @apply flex flex-col items-center rounded-md border px-1.5 py-2 text-center sm:px-2.5;
+        @apply flex flex-col items-center rounded border px-1 py-1.5 text-center sm:px-1.5;
         border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
         background: color-mix(in srgb, white 90%, var(--miq-mist));
     }
@@ -702,19 +702,19 @@
     }
 
     .miq-outcome-label {
-        @apply text-[11px] font-bold uppercase tracking-wide text-miq-ink-soft sm:text-xs;
+        @apply text-[10px] font-bold uppercase tracking-wide text-miq-ink-soft;
     }
 
     .miq-outcome-prob {
-        @apply mt-1 font-display text-xl font-bold leading-none text-miq-pitch-deep sm:text-2xl;
+        @apply mt-0.5 font-display text-base font-bold leading-none text-miq-pitch-deep sm:text-lg;
     }
 
     .miq-outcome-unit {
-        @apply ml-0.5 text-[11px] font-semibold text-miq-muted;
+        @apply ml-px text-[10px] font-semibold text-miq-muted;
     }
 
     .miq-outcome-meta {
-        @apply mt-1 text-[10px] leading-tight text-miq-muted;
+        @apply mt-0.5 text-[9px] leading-tight text-miq-muted;
     }
 
     .miq-outcome-hit.is-yes {
@@ -722,11 +722,12 @@
     }
 
     .miq-outcome-pick {
-        @apply mt-2 w-full;
+        @apply mt-1 w-full;
     }
 
     .miq-pick-btn {
-        @apply shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-bold transition;
+        @apply shrink-0 rounded border px-1.5 py-1 text-[11px] font-bold leading-none transition;
+        min-height: 1.75rem;
         border-color: var(--miq-pitch);
         color: var(--miq-pitch-deep);
         background: color-mix(in srgb, var(--miq-pitch) 8%, white);
