@@ -20,6 +20,11 @@
     --miq-chip-draw: #a16207;
     --miq-chip-away: #0f766e;
     --miq-chip-market: #3f6212;
+    /* Сравнение win/lose: тёплые sage / coral-salmon (эталон) */
+    --miq-cmp-lead: #7d9f6a;
+    --miq-cmp-lead-ink: #5a7549;
+    --miq-cmp-trail: #e8a090;
+    --miq-cmp-trail-ink: #c47868;
 }
 
 @layer base {
@@ -806,29 +811,29 @@
     }
 
     .miq-compare-bars {
-        @apply grid gap-1;
+        @apply grid gap-[3px];
     }
 
     .miq-compare-bar {
-        @apply h-1.5 overflow-hidden rounded-sm;
-        background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
+        @apply h-2.5 overflow-hidden rounded-full;
+        background: color-mix(in srgb, var(--miq-mist-deep) 75%, white);
     }
 
     .miq-compare-bar span {
-        @apply block h-full rounded-sm;
+        @apply block h-full rounded-full;
         transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .miq-compare-bar.is-lead span {
-        background: color-mix(in srgb, var(--miq-pitch) 78%, var(--miq-lime));
+        background: var(--miq-cmp-lead);
     }
 
     .miq-compare-bar.is-trail span {
-        background: color-mix(in srgb, #be123c 72%, white);
+        background: var(--miq-cmp-trail);
     }
 
     .miq-compare-bar.is-tie span {
-        background: color-mix(in srgb, var(--miq-ink-soft) 45%, white);
+        background: color-mix(in srgb, var(--miq-ink-soft) 40%, white);
     }
 
     .miq-compare-bar.is-team-home span {
@@ -840,15 +845,15 @@
     }
 
     .miq-compare-nums {
-        @apply flex flex-col items-end gap-0.5 text-[11px] font-semibold leading-none;
+        @apply flex flex-col items-end gap-[3px] text-[11px] font-semibold leading-none;
     }
 
     .miq-compare-nums .is-lead {
-        color: var(--miq-pitch-deep);
+        color: var(--miq-cmp-lead-ink);
     }
 
     .miq-compare-nums .is-trail {
-        color: #9f1239;
+        color: var(--miq-cmp-trail-ink);
     }
 
     .miq-compare-nums .is-tie {
@@ -904,11 +909,11 @@
     }
 
     .miq-donut-arc.is-lead {
-        stroke: color-mix(in srgb, var(--miq-pitch) 78%, var(--miq-lime));
+        stroke: var(--miq-cmp-lead);
     }
 
     .miq-donut-arc.is-trail {
-        stroke: color-mix(in srgb, #be123c 72%, white);
+        stroke: var(--miq-cmp-trail);
     }
 
     .miq-donut-arc.is-tie {
@@ -928,13 +933,16 @@
         color: var(--miq-ink-soft);
     }
 
-    .miq-donut-val.is-lead,
+    .miq-donut-val.is-lead {
+        color: var(--miq-cmp-lead-ink);
+    }
+
     .miq-donut-val.is-team-home {
         color: var(--miq-pitch-deep);
     }
 
     .miq-donut-val.is-trail {
-        color: #9f1239;
+        color: var(--miq-cmp-trail-ink);
     }
 
     .miq-donut-val.is-team-away {
@@ -955,8 +963,8 @@
     }
 
     .miq-compare-mirror-bar {
-        @apply flex h-1.5 overflow-hidden rounded-sm;
-        background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
+        @apply flex h-2.5 overflow-hidden rounded-full;
+        background: color-mix(in srgb, var(--miq-mist-deep) 75%, white);
     }
 
     .miq-compare-mirror-bar.is-left {
@@ -964,20 +972,20 @@
     }
 
     .miq-compare-mirror-bar span {
-        @apply block h-full rounded-sm;
+        @apply block h-full rounded-full;
         transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .miq-compare-mirror-bar.is-lead span {
-        background: #6b9a3e;
+        background: var(--miq-cmp-lead);
     }
 
     .miq-compare-mirror-bar.is-trail span {
-        background: #c45c48;
+        background: var(--miq-cmp-trail);
     }
 
     .miq-compare-mirror-bar.is-tie span {
-        background: color-mix(in srgb, var(--miq-ink-soft) 45%, white);
+        background: color-mix(in srgb, var(--miq-ink-soft) 40%, white);
     }
 
     .miq-compare-mirror-num {
@@ -993,11 +1001,11 @@
     }
 
     .miq-compare-mirror-num.is-lead {
-        color: #4d7330;
+        color: var(--miq-cmp-lead-ink);
     }
 
     .miq-compare-mirror-num.is-trail {
-        color: #a34436;
+        color: var(--miq-cmp-trail-ink);
     }
 
     .miq-compare-mirror-num.is-tie {
