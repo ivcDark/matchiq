@@ -501,8 +501,8 @@
         @apply py-2.5;
     }
 
-    .miq-form-match-list {
-        @apply divide-y divide-miq-line/50;
+    .miq-form-match-list > li + li {
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 50%, transparent);
     }
 
     .miq-form-match-row {
