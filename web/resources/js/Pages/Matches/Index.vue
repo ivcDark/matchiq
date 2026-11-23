@@ -572,26 +572,40 @@ function hasResultProbs(match) {
     );
 }
 
-/** Последние результаты команды: W / D / L (демо-массивы с бэка). */
+/** Нормализация формы: В/Н/П (legacy W/D/L тоже). */
+function normalizeFormResult(result) {
+    const s = String(result || '').trim().toUpperCase();
+    if (s === 'W' || s === 'В') return 'В';
+    if (s === 'D' || s === 'Н') return 'Н';
+    if (s === 'L' || s === 'П') return 'П';
+    return null;
+}
+
+/** Последние результаты команды: В / Н / П (демо-массивы с бэка). */
 function formResults(match, side) {
     const key = side === 'away' ? 'form_away' : 'form_home';
     const raw = match?.[key];
     if (!Array.isArray(raw) || raw.length === 0) return [];
-    return raw
-        .map((r) => String(r).toUpperCase())
-        .filter((r) => r === 'W' || r === 'D' || r === 'L');
+    return raw.map(normalizeFormResult).filter(Boolean);
 }
 
 function formStickClass(result) {
-    if (result === 'W') return 'is-w';
-    if (result === 'D') return 'is-d';
+    const n = normalizeFormResult(result);
+    if (n === 'В') return 'is-w';
+    if (n === 'Н') return 'is-d';
     return 'is-l';
 }
 
 function formAriaLabel(results, side) {
     if (!results.length) return '';
     const sideLabel = side === 'away' ? 'гости' : 'хозяева';
-    return `${sideLabel}: ${results.join(' ')}`;
+    const labels = results.map((r) => {
+        const n = normalizeFormResult(r);
+        if (n === 'В') return 'победа';
+        if (n === 'Н') return 'ничья';
+        return 'поражение';
+    });
+    return `${sideLabel}: ${labels.join(', ')}`;
 }
 
 function resultProbMaxKey(match) {

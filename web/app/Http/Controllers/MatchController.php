@@ -167,8 +167,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'league_id' => 'rpl',
-                'form_home' => ['W', 'D', 'L', 'W', 'D'],
-                'form_away' => ['L', 'W', 'W', 'D', 'L'],
+                'form_home' => ['В', 'Н', 'П', 'В', 'Н'],
+                'form_away' => ['П', 'В', 'В', 'Н', 'П'],
                 'prob_home' => 40,
                 'prob_draw' => 28,
                 'prob_away' => 32,
@@ -870,7 +870,17 @@ class MatchController extends Controller
             static fn ($row) => $row['pos'] >= $minPos && $row['pos'] <= $maxPos,
         ));
 
-        $formBank = ['WWDLW', 'WDWLW', 'LWWWD', 'DWWLW', 'WLWDL', 'LWWDW', 'WDLWW', 'DLWWL'];
+        // Слева — старше, справа — свежее; буквы В/Н/П.
+        $formBank = [
+            ['В', 'В', 'Н', 'П', 'В'],
+            ['В', 'Н', 'В', 'П', 'В'],
+            ['П', 'В', 'В', 'В', 'Н'],
+            ['Н', 'В', 'В', 'П', 'В'],
+            ['В', 'П', 'В', 'Н', 'П'],
+            ['П', 'В', 'В', 'Н', 'В'],
+            ['В', 'Н', 'П', 'В', 'В'],
+            ['Н', 'П', 'В', 'В', 'П'],
+        ];
 
         return array_map(static function (array $row) use ($home, $away, $formBank) {
             $row['highlight'] = $row['team'] === $home || $row['team'] === $away;
@@ -1157,7 +1167,7 @@ class MatchController extends Controller
 
     /**
      * 5 блоков формы: H2H, хозяева, гости, хозяева дома, гости в гостях.
-     * На матч: дата, пары, FT/HT счёт, турнир, result (W/D/L относительно focus;
+     * На матч: дата, пары, FT/HT счёт, турнир, result (В/Н/П относительно focus;
      * для H2H — хозяева предстоящего матча).
      *
      * @return list<array{id: string, title: string, focus: string, matches: list<array<string, mixed>>}>
@@ -1183,11 +1193,11 @@ class MatchController extends Controller
             int $compIdx = 0,
         ) use ($comps): array {
             if ($sh === $sa) {
-                $result = 'D';
+                $result = 'Н';
             } elseif ($focus === $homeTeam) {
-                $result = $sh > $sa ? 'W' : 'L';
+                $result = $sh > $sa ? 'В' : 'П';
             } else {
-                $result = $sa > $sh ? 'W' : 'L';
+                $result = $sa > $sh ? 'В' : 'П';
             }
 
             $htHome = (int) min($sh, max(0, intdiv($sh + ($daysAgo % 3), 2)));
@@ -1373,8 +1383,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'today',
-                'form_home' => ['W', 'W', 'D', 'W', 'L'],
-                'form_away' => ['L', 'W', 'W', 'D', 'W'],
+                'form_home' => ['В', 'В', 'Н', 'В', 'П'],
+                'form_away' => ['П', 'В', 'В', 'Н', 'В'],
                 'prob_home' => 42,
                 'prob_draw' => 2,
                 'prob_away' => 56,
@@ -1390,8 +1400,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'today',
-                'form_home' => ['D', 'L', 'W', 'W', 'D'],
-                'form_away' => ['W', 'D', 'L', 'L', 'W'],
+                'form_home' => ['Н', 'П', 'В', 'В', 'Н'],
+                'form_away' => ['В', 'Н', 'П', 'П', 'В'],
                 'prob_home' => 48,
                 'prob_draw' => 26,
                 'prob_away' => 26,
@@ -1407,8 +1417,8 @@ class MatchController extends Controller
                 'score_home' => 1,
                 'score_away' => 1,
                 'period_bucket' => 'today',
-                'form_home' => ['W', 'D', 'W', 'L', 'W'],
-                'form_away' => ['D', 'W', 'L', 'W', 'D'],
+                'form_home' => ['В', 'Н', 'В', 'П', 'В'],
+                'form_away' => ['Н', 'В', 'П', 'В', 'Н'],
                 'prob_home' => 35,
                 'prob_draw' => 31,
                 'prob_away' => 34,
@@ -1424,8 +1434,8 @@ class MatchController extends Controller
                 'score_home' => 0,
                 'score_away' => 2,
                 'period_bucket' => 'today',
-                'form_home' => ['L', 'L', 'D', 'W', 'L'],
-                'form_away' => ['W', 'W', 'W', 'D', 'L'],
+                'form_home' => ['П', 'П', 'Н', 'В', 'П'],
+                'form_away' => ['В', 'В', 'В', 'Н', 'П'],
                 'prob_home' => null,
                 'prob_draw' => null,
                 'prob_away' => null,
@@ -1441,8 +1451,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'upcoming',
-                'form_home' => ['W', 'W', 'W', 'D', 'W'],
-                'form_away' => ['L', 'D', 'W', 'L', 'D'],
+                'form_home' => ['В', 'В', 'В', 'Н', 'В'],
+                'form_away' => ['П', 'Н', 'В', 'П', 'Н'],
                 'prob_home' => 52,
                 'prob_draw' => 24,
                 'prob_away' => 24,
@@ -1458,8 +1468,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'upcoming',
-                'form_home' => ['D', 'W', 'L', 'W', 'W'],
-                'form_away' => ['W', 'L', 'D', 'W', 'L'],
+                'form_home' => ['Н', 'В', 'П', 'В', 'В'],
+                'form_away' => ['В', 'П', 'Н', 'В', 'П'],
                 'prob_home' => 41,
                 'prob_draw' => 28,
                 'prob_away' => 31,
@@ -1475,8 +1485,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'upcoming',
-                'form_home' => ['L', 'W', 'D', 'D', 'W'],
-                'form_away' => ['D', 'D', 'L', 'W', 'W'],
+                'form_home' => ['П', 'В', 'Н', 'Н', 'В'],
+                'form_away' => ['Н', 'Н', 'П', 'В', 'В'],
                 'prob_home' => 38,
                 'prob_draw' => 30,
                 'prob_away' => 32,
@@ -1492,8 +1502,8 @@ class MatchController extends Controller
                 'score_home' => 2,
                 'score_away' => 0,
                 'period_bucket' => 'finished',
-                'form_home' => ['W', 'W', 'L', 'W', 'D'],
-                'form_away' => ['L', 'L', 'W', 'D', 'L'],
+                'form_home' => ['В', 'В', 'П', 'В', 'Н'],
+                'form_away' => ['П', 'П', 'В', 'Н', 'П'],
                 'prob_home' => null,
                 'prob_draw' => null,
                 'prob_away' => null,
@@ -1509,8 +1519,8 @@ class MatchController extends Controller
                 'score_home' => 1,
                 'score_away' => 3,
                 'period_bucket' => 'finished',
-                'form_home' => ['D', 'L', 'L', 'W', 'D'],
-                'form_away' => ['W', 'W', 'D', 'W', 'W'],
+                'form_home' => ['Н', 'П', 'П', 'В', 'Н'],
+                'form_away' => ['В', 'В', 'Н', 'В', 'В'],
                 'prob_home' => null,
                 'prob_draw' => null,
                 'prob_away' => null,
@@ -1526,8 +1536,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'today',
-                'form_home' => ['W', 'D', 'W', 'W', 'L'],
-                'form_away' => ['L', 'W', 'D', 'L', 'W'],
+                'form_home' => ['В', 'Н', 'В', 'В', 'П'],
+                'form_away' => ['П', 'В', 'Н', 'П', 'В'],
                 'prob_home' => 46,
                 'prob_draw' => 27,
                 'prob_away' => 27,
@@ -1543,8 +1553,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'upcoming',
-                'form_home' => ['L', 'D', 'W', 'D', 'W'],
-                'form_away' => ['W', 'L', 'W', 'D', 'D'],
+                'form_home' => ['П', 'Н', 'В', 'Н', 'В'],
+                'form_away' => ['В', 'П', 'В', 'Н', 'Н'],
                 'prob_home' => 43,
                 'prob_draw' => 28,
                 'prob_away' => 29,
@@ -1560,8 +1570,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'today',
-                'form_home' => ['W', 'W', 'D', 'W', 'W'],
-                'form_away' => ['W', 'L', 'W', 'D', 'W'],
+                'form_home' => ['В', 'В', 'Н', 'В', 'В'],
+                'form_away' => ['В', 'П', 'В', 'Н', 'В'],
                 'prob_home' => 44,
                 'prob_draw' => 25,
                 'prob_away' => 31,
@@ -1577,8 +1587,8 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'upcoming',
-                'form_home' => ['W', 'D', 'W', 'L', 'W'],
-                'form_away' => ['D', 'W', 'W', 'W', 'L'],
+                'form_home' => ['В', 'Н', 'В', 'П', 'В'],
+                'form_away' => ['Н', 'В', 'В', 'В', 'П'],
                 'prob_home' => 49,
                 'prob_draw' => 24,
                 'prob_away' => 27,
@@ -1594,8 +1604,8 @@ class MatchController extends Controller
                 'score_home' => 2,
                 'score_away' => 1,
                 'period_bucket' => 'finished',
-                'form_home' => ['W', 'W', 'L', 'D', 'W'],
-                'form_away' => ['L', 'W', 'D', 'L', 'W'],
+                'form_home' => ['В', 'В', 'П', 'Н', 'В'],
+                'form_away' => ['П', 'В', 'Н', 'П', 'В'],
                 'prob_home' => null,
                 'prob_draw' => null,
                 'prob_away' => null,

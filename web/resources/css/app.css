@@ -717,8 +717,23 @@
     }
 
     .miq-table-form {
-        @apply text-[10px] font-bold tracking-wide text-miq-ink-soft;
-        letter-spacing: 0.04em;
+        @apply inline-flex items-center justify-end gap-0.5;
+    }
+
+    .miq-form-chip {
+        @apply inline-flex h-4 w-4 items-center justify-center rounded-sm text-[9px] font-bold leading-none text-white;
+    }
+
+    .miq-form-chip.is-w {
+        background: #15803d;
+    }
+
+    .miq-form-chip.is-d {
+        background: #d97706;
+    }
+
+    .miq-form-chip.is-l {
+        background: #dc2626;
     }
 
     /* Бомбардиры — две таблицы по командам */

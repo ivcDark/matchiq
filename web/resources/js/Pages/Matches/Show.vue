@@ -298,9 +298,10 @@ function formSummary(matches) {
     let d = 0;
     let l = 0;
     for (const m of matches) {
-        if (m.result === 'W') w += 1;
-        else if (m.result === 'D') d += 1;
-        else if (m.result === 'L') l += 1;
+        const n = normalizeFormResult(m.result);
+        if (n === 'В') w += 1;
+        else if (n === 'Н') d += 1;
+        else if (n === 'П') l += 1;
     }
     const total = w + d + l;
     const pct = (n) => (total === 0 ? 0 : Math.round((n * 100) / total));
@@ -402,25 +403,44 @@ function scoreText() {
     return `${props.match.score_home}∶${props.match.score_away}`;
 }
 
+/** Нормализация результата формы: В/Н/П (legacy W/D/L тоже принимаем). */
+function normalizeFormResult(result) {
+    const s = String(result || '').trim().toUpperCase();
+    if (s === 'W' || s === 'В') return 'В';
+    if (s === 'D' || s === 'Н') return 'Н';
+    if (s === 'L' || s === 'П') return 'П';
+    return null;
+}
+
+function parseFormSequence(form) {
+    if (Array.isArray(form)) {
+        return form.map(normalizeFormResult).filter(Boolean);
+    }
+    if (typeof form !== 'string' || !form) return [];
+    return [...form].map(normalizeFormResult).filter(Boolean);
+}
+
 function formResults(side) {
     const key = side === 'away' ? 'form_away' : 'form_home';
-    const raw = props.match?.[key];
-    if (!Array.isArray(raw) || raw.length === 0) return [];
-    return raw
-        .map((r) => String(r).toUpperCase())
-        .filter((r) => r === 'W' || r === 'D' || r === 'L');
+    return parseFormSequence(props.match?.[key]);
 }
 
 function formStickClass(result) {
-    if (result === 'W') return 'is-w';
-    if (result === 'D') return 'is-d';
+    const n = normalizeFormResult(result);
+    if (n === 'В') return 'is-w';
+    if (n === 'Н') return 'is-d';
     return 'is-l';
 }
 
+function formResultLetter(result) {
+    return normalizeFormResult(result) || '—';
+}
+
 function formResultTitle(result) {
-    if (result === 'W') return 'Победа';
-    if (result === 'D') return 'Ничья';
-    if (result === 'L') return 'Поражение';
+    const n = normalizeFormResult(result);
+    if (n === 'В') return 'Победа';
+    if (n === 'Н') return 'Ничья';
+    if (n === 'П') return 'Поражение';
     return result || '';
 }
 
@@ -1266,7 +1286,7 @@ function loginHref() {
                                 <th class="px-1.5 py-2 text-right font-semibold" title="Разница">+/−</th>
                                 <th class="px-1.5 py-2 text-right font-semibold" title="Очки">О</th>
                                 <th class="px-1.5 py-2 text-right font-semibold" title="Очки за игру">О/И</th>
-                                <th class="px-2 py-2 text-right font-semibold sm:px-3" title="Форма · последние 5">Ф</th>
+                                <th class="px-2 py-2 text-right font-semibold sm:px-3" title="Форма · последние 5 (слева старше)">Форма</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1310,10 +1330,18 @@ function loginHref() {
                                 </td>
                                 <td class="px-2 py-2 text-right sm:px-3">
                                     <span
-                                        v-if="row.form"
-                                        class="miq-table-form tabular-nums"
-                                        :title="`Форма: ${row.form}`"
-                                    >{{ row.form }}</span>
+                                        v-if="parseFormSequence(row.form).length"
+                                        class="miq-table-form"
+                                        title="Форма · слева старше, справа свежее"
+                                    >
+                                        <span
+                                            v-for="(letter, fIdx) in parseFormSequence(row.form)"
+                                            :key="`${row.pos}-f-${fIdx}`"
+                                            class="miq-form-chip"
+                                            :class="formStickClass(letter)"
+                                            :title="formResultTitle(letter)"
+                                        >{{ formResultLetter(letter) }}</span>
+                                    </span>
                                     <span v-else class="text-miq-muted">—</span>
                                 </td>
                             </tr>

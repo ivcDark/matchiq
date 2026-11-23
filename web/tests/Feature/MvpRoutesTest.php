@@ -164,6 +164,9 @@ class MvpRoutesTest extends TestCase
                 ->where('scorers.home.0.assists', 4)
                 ->where('scorers.home.0.pens', 2)
                 ->where('scorers.home.0.ga', 15)
+                ->has('standings')
+                ->where('standings.0.form', ['В', 'В', 'Н', 'П', 'В'])
+                ->where('match.form_home', ['В', 'В', 'Н', 'В', 'П'])
                 ->where('userPickEventId', null));
     }
 
