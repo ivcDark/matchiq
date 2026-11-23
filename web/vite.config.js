@@ -23,6 +23,8 @@ export default defineConfig({
         strictPort: true,
         hmr: {
             host: 'localhost',
+            // Host-mapped port from docker-compose (VITE_HOST_PORT); defaults to 5173.
+            clientPort: Number(process.env.VITE_HOST_PORT || 5173),
         },
         watch: {
             usePolling: true,

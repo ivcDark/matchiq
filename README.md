@@ -51,15 +51,17 @@ cp web/.env.example web/.env
 docker compose up --build
 ```
 
-Сервисы:
+Сервисы (порты с хоста настраиваются через `.env`; см. `.env.example`):
 
-| Сервис       | URL / порт              | Назначение                |
-|--------------|-------------------------|---------------------------|
-| `app`        | http://localhost:8000   | Laravel                   |
-| `vite`       | http://localhost:5173   | Vite HMR                  |
-| `postgres`   | localhost:5432          | PostgreSQL                |
-| `redis`      | localhost:6379          | Redis                     |
-| `collector`  | http://localhost:8081   | Go stub (`/healthz`)      |
+| Сервис       | URL / порт (по умолчанию) | Назначение                |
+|--------------|---------------------------|---------------------------|
+| `app`        | http://localhost:8000     | Laravel                   |
+| `vite`       | http://localhost:5173     | Vite HMR (`VITE_HOST_PORT`) |
+| `postgres`   | localhost:5432            | PostgreSQL                |
+| `redis`      | localhost:6379            | Redis                     |
+| `collector`  | http://localhost:8081     | Go stub (`/healthz`)      |
+
+Если `Bind for 0.0.0.0:5173 failed: port is already allocated` — остановите старый стек (`docker compose down`) или задайте свободный хост-порт, например `VITE_HOST_PORT=5174` в `.env`. Контейнер Vite по-прежнему слушает `5173` внутри сети; Laravel получает URL через `VITE_DEV_SERVER_URL`, HMR — через `clientPort`.
 
 Остановка: `docker compose down`. Данные БД в volume `postgres_data`.
 
