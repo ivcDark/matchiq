@@ -530,6 +530,10 @@ class MatchController extends Controller
                 'ga' => 0.9 + ($n % 3) * 0.1,
                 'xg' => 1.7 + $n * 0.05,
                 'corners' => 5.6 + ($n % 3) * 0.2,
+                'yellows' => round(1.6 + ($n % 3) * 0.2, 1),
+                'sot' => round(5.4 + ($n % 3) * 0.3, 1),
+                'fouls' => 11 + ($n % 4),
+                'offsides' => round(1.8 + ($n % 2) * 0.3, 1),
             ],
             'away' => [
                 'team' => $away,
@@ -538,6 +542,10 @@ class MatchController extends Controller
                 'ga' => 1.4 + ($n % 2) * 0.2,
                 'xg' => 1.2 + ($n % 4) * 0.08,
                 'corners' => 4.2 + ($n % 3) * 0.3,
+                'yellows' => round(2.1 + ($n % 3) * 0.2, 1),
+                'sot' => round(4.0 + ($n % 2) * 0.4, 1),
+                'fouls' => 13 + ($n % 3),
+                'offsides' => round(2.2 + ($n % 3) * 0.2, 1),
             ],
         ];
     }

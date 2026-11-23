@@ -721,6 +721,22 @@ function loginHref() {
                                 <dt class="text-[10px] uppercase tracking-wide text-miq-muted">Угловые</dt>
                                 <dd class="font-semibold tabular-nums text-miq-ink">{{ formatStat(side.corners) }}</dd>
                             </div>
+                            <div>
+                                <dt class="text-[10px] uppercase tracking-wide text-miq-muted">ЖК</dt>
+                                <dd class="font-semibold tabular-nums text-miq-ink">{{ formatStat(side.yellows) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[10px] uppercase tracking-wide text-miq-muted">Удары в створ</dt>
+                                <dd class="font-semibold tabular-nums text-miq-ink">{{ formatStat(side.sot) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[10px] uppercase tracking-wide text-miq-muted">Фолы</dt>
+                                <dd class="font-semibold tabular-nums text-miq-ink">{{ formatStat(side.fouls) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[10px] uppercase tracking-wide text-miq-muted">Офсайды</dt>
+                                <dd class="font-semibold tabular-nums text-miq-ink">{{ formatStat(side.offsides) }}</dd>
+                            </div>
                         </dl>
                     </div>
                 </div>
