@@ -1075,8 +1075,8 @@
 
     /* Голы по минутам: вертикальные пары столбцов */
     .miq-minute-chart {
-        @apply flex items-stretch gap-1 sm:gap-2;
-        min-height: 11rem;
+        @apply flex items-stretch gap-1.5 sm:gap-2.5;
+        min-height: 11.5rem;
     }
 
     .miq-minute-col {
@@ -1084,12 +1084,12 @@
     }
 
     .miq-minute-vpair {
-        @apply flex w-full flex-1 items-end justify-center gap-[3px];
-        min-height: 7.5rem;
+        @apply flex w-full flex-1 items-end justify-center gap-1;
+        min-height: 8rem;
     }
 
     .miq-minute-vbar {
-        @apply flex h-full w-[42%] max-w-[1.15rem] items-end overflow-hidden rounded-t-md;
+        @apply flex h-full w-[48%] max-w-[1.85rem] items-end overflow-hidden rounded-t-md sm:max-w-[2.15rem];
         background: color-mix(in srgb, var(--miq-mist-deep) 75%, white);
     }
 

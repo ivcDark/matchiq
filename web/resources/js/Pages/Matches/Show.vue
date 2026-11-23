@@ -122,10 +122,16 @@ const filteredMarkets = computed(() => {
     return list;
 });
 
+/** Общий max шкалы голов: max(номинальный scale, все значения). */
 const goalMax = computed(() => {
     let max = 0.01;
     for (const band of props.goalMinutes || []) {
-        max = Math.max(max, Number(band.home) || 0, Number(band.away) || 0);
+        max = Math.max(
+            max,
+            Number(band.scale) || 0,
+            Number(band.home) || 0,
+            Number(band.away) || 0,
+        );
     }
     return max;
 });
@@ -948,11 +954,10 @@ function loginHref() {
                 </div>
             </section>
 
-            <!-- 8. Goal minutes — vertical paired columns -->
+            <!-- 8. Goal minutes — vertical paired columns (суммы, номинальная шкала) -->
             <section class="miq-panel" aria-label="Минуты голов">
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Голы по минутам</h2>
-                    <p class="text-xs text-miq-muted">средние</p>
                 </div>
 
                 <div class="miq-compare-legend px-3.5 pt-2.5">

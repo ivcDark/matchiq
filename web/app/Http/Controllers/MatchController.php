@@ -763,17 +763,23 @@ class MatchController extends Controller
      *
      * @return list<array{band: string, home: float, away: float}>
      */
+    /**
+     * Суммы голов по интервалам (не средние) + номинальная шкала `scale`.
+     *
+     * @return list<array{band: string, home: int, away: int, scale: int}>
+     */
     private function demoGoalMinutes(int $id): array
     {
-        $n = abs($id % 4) * 0.05;
+        $n = abs($id % 4);
+        $scale = 12;
 
         return [
-            ['band' => '0–15', 'home' => 0.22 + $n, 'away' => 0.18],
-            ['band' => '15–30', 'home' => 0.28, 'away' => 0.24 + $n],
-            ['band' => '30–45', 'home' => 0.35 + $n, 'away' => 0.30],
-            ['band' => '45–60', 'home' => 0.31, 'away' => 0.33 + $n],
-            ['band' => '60–75', 'home' => 0.40 + $n, 'away' => 0.29],
-            ['band' => '75–90', 'home' => 0.45, 'away' => 0.38 + $n],
+            ['band' => '0–15', 'home' => 5 + $n, 'away' => 4, 'scale' => $scale],
+            ['band' => '15–30', 'home' => 7, 'away' => 5 + $n, 'scale' => $scale],
+            ['band' => '30–45', 'home' => 8 + $n, 'away' => 6, 'scale' => $scale],
+            ['band' => '45–60', 'home' => 6, 'away' => 7 + $n, 'scale' => $scale],
+            ['band' => '60–75', 'home' => 9 + $n, 'away' => 5, 'scale' => $scale],
+            ['band' => '75–90', 'home' => 10, 'away' => 8 + $n, 'scale' => $scale],
         ];
     }
 
