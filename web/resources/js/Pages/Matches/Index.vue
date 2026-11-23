@@ -582,10 +582,6 @@ function formResults(match, side) {
         .filter((r) => r === 'W' || r === 'D' || r === 'L');
 }
 
-function hasForm(match) {
-    return formResults(match, 'home').length > 0 || formResults(match, 'away').length > 0;
-}
-
 function formStickClass(result) {
     if (result === 'W') return 'is-w';
     if (result === 'D') return 'is-d';
@@ -927,21 +923,15 @@ const listKey = computed(
                                                         </p>
                                                     </div>
 
-                                                    <div class="min-w-0 flex-1">
-                                                        <p class="miq-display text-[15px] font-semibold leading-snug text-miq-ink sm:text-base">
-                                                            {{ match.home }}
-                                                            <span class="font-medium text-miq-muted">—</span>
-                                                            {{ match.away }}
-                                                        </p>
-                                                        <div
-                                                            v-if="hasForm(match)"
-                                                            class="miq-form-sticks"
-                                                            role="group"
-                                                            aria-label="Последние результаты"
-                                                        >
+                                                    <div class="miq-match-teams min-w-0 flex-1">
+                                                        <div class="miq-team-block">
+                                                            <p class="miq-team-name miq-display text-[15px] font-semibold leading-snug text-miq-ink sm:text-base">
+                                                                {{ match.home }}
+                                                            </p>
                                                             <div
                                                                 v-if="formResults(match, 'home').length"
-                                                                class="miq-form-row"
+                                                                class="miq-form-sticks"
+                                                                role="group"
                                                                 :aria-label="formAriaLabel(formResults(match, 'home'), 'home')"
                                                             >
                                                                 <span
@@ -952,14 +942,15 @@ const listKey = computed(
                                                                     :title="result"
                                                                 ></span>
                                                             </div>
-                                                            <span
-                                                                v-if="formResults(match, 'home').length && formResults(match, 'away').length"
-                                                                class="miq-form-sep"
-                                                                aria-hidden="true"
-                                                            ></span>
+                                                        </div>
+                                                        <div class="miq-team-block">
+                                                            <p class="miq-team-name miq-display text-[15px] font-semibold leading-snug text-miq-ink sm:text-base">
+                                                                {{ match.away }}
+                                                            </p>
                                                             <div
                                                                 v-if="formResults(match, 'away').length"
-                                                                class="miq-form-row"
+                                                                class="miq-form-sticks"
+                                                                role="group"
                                                                 :aria-label="formAriaLabel(formResults(match, 'away'), 'away')"
                                                             >
                                                                 <span

@@ -382,17 +382,20 @@
         color: var(--miq-pitch-deep);
     }
 
+    .miq-match-teams {
+        @apply flex flex-col gap-1.5;
+    }
+
+    .miq-team-block {
+        @apply min-w-0;
+    }
+
+    .miq-team-name {
+        @apply truncate;
+    }
+
     .miq-form-sticks {
-        @apply mt-1.5 flex flex-wrap items-center gap-1.5;
-    }
-
-    .miq-form-row {
-        @apply flex items-center gap-[3px];
-    }
-
-    .miq-form-sep {
-        @apply h-2.5 w-px shrink-0;
-        background: color-mix(in srgb, var(--miq-line) 85%, transparent);
+        @apply mt-0.5 flex items-center gap-[3px];
     }
 
     .miq-form-stick {
