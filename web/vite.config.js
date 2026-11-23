@@ -4,10 +4,7 @@ import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
     plugins: [
-        laravel({
-            input: 'resources/js/app.js',
-            refresh: true,
-        }),
+        // Ensure .vue SFCs transform before laravel-vite / import-analysis.
         vue({
             template: {
                 transformAssetUrls: {
@@ -15,6 +12,10 @@ export default defineConfig({
                     includeAbsolute: false,
                 },
             },
+        }),
+        laravel({
+            input: 'resources/js/app.js',
+            refresh: true,
         }),
     ],
     server: {
