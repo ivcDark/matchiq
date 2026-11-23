@@ -981,8 +981,10 @@ const listKey = computed(
                                                         </div>
 
                                                         <div
-                                                            v-if="hasResultProbs(match) || topMarket(match)"
                                                             class="miq-match-bets"
+                                                            :class="{
+                                                                'is-empty': !hasResultProbs(match) && !topMarket(match),
+                                                            }"
                                                         >
                                                             <div
                                                                 v-if="hasResultProbs(match)"
