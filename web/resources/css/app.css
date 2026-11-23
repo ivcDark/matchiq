@@ -748,7 +748,7 @@
         @apply cursor-default;
     }
 
-    /* Сравнение: односторонние шкалы (как минуты голов), цвет = лидер/отстающий */
+    /* Сравнение: варианты A–D */
     .miq-compare-legend {
         @apply flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-miq-ink-soft;
     }
@@ -769,6 +769,32 @@
     .miq-compare-legend-swatch.is-away {
         background: color-mix(in srgb, var(--miq-ink-soft) 40%, white);
         box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--miq-ink) 25%, transparent);
+    }
+
+    .miq-compare-legend-swatch.is-team-home {
+        background: color-mix(in srgb, var(--miq-pitch) 80%, var(--miq-lime));
+    }
+
+    .miq-compare-legend-swatch.is-team-away {
+        background: color-mix(in srgb, var(--miq-chip-away) 85%, white);
+    }
+
+    .miq-compare-ab-grid {
+        @apply grid gap-3 px-3.5 pb-3 pt-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(12rem,0.9fr)] lg:items-start;
+    }
+
+    .miq-compare-ab-bars {
+        @apply min-w-0;
+    }
+
+    .miq-compare-ab-donuts {
+        @apply rounded-md border px-2.5 py-2.5;
+        border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, white 70%, var(--miq-mist));
+    }
+
+    .miq-compare-ab-donuts-title {
+        @apply mb-2 text-[10px] font-bold uppercase tracking-[0.12em] text-miq-muted;
     }
 
     .miq-compare-row {
@@ -805,6 +831,14 @@
         background: color-mix(in srgb, var(--miq-ink-soft) 45%, white);
     }
 
+    .miq-compare-bar.is-team-home span {
+        background: color-mix(in srgb, var(--miq-pitch) 78%, var(--miq-lime));
+    }
+
+    .miq-compare-bar.is-team-away span {
+        background: color-mix(in srgb, var(--miq-chip-away) 85%, white);
+    }
+
     .miq-compare-nums {
         @apply flex flex-col items-end gap-0.5 text-[11px] font-semibold leading-none;
     }
@@ -818,6 +852,155 @@
     }
 
     .miq-compare-nums .is-tie {
+        color: var(--miq-muted);
+    }
+
+    .miq-compare-nums.is-team .is-team-home {
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-compare-nums.is-team .is-team-away {
+        color: var(--miq-chip-away);
+    }
+
+    /* Donuts */
+    .miq-donut-grid {
+        @apply grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5;
+    }
+
+    .miq-donut-metric.is-card {
+        @apply rounded-md border px-2 py-2;
+        border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, white 78%, var(--miq-chalk));
+    }
+
+    .miq-donut-metric-label {
+        @apply mb-1.5 text-center text-[10px] font-bold uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-donut-pair {
+        @apply flex items-start justify-center gap-2;
+    }
+
+    .miq-donut-wrap {
+        @apply relative flex w-14 flex-col items-center;
+    }
+
+    .miq-donut {
+        @apply h-11 w-11 -rotate-90;
+    }
+
+    .miq-donut-track {
+        fill: none;
+        stroke: color-mix(in srgb, var(--miq-mist-deep) 90%, white);
+        stroke-width: 4;
+    }
+
+    .miq-donut-arc {
+        fill: none;
+        stroke-width: 4;
+        stroke-linecap: round;
+        transition: stroke-dasharray 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .miq-donut-arc.is-lead {
+        stroke: color-mix(in srgb, var(--miq-pitch) 78%, var(--miq-lime));
+    }
+
+    .miq-donut-arc.is-trail {
+        stroke: color-mix(in srgb, #be123c 72%, white);
+    }
+
+    .miq-donut-arc.is-tie {
+        stroke: color-mix(in srgb, var(--miq-ink-soft) 50%, white);
+    }
+
+    .miq-donut-arc.is-team-home {
+        stroke: color-mix(in srgb, var(--miq-pitch) 78%, var(--miq-lime));
+    }
+
+    .miq-donut-arc.is-team-away {
+        stroke: color-mix(in srgb, var(--miq-chip-away) 85%, white);
+    }
+
+    .miq-donut-val {
+        @apply pointer-events-none absolute left-1/2 top-[1.15rem] -translate-x-1/2 text-[10px] font-bold leading-none;
+        color: var(--miq-ink-soft);
+    }
+
+    .miq-donut-val.is-lead,
+    .miq-donut-val.is-team-home {
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-donut-val.is-trail {
+        color: #9f1239;
+    }
+
+    .miq-donut-val.is-team-away {
+        color: var(--miq-chip-away);
+    }
+
+    .miq-donut-side {
+        @apply mt-0.5 max-w-[3.5rem] truncate text-center text-[9px] font-medium text-miq-muted;
+    }
+
+    /* D: mirrored dual-bar, warm tones */
+    .miq-compare-mirror-row {
+        @apply grid grid-cols-[2.75rem_1fr_auto_1fr_2.75rem] items-center gap-1.5 py-2 sm:grid-cols-[3.25rem_1fr_auto_1fr_3.25rem] sm:gap-2;
+    }
+
+    .miq-compare-mirror-label {
+        @apply px-1 text-center text-[10px] font-semibold uppercase tracking-wide text-miq-muted sm:text-[11px];
+    }
+
+    .miq-compare-mirror-bar {
+        @apply flex h-1.5 overflow-hidden rounded-sm;
+        background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
+    }
+
+    .miq-compare-mirror-bar.is-left {
+        @apply justify-end;
+    }
+
+    .miq-compare-mirror-bar span {
+        @apply block h-full rounded-sm;
+        transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .miq-compare-mirror-bar.is-lead span {
+        background: #6b9a3e;
+    }
+
+    .miq-compare-mirror-bar.is-trail span {
+        background: #c45c48;
+    }
+
+    .miq-compare-mirror-bar.is-tie span {
+        background: color-mix(in srgb, var(--miq-ink-soft) 45%, white);
+    }
+
+    .miq-compare-mirror-num {
+        @apply text-[11px] font-semibold leading-none;
+    }
+
+    .miq-compare-mirror-num.is-left {
+        @apply text-right;
+    }
+
+    .miq-compare-mirror-num.is-right {
+        @apply text-left;
+    }
+
+    .miq-compare-mirror-num.is-lead {
+        color: #4d7330;
+    }
+
+    .miq-compare-mirror-num.is-trail {
+        color: #a34436;
+    }
+
+    .miq-compare-mirror-num.is-tie {
         color: var(--miq-muted);
     }
 
