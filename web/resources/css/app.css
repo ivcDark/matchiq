@@ -722,16 +722,34 @@
     }
 
     /* Карточки формы (5 блоков last-5) */
-    .miq-form-block-card .miq-panel-head {
-        @apply py-2.5;
+    .miq-form-block-card .miq-form-card-head {
+        @apply flex flex-col items-stretch gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between;
     }
 
-    .miq-form-match-list > li + li {
-        border-top: 1px solid color-mix(in srgb, var(--miq-line) 50%, transparent);
+    .miq-form-comp-chips {
+        @apply inline-flex max-w-full flex-wrap gap-1;
+    }
+
+    .miq-form-comp-chip {
+        @apply rounded-md px-2 py-1 text-[11px] font-semibold transition;
+        color: var(--miq-muted);
+        background: color-mix(in srgb, white 70%, var(--miq-mist));
+        border: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+    }
+
+    .miq-form-comp-chip.is-active {
+        color: var(--miq-ink);
+        border-color: color-mix(in srgb, var(--miq-pitch) 45%, var(--miq-line));
+        background: color-mix(in srgb, var(--miq-pitch) 12%, white);
+        box-shadow: inset 0 -2px 0 var(--miq-lime);
     }
 
     .miq-form-match-row {
-        @apply grid grid-cols-[4.75rem_1fr_auto] items-center gap-2 px-3 py-2 sm:grid-cols-[5.5rem_1fr_auto] sm:gap-2.5 sm:px-3.5;
+        @apply grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-1.5 px-2.5 py-2 sm:grid-cols-[4.25rem_minmax(0,1fr)_auto] sm:gap-2.5 sm:px-3.5 sm:py-2.5;
+    }
+
+    .miq-form-match-row.is-alt {
+        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
     }
 
     .miq-form-match-date {
@@ -739,17 +757,117 @@
     }
 
     .miq-form-match-pair {
-        @apply flex min-w-0 items-center gap-1.5 text-[13px] font-semibold leading-snug text-miq-ink;
+        @apply grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 text-[12px] leading-snug text-miq-ink sm:gap-1.5 sm:text-[13px];
     }
 
     .miq-form-match-team {
-        @apply min-w-0 truncate;
+        @apply min-w-0 truncate font-medium text-miq-ink-soft;
     }
 
-    .miq-form-match-score {
-        @apply shrink-0 text-[13px] font-bold tabular-nums text-miq-ink;
+    .miq-form-match-team.is-home {
+        @apply text-right;
     }
 
+    .miq-form-match-team.is-away {
+        @apply text-left;
+    }
+
+    .miq-form-match-team.is-focus {
+        @apply font-bold text-miq-ink;
+    }
+
+    .miq-form-score-stack {
+        @apply flex shrink-0 flex-col items-center gap-0.5;
+    }
+
+    .miq-form-score-pill {
+        @apply inline-flex min-w-[2.75rem] items-center justify-center rounded-md px-1.5 py-0.5 text-[12px] font-bold leading-none text-white sm:min-w-[3rem] sm:px-2 sm:text-[13px];
+    }
+
+    .miq-form-score-pill.is-w {
+        background: #15803d;
+    }
+
+    .miq-form-score-pill.is-d {
+        background: #d97706;
+    }
+
+    .miq-form-score-pill.is-l {
+        background: #dc2626;
+    }
+
+    .miq-form-ht {
+        @apply text-[10px] font-medium leading-none text-miq-muted;
+    }
+
+    .miq-form-comp {
+        @apply shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-miq-muted;
+        background: color-mix(in srgb, white 65%, var(--miq-mist-deep));
+    }
+
+    .miq-form-summary {
+        @apply space-y-2 border-t px-3 py-3 sm:px-3.5;
+        border-color: color-mix(in srgb, var(--miq-line) 55%, transparent);
+    }
+
+    .miq-form-summary-bar {
+        @apply flex h-2 overflow-hidden rounded-full;
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
+    }
+
+    .miq-form-summary-bar > span {
+        @apply block h-full;
+    }
+
+    .miq-form-summary-bar > .is-w {
+        background: #15803d;
+    }
+
+    .miq-form-summary-bar > .is-d {
+        background: #d97706;
+    }
+
+    .miq-form-summary-bar > .is-l {
+        background: #dc2626;
+    }
+
+    .miq-form-summary-cols {
+        @apply grid grid-cols-3 gap-2;
+    }
+
+    .miq-form-summary-col {
+        @apply min-w-0;
+    }
+
+    .miq-form-summary-tick {
+        @apply mb-1 block h-1 w-5 rounded-full;
+    }
+
+    .miq-form-summary-col.is-w .miq-form-summary-tick {
+        background: #15803d;
+    }
+
+    .miq-form-summary-col.is-d .miq-form-summary-tick {
+        background: #d97706;
+    }
+
+    .miq-form-summary-col.is-l .miq-form-summary-tick {
+        background: #dc2626;
+    }
+
+    .miq-form-summary-label {
+        @apply text-[10px] font-semibold uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-form-summary-value {
+        @apply mt-0.5 text-sm font-bold text-miq-ink;
+    }
+
+    .miq-form-summary-value span {
+        @apply font-semibold text-miq-muted;
+    }
+
+    /* Палочки формы в шапке матча */
     .miq-form-wdl {
         @apply inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-md px-1.5 text-[11px] font-bold uppercase tracking-wide;
     }

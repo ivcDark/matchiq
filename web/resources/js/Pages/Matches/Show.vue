@@ -257,9 +257,92 @@ function formatH2hDate(ymd) {
     return new Intl.DateTimeFormat('ru-RU', {
         day: 'numeric',
         month: 'short',
-        year: 'numeric',
     }).format(d);
 }
+
+/** Фильтр турнира по карточке формы: blockId → competition | 'all' */
+const formCompetitionFilter = ref({});
+
+function formCompetitionChips(block) {
+    const seen = new Set();
+    const chips = [{ id: 'all', label: 'Все' }];
+    for (const m of block?.matches || []) {
+        const c = m.competition;
+        if (!c || seen.has(c)) continue;
+        seen.add(c);
+        chips.push({ id: c, label: c });
+    }
+    return chips;
+}
+
+function formActiveCompetition(blockId) {
+    return formCompetitionFilter.value[blockId] || 'all';
+}
+
+function setFormCompetition(blockId, competitionId) {
+    formCompetitionFilter.value = {
+        ...formCompetitionFilter.value,
+        [blockId]: competitionId,
+    };
+}
+
+function filteredFormMatches(block) {
+    const matches = block?.matches || [];
+    const active = formActiveCompetition(block.id);
+    if (active === 'all') return matches;
+    return matches.filter((m) => m.competition === active);
+}
+
+function formSummary(matches) {
+    let w = 0;
+    let d = 0;
+    let l = 0;
+    for (const m of matches) {
+        if (m.result === 'W') w += 1;
+        else if (m.result === 'D') d += 1;
+        else if (m.result === 'L') l += 1;
+    }
+    const total = w + d + l;
+    const pct = (n) => (total === 0 ? 0 : Math.round((n * 100) / total));
+    return {
+        w,
+        d,
+        l,
+        total,
+        wp: pct(w),
+        dp: pct(d),
+        lp: pct(l),
+        wShare: total === 0 ? 0 : (w * 100) / total,
+        dShare: total === 0 ? 0 : (d * 100) / total,
+        lShare: total === 0 ? 0 : (l * 100) / total,
+    };
+}
+
+function formFocusTeam(block) {
+    return block?.focus || props.match?.home || '';
+}
+
+function isFormFocus(block, team) {
+    return team && team === formFocusTeam(block);
+}
+
+function formHtText(match) {
+    if (match?.ht_home == null || match?.ht_away == null) return null;
+    return `(${match.ht_home}∶${match.ht_away})`;
+}
+
+/** Карточки формы с активным фильтром турнира и сводкой. */
+const formBlockViews = computed(() => {
+    return (props.formBlocks || []).map((block) => {
+        const matches = filteredFormMatches(block);
+        return {
+            block,
+            chips: formCompetitionChips(block),
+            matches,
+            summary: formSummary(matches),
+        };
+    });
+});
 
 function scoreText() {
     if (props.match?.score_home == null || props.match?.score_away == null) {
@@ -281,13 +364,6 @@ function formStickClass(result) {
     if (result === 'W') return 'is-w';
     if (result === 'D') return 'is-d';
     return 'is-l';
-}
-
-function formResultLabel(result) {
-    if (result === 'W') return 'П';
-    if (result === 'D') return 'Н';
-    if (result === 'L') return 'Пр';
-    return result || '—';
 }
 
 function formResultTitle(result) {
@@ -1335,38 +1411,140 @@ function loginHref() {
             <!-- 9. Form blocks — 5 карточек -->
             <section class="space-y-3.5" aria-label="Форма">
                 <article
-                    v-for="block in formBlocks"
-                    :key="block.id"
+                    v-for="view in formBlockViews"
+                    :key="view.block.id"
                     class="miq-panel miq-form-block-card"
                 >
-                    <div class="miq-panel-head">
-                        <h2 class="miq-panel-title">{{ block.title }}</h2>
+                    <div class="miq-panel-head miq-form-card-head">
+                        <h2 class="miq-panel-title">{{ view.block.title }}</h2>
+                        <div
+                            v-if="view.chips.length > 1"
+                            class="miq-form-comp-chips"
+                            role="tablist"
+                            :aria-label="`Турниры · ${view.block.title}`"
+                        >
+                            <button
+                                v-for="chip in view.chips"
+                                :key="`${view.block.id}-${chip.id}`"
+                                type="button"
+                                role="tab"
+                                class="miq-form-comp-chip"
+                                :class="{ 'is-active': formActiveCompetition(view.block.id) === chip.id }"
+                                :aria-selected="formActiveCompetition(view.block.id) === chip.id"
+                                @click="setFormCompetition(view.block.id, chip.id)"
+                            >
+                                {{ chip.label }}
+                            </button>
+                        </div>
                     </div>
+
                     <ul class="miq-form-match-list">
                         <li
-                            v-for="(m, idx) in block.matches"
-                            :key="`${block.id}-${idx}`"
+                            v-for="(m, idx) in view.matches"
+                            :key="`${view.block.id}-${m.date}-${m.home}-${m.away}`"
                             class="miq-form-match-row"
+                            :class="{ 'is-alt': idx % 2 === 1 }"
                         >
                             <time class="miq-form-match-date tabular-nums" :datetime="m.date">
                                 {{ formatH2hDate(m.date) }}
                             </time>
-                            <p class="miq-form-match-pair">
-                                <span class="miq-form-match-team">{{ m.home }}</span>
-                                <span class="miq-form-match-score tabular-nums">
-                                    {{ m.score_home }}∶{{ m.score_away }}
+                            <div class="miq-form-match-pair">
+                                <span
+                                    class="miq-form-match-team is-home"
+                                    :class="{ 'is-focus': isFormFocus(view.block, m.home) }"
+                                >
+                                    {{ m.home }}
                                 </span>
-                                <span class="miq-form-match-team">{{ m.away }}</span>
-                            </p>
+                                <div class="miq-form-score-stack">
+                                    <span
+                                        class="miq-form-score-pill tabular-nums"
+                                        :class="formStickClass(m.result)"
+                                        :title="formResultTitle(m.result)"
+                                    >
+                                        {{ m.score_home }}∶{{ m.score_away }}
+                                    </span>
+                                    <span
+                                        v-if="formHtText(m)"
+                                        class="miq-form-ht tabular-nums"
+                                    >
+                                        {{ formHtText(m) }}
+                                    </span>
+                                </div>
+                                <span
+                                    class="miq-form-match-team is-away"
+                                    :class="{ 'is-focus': isFormFocus(view.block, m.away) }"
+                                >
+                                    {{ m.away }}
+                                </span>
+                            </div>
                             <span
-                                class="miq-form-wdl"
-                                :class="formStickClass(m.result)"
-                                :title="formResultTitle(m.result)"
+                                v-if="m.competition"
+                                class="miq-form-comp"
+                                :title="m.competition"
                             >
-                                {{ formResultLabel(m.result) }}
+                                {{ m.competition }}
                             </span>
                         </li>
+                        <li
+                            v-if="view.matches.length === 0"
+                            class="px-3.5 py-6 text-center text-sm text-miq-muted"
+                        >
+                            Нет матчей в этом турнире
+                        </li>
                     </ul>
+
+                    <div
+                        v-if="view.matches.length"
+                        class="miq-form-summary"
+                    >
+                        <div
+                            class="miq-form-summary-bar"
+                            role="img"
+                            :aria-label="`Победы ${view.summary.w}, ничьи ${view.summary.d}, поражения ${view.summary.l}`"
+                        >
+                            <span
+                                v-if="view.summary.wShare"
+                                class="is-w"
+                                :style="{ width: view.summary.wShare + '%' }"
+                            />
+                            <span
+                                v-if="view.summary.dShare"
+                                class="is-d"
+                                :style="{ width: view.summary.dShare + '%' }"
+                            />
+                            <span
+                                v-if="view.summary.lShare"
+                                class="is-l"
+                                :style="{ width: view.summary.lShare + '%' }"
+                            />
+                        </div>
+                        <div class="miq-form-summary-cols">
+                            <div class="miq-form-summary-col is-w">
+                                <span class="miq-form-summary-tick" aria-hidden="true" />
+                                <p class="miq-form-summary-label">Победы</p>
+                                <p class="miq-form-summary-value tabular-nums">
+                                    {{ view.summary.w }}
+                                    <span>/ {{ view.summary.wp }}%</span>
+                                </p>
+                            </div>
+                            <div class="miq-form-summary-col is-d">
+                                <span class="miq-form-summary-tick" aria-hidden="true" />
+                                <p class="miq-form-summary-label">Ничьи</p>
+                                <p class="miq-form-summary-value tabular-nums">
+                                    {{ view.summary.d }}
+                                    <span>/ {{ view.summary.dp }}%</span>
+                                </p>
+                            </div>
+                            <div class="miq-form-summary-col is-l">
+                                <span class="miq-form-summary-tick" aria-hidden="true" />
+                                <p class="miq-form-summary-label">Поражения</p>
+                                <p class="miq-form-summary-value tabular-nums">
+                                    {{ view.summary.l }}
+                                    <span>/ {{ view.summary.lp }}%</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </article>
             </section>
 

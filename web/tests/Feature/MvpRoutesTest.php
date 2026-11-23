@@ -150,6 +150,13 @@ class MvpRoutesTest extends TestCase
                 ->where('markets.2.outcomes.0.prob', 78)
                 ->where('markets.2.outcomes.1.prob', 22)
                 ->has('preview')
+                ->has('formBlocks', 5)
+                ->where('formBlocks.0.id', 'h2h')
+                ->where('formBlocks.0.focus', 'Зенит')
+                ->has('formBlocks.0.matches', 5)
+                ->where('formBlocks.0.matches.0.competition', 'РПЛ')
+                ->has('formBlocks.0.matches.0.ht_home')
+                ->has('formBlocks.0.matches.0.ht_away')
                 ->where('userPickEventId', null));
     }
 
