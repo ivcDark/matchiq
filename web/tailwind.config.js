@@ -33,7 +33,7 @@ export default {
                 display: ['Syne', ...defaultTheme.fontFamily.sans],
             },
             maxWidth: {
-                home: '42rem',
+                home: '72rem',
             },
         },
     },

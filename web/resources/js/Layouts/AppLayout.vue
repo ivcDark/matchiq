@@ -14,14 +14,14 @@ const user = computed(() => page.props.auth?.user);
 <template>
     <div class="miq-atmosphere min-h-screen">
         <div class="miq-shell flex min-h-screen flex-col">
-            <header class="border-b border-miq-line/60">
+            <header class="border-b border-miq-line/60 bg-white/35 backdrop-blur-[2px]">
                 <div
-                    class="mx-auto flex max-w-home flex-col gap-3 px-4 pb-4 pt-6 sm:flex-row sm:items-end sm:justify-between sm:gap-4 sm:px-6 sm:pt-8"
+                    class="mx-auto flex max-w-home flex-col gap-3 px-4 pb-4 pt-5 sm:flex-row sm:items-end sm:justify-between sm:gap-4 sm:px-6 sm:pt-6"
                 >
                     <div class="min-w-0">
                         <Link
                             :href="route('matches.index')"
-                            class="miq-brand animate-miq-fade-up block text-[2.75rem] leading-none text-miq-ink sm:text-5xl"
+                            class="miq-brand animate-miq-fade-up block text-[2.5rem] leading-none text-miq-ink sm:text-[2.75rem]"
                         >
                             MatchIQ
                         </Link>

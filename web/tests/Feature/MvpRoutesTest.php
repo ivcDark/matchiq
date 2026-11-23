@@ -18,6 +18,11 @@ class MvpRoutesTest extends TestCase
                 ->component('Matches/Index')
                 ->has('leagues')
                 ->has('matches')
+                ->has('widgets')
+                ->has('widgets.standings')
+                ->has('widgets.scorers')
+                ->has('widgets.hotScorers')
+                ->has('widgets.news')
                 ->where('selectedLeague', 'rpl')
                 ->where('period', 'upcoming'));
     }
