@@ -12,6 +12,7 @@
 | Главная / матчи | `/` | [home.md](home.md) | Вход: выбор лиги + матчи активной лиги | да |
 | Матч | `/matches/{id}` | [match.md](match.md) | Ядро: вероятности, фильтры, AI-текст, 1 pick | да |
 | Рейтинг | `/leaderboard` | [leaderboard.md](leaderboard.md) | Таблица лидеров и правила очков | да |
+| Аутентификация (сводка) | — | [auth.md](auth.md) | Email/пароль + Яндекс/VK, сброс | да |
 | Регистрация | `/register` | [register.md](register.md) | Создать аккаунт для рейтинга | да |
 | Вход | `/login` | [login.md](login.md) | Войти в аккаунт | да |
 | Забыли пароль | `/forgot-password` | [forgot-password.md](forgot-password.md) | Запрос ссылки на сброс | да |

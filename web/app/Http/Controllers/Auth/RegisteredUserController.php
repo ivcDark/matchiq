@@ -8,7 +8,6 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -31,16 +30,32 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
-        ]);
+        $request->validate(
+            [
+                'name' => 'required|string|max:40|unique:'.User::class,
+                'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
+                'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            ],
+            [
+                'name.required' => 'Укажите ник для рейтинга.',
+                'name.unique' => 'Такой ник уже занят.',
+                'email.required' => 'Укажите email.',
+                'email.email' => 'Укажите корректный email.',
+                'email.unique' => 'Этот email уже зарегистрирован.',
+                'password.required' => 'Придумайте пароль.',
+                'password.confirmed' => 'Пароли не совпадают.',
+            ],
+            [
+                'name' => 'ник',
+                'email' => 'email',
+                'password' => 'пароль',
+            ],
+        );
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => $request->password, // cast `hashed` на User
         ]);
 
         event(new Registered($user));

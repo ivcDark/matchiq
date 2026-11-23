@@ -37,7 +37,7 @@ const user = computed(() => page.props.auth?.user);
                                 :href="route('me')"
                                 class="transition hover:text-miq-pitch"
                             >
-                                Мои выборы
+                                {{ user.name }}
                             </Link>
                             <Link
                                 :href="route('logout')"

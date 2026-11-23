@@ -1,15 +1,10 @@
 <script setup>
-import GuestLayout from '@/Layouts/GuestLayout.vue';
 import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import GuestLayout from '@/Layouts/GuestLayout.vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 
 defineProps({
-    status: {
-        type: String,
-    },
+    status: { type: String, default: null },
 });
 
 const form = useForm({
@@ -22,47 +17,55 @@ const submit = () => {
 </script>
 
 <template>
-    <GuestLayout>
-        <Head title="Forgot Password" />
+    <GuestLayout
+        title="Восстановить пароль"
+        subtitle="пришлём ссылку на email (пока в лог сервера)"
+    >
+        <Head title="Восстановить пароль" />
 
-        <div class="mb-4 text-sm text-gray-600">
-            Forgot your password? No problem. Just let us know your email
-            address and we will email you a password reset link that will allow
-            you to choose a new one.
-        </div>
+        <p class="mb-3.5 text-sm leading-snug text-miq-ink-soft">
+            Укажите email аккаунта — отправим ссылку для нового пароля.
+        </p>
 
         <div
             v-if="status"
-            class="mb-4 text-sm font-medium text-green-600"
+            class="miq-auth-status"
         >
             {{ status }}
         </div>
 
-        <form @submit.prevent="submit">
+        <form class="space-y-3.5" @submit.prevent="submit">
             <div>
-                <InputLabel for="email" value="Email" />
-
-                <TextInput
+                <label class="miq-label" for="email">Email</label>
+                <input
                     id="email"
-                    type="email"
-                    class="mt-1 block w-full"
                     v-model="form.email"
+                    type="email"
+                    class="miq-input"
                     required
                     autofocus
                     autocomplete="username"
-                />
-
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
-
-            <div class="mt-4 flex items-center justify-end">
-                <PrimaryButton
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
                 >
-                    Email Password Reset Link
-                </PrimaryButton>
+                <InputError class="mt-1.5" :message="form.errors.email" />
             </div>
+
+            <button
+                type="submit"
+                class="miq-btn-primary w-full"
+                :disabled="form.processing"
+                :class="{ 'opacity-60': form.processing }"
+            >
+                Отправить ссылку
+            </button>
         </form>
+
+        <p class="mt-4 text-center text-sm text-miq-muted">
+            <Link
+                :href="route('login')"
+                class="font-semibold text-miq-pitch hover:underline"
+            >
+                Назад ко входу
+            </Link>
+        </p>
     </GuestLayout>
 </template>

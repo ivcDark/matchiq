@@ -103,6 +103,106 @@
         font-feature-settings: 'lnum' 1, 'tnum' 1;
     }
 
+    /* Auth forms */
+    .miq-label {
+        @apply mb-1 block text-[12px] font-semibold text-miq-ink-soft;
+    }
+
+    .miq-input {
+        @apply block w-full rounded-md border px-3 py-2 text-sm text-miq-ink shadow-none outline-none transition;
+        border-color: color-mix(in srgb, var(--miq-line) 90%, transparent);
+        background: color-mix(in srgb, white 88%, var(--miq-mist));
+    }
+
+    .miq-input:focus {
+        border-color: color-mix(in srgb, var(--miq-pitch) 55%, var(--miq-line));
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--miq-pitch) 16%, transparent);
+    }
+
+    .miq-btn-primary {
+        @apply inline-flex items-center justify-center rounded-md px-4 py-2.5 text-sm font-bold text-white transition;
+        background: var(--miq-pitch);
+    }
+
+    .miq-btn-primary:hover:not(:disabled) {
+        background: var(--miq-pitch-deep);
+    }
+
+    .miq-password-wrap {
+        @apply relative;
+    }
+
+    .miq-password-wrap .miq-input {
+        padding-right: 5.25rem;
+    }
+
+    .miq-password-toggle {
+        @apply absolute right-2 top-1/2 -translate-y-1/2 rounded px-1.5 py-0.5 text-[11px] font-semibold text-miq-pitch;
+    }
+
+    .miq-password-toggle:hover {
+        text-decoration: underline;
+    }
+
+    .miq-auth-status {
+        @apply mb-3.5 rounded-md px-3 py-2 text-sm font-medium text-miq-pitch-deep;
+        background: color-mix(in srgb, var(--miq-lime) 28%, white);
+        border: 1px solid color-mix(in srgb, var(--miq-pitch) 18%, transparent);
+    }
+
+    .miq-auth-divider {
+        @apply relative my-1 flex items-center justify-center text-[11px] font-semibold uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-auth-divider::before,
+    .miq-auth-divider::after {
+        content: '';
+        @apply absolute top-1/2 h-px w-[42%];
+        background: color-mix(in srgb, var(--miq-line) 85%, transparent);
+    }
+
+    .miq-auth-divider::before {
+        left: 0;
+    }
+
+    .miq-auth-divider::after {
+        right: 0;
+    }
+
+    .miq-auth-divider span {
+        @apply relative z-[1] bg-transparent px-2;
+    }
+
+    .miq-oauth-btn {
+        @apply relative flex w-full items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-bold text-white transition;
+    }
+
+    .miq-oauth-btn.is-yandex {
+        background: #fc3f1d;
+    }
+
+    .miq-oauth-btn.is-yandex:hover {
+        filter: brightness(0.95);
+    }
+
+    .miq-oauth-btn.is-vk {
+        background: #0077ff;
+    }
+
+    .miq-oauth-btn.is-vk:hover {
+        filter: brightness(0.95);
+    }
+
+    .miq-oauth-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .miq-oauth-hint {
+        @apply absolute right-2 top-1/2 -translate-y-1/2 rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/95;
+    }
+
     .miq-chip {
         @apply inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition;
         border-color: var(--miq-line);
