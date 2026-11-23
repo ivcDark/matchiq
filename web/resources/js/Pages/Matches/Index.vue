@@ -935,6 +935,7 @@ const listKey = computed(
                                                             <span
                                                                 v-if="scoreText(match)"
                                                                 class="miq-match-score-val"
+                                                                :class="{ 'is-live': match.status === 'live' }"
                                                             >
                                                                 {{ scoreText(match) }}
                                                             </span>
@@ -946,7 +947,7 @@ const listKey = computed(
                                                         </div>
                                                     </div>
 
-                                                    <!-- Line 2: form sticks (labeled) · П1/X/П2 + top market -->
+                                                    <!-- Line 2: form sticks (labeled) · П1/X/П2 + top market (hidden for LIVE) -->
                                                     <div class="miq-match-line2">
                                                         <div class="miq-match-forms">
                                                             <div
@@ -986,6 +987,7 @@ const listKey = computed(
                                                         </div>
 
                                                         <div
+                                                            v-if="match.status !== 'live'"
                                                             class="miq-match-bets"
                                                             :class="{
                                                                 'is-empty': !hasResultProbs(match) && !topMarket(match),

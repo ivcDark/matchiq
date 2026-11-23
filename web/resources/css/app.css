@@ -428,6 +428,10 @@
         @apply font-display text-base font-bold tabular-nums leading-none text-miq-ink sm:text-lg;
     }
 
+    .miq-match-score-val.is-live {
+        color: var(--miq-live);
+    }
+
     .miq-match-score-dash {
         @apply text-base font-semibold leading-none text-miq-muted;
     }
