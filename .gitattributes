@@ -1,0 +1,6 @@
+# Keep shell/Docker scripts LF so Linux containers can exec them
+# (CRLF shebangs fail with: exec ...: no such file or directory).
+*.sh text eol=lf
+Dockerfile text eol=lf
+**/Dockerfile text eol=lf
+docker/**/*.sh text eol=lf
