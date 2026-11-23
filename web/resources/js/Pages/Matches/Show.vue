@@ -532,7 +532,7 @@ function formHtText(match) {
 }
 
 /**
- * Топ бомбардиров команды, отсортированный по Г+П / голам.
+ * Топ бомбардиров команды, отсортированный по Г+ПАС / голам.
  * @param {Array} rows
  */
 function sortedScorers(rows) {
@@ -1686,7 +1686,7 @@ function loginHref() {
             <section class="miq-panel" aria-label="Бомбардиры команд">
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Бомбардиры</h2>
-                    <p class="text-xs text-miq-muted">топ-5 · по Г+П</p>
+                    <p class="text-xs text-miq-muted">топ-5 · по Г+ПАС</p>
                 </div>
                 <div class="miq-scorers-grid">
                     <div
@@ -1711,14 +1711,14 @@ function loginHref() {
                                                 <span>Гол</span>
                                             </span>
                                         </th>
-                                        <th title="Голевые передачи">
+                                        <th title="ПАС — голевые передачи">
                                             <span class="miq-th-with-icon">
                                                 <MatchStatIcon kind="assists" />
-                                                <span>ГП</span>
+                                                <span>ПАС</span>
                                             </span>
                                         </th>
                                         <th title="Голы с пенальти (входят в Гол)">Пен</th>
-                                        <th title="Голы + голевые передачи">Г+П</th>
+                                        <th title="Г+ПАС — голы + голевые передачи">Г+ПАС</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1833,9 +1833,9 @@ function loginHref() {
                                 <dd class="tabular-nums">{{ card.player.stats?.goals ?? '—' }}</dd>
                             </div>
                             <div class="miq-best-stat">
-                                <dt title="Голевые передачи">
+                                <dt title="ПАС — голевые передачи">
                                     <MatchStatIcon kind="assists" />
-                                    <span>ГП</span>
+                                    <span>ПАС</span>
                                 </dt>
                                 <dd class="tabular-nums">{{ card.player.stats?.assists ?? '—' }}</dd>
                             </div>

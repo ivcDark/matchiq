@@ -1233,7 +1233,7 @@ class MatchController extends Controller
     }
 
     /**
-     * Топ-5 бомбардиров команды: голы, передачи, пенальти (входят в голы), Г+П.
+     * Топ-5 бомбардиров команды: голы, передачи (ПАС), пенальти (входят в голы), Г+ПАС.
      *
      * @return list<array{player: string, goals: int, assists: int, pens: int, ga: int}>
      */

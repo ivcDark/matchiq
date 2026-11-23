@@ -46,7 +46,7 @@ defineProps({
         <path d="M9.4 10.1 4.8 8.4" />
     </svg>
 
-    <!-- ГП: бутса + мяч -->
+    <!-- ПАС (голевая передача): бутса + мяч -->
     <svg
         v-else-if="kind === 'assists'"
         class="miq-stat-icon"
