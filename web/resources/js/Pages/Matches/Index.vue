@@ -288,18 +288,40 @@ const filteredMatches = computed(() => {
     });
 });
 
-const matchesByDate = computed(() => {
-    const groups = [];
+const matchesByLeague = computed(() => {
     const map = new Map();
 
     for (const match of filteredMatches.value) {
-        const key = dateGroupKey(match.kickoff_at);
-        if (!map.has(key)) {
-            const group = { key, label: dateGroupLabel(match.kickoff_at), matches: [] };
-            map.set(key, group);
-            groups.push(group);
+        const leagueId = match.league_id || 'unknown';
+        if (!map.has(leagueId)) {
+            const league = leagueById.value.get(leagueId);
+            map.set(leagueId, {
+                key: leagueId,
+                label: league?.name || league?.short || leagueId,
+                sortOrder: typeof league?.sort_order === 'number' ? league.sort_order : Number.MAX_SAFE_INTEGER,
+                matches: [],
+            });
         }
-        map.get(key).matches.push(match);
+        map.get(leagueId).matches.push(match);
+    }
+
+    const groups = Array.from(map.values());
+
+    groups.sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) {
+            return a.sortOrder - b.sortOrder;
+        }
+        return a.label.localeCompare(b.label, 'ru');
+    });
+
+    for (const group of groups) {
+        group.matches.sort((a, b) => {
+            const statusDiff = statusSortRank(a.status) - statusSortRank(b.status);
+            if (statusDiff !== 0) {
+                return statusDiff;
+            }
+            return kickoffSortValue(a.kickoff_at) - kickoffSortValue(b.kickoff_at);
+        });
     }
 
     return groups;
@@ -309,10 +331,6 @@ const hasLiveLeagues = computed(() => liveLeagueIds.value.size > 0);
 
 const widgetLeagueLabel = computed(
     () => props.widgets?.league?.label ?? leagueHint.value ?? 'Лига',
-);
-
-const showLeagueInRow = computed(
-    () => isAllMode.value || selectedLeagueIds.value.length > 1,
 );
 
 function isLeagueSelected(leagueId) {
@@ -511,6 +529,19 @@ function statusLabel(status) {
     return 'Ожидается';
 }
 
+/** Внутри лиги: не начались → идут → завершены. */
+function statusSortRank(status) {
+    if (status === 'live') return 1;
+    if (status === 'finished') return 2;
+    return 0;
+}
+
+function kickoffSortValue(iso) {
+    if (!iso) return Number.MAX_SAFE_INTEGER;
+    const t = new Date(iso).getTime();
+    return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+}
+
 function formatKickoff(iso) {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -523,28 +554,6 @@ function formatKickoff(iso) {
 function kickoffDateKey(iso) {
     if (!iso) return 'unknown';
     return formatYmd(new Date(iso));
-}
-
-function dateGroupKey(iso) {
-    return kickoffDateKey(iso);
-}
-
-function dateGroupLabel(iso) {
-    if (!iso) return 'Без даты';
-    const d = new Date(iso);
-    const startToday = startOfLocalDay();
-    const startMatch = startOfLocalDay(d);
-    const diffDays = Math.round((startMatch - startToday) / 86400000);
-
-    if (diffDays === 0) return 'Сегодня';
-    if (diffDays === 1) return 'Завтра';
-    if (diffDays === -1) return 'Вчера';
-
-    return new Intl.DateTimeFormat('ru-RU', {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-    }).format(d);
 }
 
 function scoreText(match) {
@@ -569,11 +578,6 @@ function topProb(match) {
 function gdText(gd) {
     if (gd > 0) return `+${gd}`;
     return String(gd);
-}
-
-function matchLeagueShort(match) {
-    const league = leagueById.value.get(match.league_id);
-    return league?.short || league?.name || match.league_id;
 }
 
 const listKey = computed(
@@ -844,7 +848,7 @@ const listKey = computed(
 
                             <div v-else class="animate-miq-stagger divide-y divide-miq-line/60">
                                 <div
-                                    v-for="group in matchesByDate"
+                                    v-for="group in matchesByLeague"
                                     :key="group.key"
                                 >
                                     <p
@@ -880,12 +884,6 @@ const listKey = computed(
                                                     </div>
 
                                                     <div class="min-w-0 flex-1">
-                                                        <p
-                                                            v-if="showLeagueInRow"
-                                                            class="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted"
-                                                        >
-                                                            {{ matchLeagueShort(match) }}
-                                                        </p>
                                                         <p class="miq-display text-[15px] font-semibold leading-snug text-miq-ink sm:text-base">
                                                             {{ match.home }}
                                                             <span class="font-medium text-miq-muted">—</span>

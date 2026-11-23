@@ -60,6 +60,8 @@ class MvpRoutesTest extends TestCase
                 ->where('leagues.1.id', 'fnl')
                 ->where('leagues.1.country', 'Россия')
                 ->where('leagues.1.status', 'live')
+                ->where('leagues.0.sort_order', 10)
+                ->where('leagues.1.sort_order', 20)
                 ->where('period', 'yesterday')
                 ->where('date', now()->subDay()->toDateString()));
     }

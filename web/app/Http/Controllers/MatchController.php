@@ -180,20 +180,21 @@ class MatchController extends Controller
     }
 
     /**
-     * @return list<array{id: string, country: string, name: string, short: string, status: string}>
+     * @return list<array{id: string, country: string, name: string, short: string, status: string, sort_order: int}>
      */
     private function demoLeagues(): array
     {
+        // sort_order — демо-поле порядка групп на главной (позже из админки).
         return [
-            ['id' => 'rpl', 'country' => 'Россия', 'name' => 'РПЛ', 'short' => 'РПЛ', 'status' => 'live'],
-            ['id' => 'fnl', 'country' => 'Россия', 'name' => 'ФНЛ', 'short' => 'ФНЛ', 'status' => 'live'],
-            ['id' => 'epl', 'country' => 'Англия', 'name' => 'Premier League', 'short' => 'EPL', 'status' => 'soon'],
-            ['id' => 'laliga', 'country' => 'Испания', 'name' => 'La Liga', 'short' => 'LL', 'status' => 'soon'],
-            ['id' => 'seriea', 'country' => 'Италия', 'name' => 'Serie A', 'short' => 'SA', 'status' => 'soon'],
-            ['id' => 'bundesliga', 'country' => 'Германия', 'name' => 'Bundesliga', 'short' => 'BL', 'status' => 'soon'],
-            ['id' => 'ligue1', 'country' => 'Франция', 'name' => 'Ligue 1', 'short' => 'L1', 'status' => 'soon'],
-            ['id' => 'ucl', 'country' => 'Европа', 'name' => 'Champions League', 'short' => 'UCL', 'status' => 'live'],
-            ['id' => 'eredivisie', 'country' => 'Нидерланды', 'name' => 'Eredivisie', 'short' => 'ERE', 'status' => 'soon'],
+            ['id' => 'rpl', 'country' => 'Россия', 'name' => 'РПЛ', 'short' => 'РПЛ', 'status' => 'live', 'sort_order' => 10],
+            ['id' => 'fnl', 'country' => 'Россия', 'name' => 'ФНЛ', 'short' => 'ФНЛ', 'status' => 'live', 'sort_order' => 20],
+            ['id' => 'epl', 'country' => 'Англия', 'name' => 'Premier League', 'short' => 'EPL', 'status' => 'soon', 'sort_order' => 40],
+            ['id' => 'laliga', 'country' => 'Испания', 'name' => 'La Liga', 'short' => 'LL', 'status' => 'soon', 'sort_order' => 50],
+            ['id' => 'seriea', 'country' => 'Италия', 'name' => 'Serie A', 'short' => 'SA', 'status' => 'soon', 'sort_order' => 60],
+            ['id' => 'bundesliga', 'country' => 'Германия', 'name' => 'Bundesliga', 'short' => 'BL', 'status' => 'soon', 'sort_order' => 70],
+            ['id' => 'ligue1', 'country' => 'Франция', 'name' => 'Ligue 1', 'short' => 'L1', 'status' => 'soon', 'sort_order' => 80],
+            ['id' => 'ucl', 'country' => 'Европа', 'name' => 'Champions League', 'short' => 'UCL', 'status' => 'live', 'sort_order' => 30],
+            ['id' => 'eredivisie', 'country' => 'Нидерланды', 'name' => 'Eredivisie', 'short' => 'ERE', 'status' => 'soon', 'sort_order' => 90],
         ];
     }
 
@@ -220,6 +221,20 @@ class MatchController extends Controller
                 'prob_away' => 26,
             ],
             [
+                'id' => 108,
+                'league_id' => 'rpl',
+                'home' => 'Крылья Советов',
+                'away' => 'Акрон',
+                'kickoff_at' => $today->copy()->setTime(17, 0)->toIso8601String(),
+                'status' => 'scheduled',
+                'score_home' => null,
+                'score_away' => null,
+                'period_bucket' => 'today',
+                'prob_home' => 42,
+                'prob_draw' => 29,
+                'prob_away' => 29,
+            ],
+            [
                 'id' => 102,
                 'league_id' => 'rpl',
                 'home' => 'ЦСКА',
@@ -232,6 +247,20 @@ class MatchController extends Controller
                 'prob_home' => 35,
                 'prob_draw' => 31,
                 'prob_away' => 34,
+            ],
+            [
+                'id' => 109,
+                'league_id' => 'rpl',
+                'home' => 'Торпедо',
+                'away' => 'Динамо Мх',
+                'kickoff_at' => $today->copy()->setTime(14, 0)->toIso8601String(),
+                'status' => 'finished',
+                'score_home' => 0,
+                'score_away' => 2,
+                'period_bucket' => 'today',
+                'prob_home' => null,
+                'prob_draw' => null,
+                'prob_away' => null,
             ],
             [
                 'id' => 103,
