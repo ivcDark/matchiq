@@ -745,7 +745,8 @@
     }
 
     .miq-form-match-row {
-        @apply grid grid-cols-[3.25rem_minmax(0,1fr)_auto] items-center gap-1.5 px-2.5 py-2 sm:grid-cols-[4.25rem_minmax(0,1fr)_auto] sm:gap-2.5 sm:px-3.5 sm:py-2.5;
+        /* Дата | пары | турнир — края фиксированы, ось счёта не едет */
+        @apply grid grid-cols-[3.25rem_minmax(0,1fr)_2.25rem] items-center gap-1.5 px-2.5 py-2 sm:grid-cols-[4.25rem_minmax(0,1fr)_2.75rem] sm:gap-2.5 sm:px-3.5 sm:py-2.5;
     }
 
     .miq-form-match-row.is-alt {
@@ -753,11 +754,12 @@
     }
 
     .miq-form-match-date {
-        @apply text-[11px] font-medium leading-tight text-miq-muted;
+        @apply truncate text-[11px] font-medium leading-tight text-miq-muted;
     }
 
     .miq-form-match-pair {
-        @apply grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1 text-[12px] leading-snug text-miq-ink sm:gap-1.5 sm:text-[13px];
+        /* Хозяева | фиксированный счёт | гости — ось счёта одна на всех строках */
+        @apply grid min-w-0 grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] items-center gap-1 text-[12px] leading-snug text-miq-ink sm:grid-cols-[minmax(0,1fr)_4.5rem_minmax(0,1fr)] sm:gap-1.5 sm:text-[13px];
     }
 
     .miq-form-match-team {
@@ -765,11 +767,11 @@
     }
 
     .miq-form-match-team.is-home {
-        @apply text-right;
+        @apply justify-self-stretch text-right;
     }
 
     .miq-form-match-team.is-away {
-        @apply text-left;
+        @apply justify-self-stretch text-left;
     }
 
     .miq-form-match-team.is-focus {
@@ -777,11 +779,11 @@
     }
 
     .miq-form-score-stack {
-        @apply flex shrink-0 flex-col items-center gap-0.5;
+        @apply flex w-full flex-col items-center justify-center gap-0.5;
     }
 
     .miq-form-score-pill {
-        @apply inline-flex min-w-[2.75rem] items-center justify-center rounded-md px-1.5 py-0.5 text-[12px] font-bold leading-none text-white sm:min-w-[3rem] sm:px-2 sm:text-[13px];
+        @apply flex w-full items-center justify-center rounded-md px-1 py-0.5 text-center text-[12px] font-bold leading-none text-white sm:text-[13px];
     }
 
     .miq-form-score-pill.is-w {
@@ -797,12 +799,16 @@
     }
 
     .miq-form-ht {
-        @apply text-[10px] font-medium leading-none text-miq-muted;
+        @apply w-full text-center text-[10px] font-medium leading-none text-miq-muted;
     }
 
     .miq-form-comp {
-        @apply shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-miq-muted;
+        @apply block w-full truncate rounded px-1 py-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-miq-muted;
         background: color-mix(in srgb, white 65%, var(--miq-mist-deep));
+    }
+
+    .miq-form-comp.is-empty {
+        background: transparent;
     }
 
     .miq-form-summary {

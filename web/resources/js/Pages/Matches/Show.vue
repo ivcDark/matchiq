@@ -1478,11 +1478,11 @@ function loginHref() {
                                 </span>
                             </div>
                             <span
-                                v-if="m.competition"
                                 class="miq-form-comp"
-                                :title="m.competition"
+                                :class="{ 'is-empty': !m.competition }"
+                                :title="m.competition || undefined"
                             >
-                                {{ m.competition }}
+                                {{ m.competition || '' }}
                             </span>
                         </li>
                         <li
