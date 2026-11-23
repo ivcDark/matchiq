@@ -20,16 +20,22 @@ class MatchController extends Controller
 
         $requestedLeague = $request->query('league');
         $defaultLive = $liveIds->first() ?? 'rpl';
-        $selectedLeague = $liveIds->contains($requestedLeague)
-            ? $requestedLeague
-            : $defaultLive;
+        // «all» — матчи всех live-лиг; иначе — конкретная live-лига.
+        if ($requestedLeague === 'all' || $requestedLeague === null || $requestedLeague === '') {
+            $selectedLeague = 'all';
+        } elseif ($liveIds->contains($requestedLeague)) {
+            $selectedLeague = $requestedLeague;
+        } else {
+            $selectedLeague = 'all';
+        }
 
         $period = $request->query('period', 'upcoming');
         if (! in_array($period, ['today', 'upcoming', 'finished'], true)) {
             $period = 'upcoming';
         }
 
-        $widgetLeague = $selectedLeague;
+        // Виджеты таблицы/бомбардиров — по конкретной лиге (для «Все» — первая live).
+        $widgetLeague = $selectedLeague === 'all' ? $defaultLive : $selectedLeague;
         if (! $liveIds->contains($widgetLeague)) {
             $widgetLeague = $defaultLive;
         }

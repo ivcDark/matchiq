@@ -23,8 +23,18 @@ class MvpRoutesTest extends TestCase
                 ->has('widgets.scorers')
                 ->has('widgets.hotScorers')
                 ->has('widgets.news')
-                ->where('selectedLeague', 'rpl')
+                ->where('selectedLeague', 'all')
                 ->where('period', 'upcoming'));
+    }
+
+    public function test_matches_index_accepts_league_filter(): void
+    {
+        $this->get('/?league=rpl&period=today')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Matches/Index')
+                ->where('selectedLeague', 'rpl')
+                ->where('period', 'today'));
     }
 
     public function test_matches_show_renders(): void

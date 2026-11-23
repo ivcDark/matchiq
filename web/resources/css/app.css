@@ -157,7 +157,51 @@
     }
 
     .miq-league-menu {
-        @apply grid gap-1.5;
+        @apply flex flex-col gap-2;
+    }
+
+    .miq-league-all {
+        @apply flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2.5 text-left text-sm font-semibold transition;
+        border-color: var(--miq-line);
+        background: color-mix(in srgb, white 72%, transparent);
+        color: var(--miq-ink-soft);
+    }
+
+    .miq-league-all:hover {
+        border-color: color-mix(in srgb, var(--miq-pitch) 45%, var(--miq-line));
+        color: var(--miq-ink);
+    }
+
+    .miq-league-all.is-active {
+        border-color: var(--miq-pitch);
+        background: color-mix(in srgb, var(--miq-pitch) 14%, white);
+        color: var(--miq-pitch-deep);
+        box-shadow: inset 0 -2px 0 var(--miq-lime);
+    }
+
+    .miq-league-country {
+        @apply rounded-md border;
+        border-color: color-mix(in srgb, var(--miq-line) 70%, transparent);
+        background: color-mix(in srgb, var(--miq-mist) 55%, white);
+    }
+
+    .miq-league-country-toggle {
+        @apply flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition;
+        color: var(--miq-ink-soft);
+    }
+
+    .miq-league-country-toggle:hover {
+        color: var(--miq-ink);
+        background: color-mix(in srgb, var(--miq-mist-deep) 50%, transparent);
+    }
+
+    .miq-league-country-head {
+        @apply px-3 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em];
+        color: var(--miq-muted);
+    }
+
+    .miq-league-country-grid {
+        @apply grid gap-1.5 p-2 pt-1;
         grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
     }
 

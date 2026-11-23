@@ -1,12 +1,12 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     leagues: { type: Array, default: () => [] },
     matches: { type: Array, default: () => [] },
-    selectedLeague: { type: String, default: 'rpl' },
+    selectedLeague: { type: String, default: 'all' },
     period: { type: String, default: 'upcoming' },
     widgets: {
         type: Object,
@@ -33,15 +33,74 @@ const mobileWidgetTabs = [
     { id: 'news', label: 'Новости' },
 ];
 
+/** Сворачивать страны, если лиг много (не плоская бесконечная сетка). */
+const COLLAPSE_THRESHOLD = 6;
+
 const soonHint = ref(null);
 const mobileWidget = ref('standings');
+const openCountries = ref({});
 let soonTimer = null;
 
-const activeLeague = computed(() =>
-    props.leagues.find((l) => l.id === props.selectedLeague) ?? null,
+const liveLeagueIds = computed(
+    () => new Set(props.leagues.filter((l) => l.status === 'live').map((l) => l.id)),
 );
 
+const leagueById = computed(() => {
+    const map = new Map();
+    for (const league of props.leagues) {
+        map.set(league.id, league);
+    }
+    return map;
+});
+
+const useCollapsibleCountries = computed(
+    () => props.leagues.length >= COLLAPSE_THRESHOLD,
+);
+
+const leaguesByCountry = computed(() => {
+    const order = [];
+    const map = new Map();
+
+    for (const league of props.leagues) {
+        const country = league.country || 'Другие';
+        if (!map.has(country)) {
+            const group = {
+                country,
+                leagues: [],
+                hasLive: false,
+            };
+            map.set(country, group);
+            order.push(group);
+        }
+        const group = map.get(country);
+        group.leagues.push(league);
+        if (league.status === 'live') {
+            group.hasLive = true;
+        }
+    }
+
+    return order;
+});
+
+const activeLeague = computed(() => {
+    if (props.selectedLeague === 'all') {
+        return null;
+    }
+    return props.leagues.find((l) => l.id === props.selectedLeague) ?? null;
+});
+
 const leagueHint = computed(() => {
+    if (props.selectedLeague === 'all') {
+        const n = liveLeagueIds.value.size;
+        if (n === 0) {
+            return 'Нет активных лиг';
+        }
+        if (n === 1) {
+            const only = props.leagues.find((l) => l.status === 'live');
+            return only ? `Все · ${only.country} · ${only.name}` : 'Все активные';
+        }
+        return `Все активные · ${n}`;
+    }
     if (!activeLeague.value) {
         return null;
     }
@@ -50,9 +109,14 @@ const leagueHint = computed(() => {
 
 const filteredMatches = computed(() => {
     return props.matches.filter((m) => {
-        if (m.league_id !== props.selectedLeague) {
+        if (props.selectedLeague === 'all') {
+            if (!liveLeagueIds.value.has(m.league_id)) {
+                return false;
+            }
+        } else if (m.league_id !== props.selectedLeague) {
             return false;
         }
+
         if (props.period === 'today') {
             return m.period_bucket === 'today';
         }
@@ -80,13 +144,55 @@ const matchesByDate = computed(() => {
     return groups;
 });
 
-const hasLiveLeagues = computed(() =>
-    props.leagues.some((l) => l.status === 'live'),
-);
+const hasLiveLeagues = computed(() => liveLeagueIds.value.size > 0);
 
 const widgetLeagueLabel = computed(
     () => props.widgets?.league?.label ?? leagueHint.value ?? 'Лига',
 );
+
+const showLeagueInRow = computed(() => props.selectedLeague === 'all');
+
+function initOpenCountries() {
+    const next = {};
+    for (const group of leaguesByCountry.value) {
+        const selectedHere = group.leagues.some((l) => l.id === props.selectedLeague);
+        // Live-страны и страна выбранной лиги открыты; «скоро»-только — свёрнуты при коллапсе.
+        next[group.country] = !useCollapsibleCountries.value
+            || group.hasLive
+            || selectedHere;
+    }
+    openCountries.value = next;
+}
+
+watch(
+    () => [props.leagues, props.selectedLeague, useCollapsibleCountries.value],
+    () => initOpenCountries(),
+    { immediate: true },
+);
+
+function toggleCountry(country) {
+    if (!useCollapsibleCountries.value) {
+        return;
+    }
+    openCountries.value = {
+        ...openCountries.value,
+        [country]: !openCountries.value[country],
+    };
+}
+
+function isCountryOpen(country) {
+    if (!useCollapsibleCountries.value) {
+        return true;
+    }
+    return Boolean(openCountries.value[country]);
+}
+
+function selectAll() {
+    if (props.selectedLeague === 'all') {
+        return;
+    }
+    navigate({ league: 'all', period: props.period });
+}
 
 function selectLeague(league) {
     if (league.status !== 'live') {
@@ -186,6 +292,11 @@ function gdText(gd) {
     return String(gd);
 }
 
+function matchLeagueShort(match) {
+    const league = leagueById.value.get(match.league_id);
+    return league?.short || league?.name || match.league_id;
+}
+
 const listKey = computed(
     () => `${props.selectedLeague}-${props.period}`,
 );
@@ -224,7 +335,7 @@ const listKey = computed(
                         {{ soonHint }}
                     </p>
                     <p v-else class="text-xs text-miq-muted">
-                        Live и «скоро»
+                        Все · live · «скоро»
                     </p>
                 </div>
 
@@ -234,39 +345,104 @@ const listKey = computed(
                     aria-label="Переключатель лиг"
                 >
                     <button
-                        v-for="league in leagues"
-                        :key="league.id"
                         type="button"
                         role="option"
-                        class="miq-league-item"
-                        :class="{
-                            'is-active': league.id === selectedLeague && league.status === 'live',
-                            'is-soon': league.status === 'soon',
-                        }"
-                        :aria-selected="league.id === selectedLeague"
-                        :aria-disabled="league.status === 'soon'"
-                        @click="selectLeague(league)"
+                        class="miq-league-all"
+                        :class="{ 'is-active': selectedLeague === 'all' }"
+                        :aria-selected="selectedLeague === 'all'"
+                        @click="selectAll"
                     >
                         <span class="min-w-0">
-                            <span class="block truncate font-semibold text-miq-ink">
-                                {{ league.short || league.name }}
-                            </span>
-                            <span class="mt-0.5 block truncate text-[11px] font-medium text-miq-muted">
-                                {{ league.country }} · {{ league.name }}
+                            <span class="block font-semibold text-miq-ink">Все</span>
+                            <span class="mt-0.5 block text-[11px] font-medium text-miq-muted">
+                                Активные лиги
                             </span>
                         </span>
                         <span
-                            v-if="league.status === 'soon'"
-                            class="shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted"
-                        >
-                            Скоро
-                        </span>
-                        <span
-                            v-else-if="league.id === selectedLeague"
+                            v-if="selectedLeague === 'all'"
                             class="h-1.5 w-1.5 shrink-0 rounded-full bg-miq-pitch"
                             aria-hidden="true"
                         />
                     </button>
+
+                    <div
+                        v-for="group in leaguesByCountry"
+                        :key="group.country"
+                        class="miq-league-country"
+                    >
+                        <button
+                            v-if="useCollapsibleCountries"
+                            type="button"
+                            class="miq-league-country-toggle"
+                            :aria-expanded="isCountryOpen(group.country)"
+                            @click="toggleCountry(group.country)"
+                        >
+                            <span class="text-[11px] font-semibold uppercase tracking-[0.14em]">
+                                {{ group.country }}
+                            </span>
+                            <span class="flex items-center gap-2">
+                                <span
+                                    v-if="group.hasLive"
+                                    class="rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-pitch-deep"
+                                    style="background: color-mix(in srgb, var(--miq-pitch) 12%, white)"
+                                >
+                                    Live
+                                </span>
+                                <span
+                                    class="text-miq-muted transition"
+                                    :class="{ 'rotate-180': isCountryOpen(group.country) }"
+                                    aria-hidden="true"
+                                >
+                                    ▾
+                                </span>
+                            </span>
+                        </button>
+                        <p v-else class="miq-league-country-head">
+                            {{ group.country }}
+                        </p>
+
+                        <div
+                            v-show="isCountryOpen(group.country)"
+                            class="miq-league-country-grid"
+                            role="group"
+                            :aria-label="group.country"
+                        >
+                            <button
+                                v-for="league in group.leagues"
+                                :key="league.id"
+                                type="button"
+                                role="option"
+                                class="miq-league-item"
+                                :class="{
+                                    'is-active': league.id === selectedLeague && league.status === 'live',
+                                    'is-soon': league.status === 'soon',
+                                }"
+                                :aria-selected="league.id === selectedLeague"
+                                :aria-disabled="league.status === 'soon'"
+                                @click="selectLeague(league)"
+                            >
+                                <span class="min-w-0">
+                                    <span class="block truncate font-semibold text-miq-ink">
+                                        {{ league.short || league.name }}
+                                    </span>
+                                    <span class="mt-0.5 block truncate text-[11px] font-medium text-miq-muted">
+                                        {{ league.name }}
+                                    </span>
+                                </span>
+                                <span
+                                    v-if="league.status === 'soon'"
+                                    class="shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted"
+                                >
+                                    Скоро
+                                </span>
+                                <span
+                                    v-else-if="league.id === selectedLeague"
+                                    class="h-1.5 w-1.5 shrink-0 rounded-full bg-miq-pitch"
+                                    aria-hidden="true"
+                                />
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -354,6 +530,12 @@ const listKey = computed(
                                                     </div>
 
                                                     <div class="min-w-0 flex-1">
+                                                        <p
+                                                            v-if="showLeagueInRow"
+                                                            class="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted"
+                                                        >
+                                                            {{ matchLeagueShort(match) }}
+                                                        </p>
                                                         <p class="miq-display text-[15px] font-semibold leading-snug text-miq-ink sm:text-base">
                                                             {{ match.home }}
                                                             <span class="font-medium text-miq-muted">—</span>
