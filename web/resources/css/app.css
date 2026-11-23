@@ -872,16 +872,34 @@
     }
 
     .miq-best-stats {
-        @apply mt-3 grid grid-cols-4 gap-1.5 border-t pt-2.5;
+        @apply mt-3 grid grid-cols-4 gap-2 border-t pt-2.5;
         border-color: color-mix(in srgb, var(--miq-line) 65%, transparent);
     }
 
+    .miq-best-stat {
+        @apply flex min-w-0 flex-col items-center gap-1 text-center;
+    }
+
     .miq-best-stats dt {
-        @apply text-[9px] font-semibold uppercase tracking-wide text-miq-muted;
+        @apply flex items-center justify-center gap-1 text-[9px] font-semibold uppercase tracking-wide text-miq-muted;
     }
 
     .miq-best-stats dd {
-        @apply text-sm font-bold text-miq-ink;
+        @apply text-base font-extrabold leading-none tracking-tight text-miq-ink sm:text-lg;
+    }
+
+    .miq-stat-icon {
+        width: 1.05rem;
+        height: 1.05rem;
+        flex-shrink: 0;
+        color: var(--miq-muted);
+        opacity: 0.88;
+    }
+
+    .miq-stat-card {
+        width: 0.62rem;
+        height: 0.85rem;
+        margin-inline: 0.05rem;
     }
 
     /* Аватар игрока */

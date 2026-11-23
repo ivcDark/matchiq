@@ -1,5 +1,6 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
+import MatchStatIcon from '@/Components/MatchStatIcon.vue';
 import PlayerAvatar from '@/Components/PlayerAvatar.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -1807,20 +1808,32 @@ function loginHref() {
                             </div>
                         </div>
                         <dl class="miq-best-stats">
-                            <div>
-                                <dt>Матчи</dt>
+                            <div class="miq-best-stat">
+                                <dt>
+                                    <MatchStatIcon kind="matches" />
+                                    <span>Матчи</span>
+                                </dt>
                                 <dd class="tabular-nums">{{ card.player.stats?.matches ?? '—' }}</dd>
                             </div>
-                            <div>
-                                <dt>Голы</dt>
+                            <div class="miq-best-stat">
+                                <dt>
+                                    <MatchStatIcon kind="goals" />
+                                    <span>Голы</span>
+                                </dt>
                                 <dd class="tabular-nums">{{ card.player.stats?.goals ?? '—' }}</dd>
                             </div>
-                            <div>
-                                <dt title="Голевые передачи">ГП</dt>
+                            <div class="miq-best-stat">
+                                <dt title="Голевые передачи">
+                                    <MatchStatIcon kind="assists" />
+                                    <span>ГП</span>
+                                </dt>
                                 <dd class="tabular-nums">{{ card.player.stats?.assists ?? '—' }}</dd>
                             </div>
-                            <div>
-                                <dt title="Жёлтые карточки">ЖК</dt>
+                            <div class="miq-best-stat">
+                                <dt title="Жёлтые карточки">
+                                    <MatchStatIcon kind="yellow" />
+                                    <span>ЖК</span>
+                                </dt>
                                 <dd class="tabular-nums">{{ card.player.stats?.yellow ?? '—' }}</dd>
                             </div>
                         </dl>
