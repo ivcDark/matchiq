@@ -93,7 +93,7 @@ const MARKET_CATEGORY_TITLE = {
 };
 
 const activeFilter = ref('best');
-const activeMarketCategory = ref('all');
+const activeMarketCategory = ref('results');
 const localPickId = ref(props.userPickEventId);
 const guestCtaOpen = ref(false);
 
