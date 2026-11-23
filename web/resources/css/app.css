@@ -502,7 +502,7 @@
     }
 
     .miq-form-match-list {
-        @apply divide-y divide-miq-line/45;
+        @apply divide-y divide-miq-line/50;
     }
 
     .miq-form-match-row {
