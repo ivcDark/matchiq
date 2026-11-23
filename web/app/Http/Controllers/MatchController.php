@@ -195,6 +195,7 @@ class MatchController extends Controller
             'homeAway' => $detail['homeAway'],
             'standings' => $detail['standings'],
             'scorers' => $detail['scorers'],
+            'bestPlayers' => $detail['bestPlayers'],
             'absences' => $detail['absences'],
             'goalMinutes' => $detail['goalMinutes'],
             'formBlocks' => $detail['formBlocks'],
@@ -258,6 +259,7 @@ class MatchController extends Controller
                 'home' => $this->demoTeamScorers($home, $id, 'home'),
                 'away' => $this->demoTeamScorers($away, $id, 'away'),
             ],
+            'bestPlayers' => $this->demoBestPlayers($home, $away, $id),
             'absences' => [
                 'home' => $this->demoAbsences($home, $id, 'home'),
                 'away' => $this->demoAbsences($away, $id, 'away'),
@@ -1050,6 +1052,184 @@ class MatchController extends Controller
 
             return $row;
         }, $slice);
+    }
+
+    /**
+     * Лучший игрок команды по средней оценке (демо).
+     *
+     * @return array{
+     *     home: array{
+     *         name: string,
+     *         position: string,
+     *         number: int,
+     *         rating: float,
+     *         photo_url: string|null,
+     *         stats: array{matches: int, goals: int, assists: int, yellow: int}
+     *     },
+     *     away: array{
+     *         name: string,
+     *         position: string,
+     *         number: int,
+     *         rating: float,
+     *         photo_url: string|null,
+     *         stats: array{matches: int, goals: int, assists: int, yellow: int}
+     *     }
+     * }
+     */
+    private function demoBestPlayers(string $home, string $away, int $id): array
+    {
+        $catalog = [
+            'Зенит' => [
+                'name' => 'Глушенков М.',
+                'position' => 'ПЗ',
+                'number' => 67,
+                'rating' => 7.8,
+                'stats' => ['matches' => 18, 'goals' => 11, 'assists' => 4, 'yellow' => 2],
+            ],
+            'Спартак' => [
+                'name' => 'Барко Т.',
+                'position' => 'ПЗ',
+                'number' => 11,
+                'rating' => 7.4,
+                'stats' => ['matches' => 17, 'goals' => 8, 'assists' => 5, 'yellow' => 3],
+            ],
+            'ЦСКА' => [
+                'name' => 'Обляков И.',
+                'position' => 'ПЗ',
+                'number' => 10,
+                'rating' => 7.6,
+                'stats' => ['matches' => 19, 'goals' => 7, 'assists' => 4, 'yellow' => 4],
+            ],
+            'Динамо' => [
+                'name' => 'Тюкавин К.',
+                'position' => 'Нап',
+                'number' => 70,
+                'rating' => 7.3,
+                'stats' => ['matches' => 16, 'goals' => 7, 'assists' => 3, 'yellow' => 1],
+            ],
+            'Краснодар' => [
+                'name' => 'Кордоба Дж.',
+                'position' => 'Нап',
+                'number' => 9,
+                'rating' => 7.9,
+                'stats' => ['matches' => 18, 'goals' => 9, 'assists' => 2, 'yellow' => 2],
+            ],
+            'Локомотив' => [
+                'name' => 'Батраков Т.',
+                'position' => 'ПЗ',
+                'number' => 83,
+                'rating' => 7.2,
+                'stats' => ['matches' => 17, 'goals' => 7, 'assists' => 3, 'yellow' => 3],
+            ],
+            'Ростов' => [
+                'name' => 'Голенков Р.',
+                'position' => 'Нап',
+                'number' => 69,
+                'rating' => 7.1,
+                'stats' => ['matches' => 15, 'goals' => 6, 'assists' => 2, 'yellow' => 2],
+            ],
+            'Рубин' => [
+                'name' => 'Дрейер М.',
+                'position' => 'Нап',
+                'number' => 22,
+                'rating' => 7.0,
+                'stats' => ['matches' => 16, 'goals' => 6, 'assists' => 2, 'yellow' => 1],
+            ],
+            'Крылья Советов' => [
+                'name' => 'Гарре Б.',
+                'position' => 'Нап',
+                'number' => 10,
+                'rating' => 7.5,
+                'stats' => ['matches' => 17, 'goals' => 7, 'assists' => 3, 'yellow' => 2],
+            ],
+            'Пари НН' => [
+                'name' => 'Кехрия З.',
+                'position' => 'Нап',
+                'number' => 9,
+                'rating' => 6.9,
+                'stats' => ['matches' => 14, 'goals' => 6, 'assists' => 2, 'yellow' => 3],
+            ],
+            'Оренбург' => [
+                'name' => 'Воробьёв Д.',
+                'position' => 'Нап',
+                'number' => 7,
+                'rating' => 6.8,
+                'stats' => ['matches' => 15, 'goals' => 5, 'assists' => 2, 'yellow' => 4],
+            ],
+            'Ахмат' => [
+                'name' => 'Садулаев Л.',
+                'position' => 'ПЗ',
+                'number' => 18,
+                'rating' => 6.7,
+                'stats' => ['matches' => 16, 'goals' => 4, 'assists' => 3, 'yellow' => 5],
+            ],
+            'Real Madrid' => [
+                'name' => 'Mbappé K.',
+                'position' => 'FW',
+                'number' => 9,
+                'rating' => 8.2,
+                'stats' => ['matches' => 10, 'goals' => 9, 'assists' => 3, 'yellow' => 1],
+            ],
+            'Man City' => [
+                'name' => 'Haaland E.',
+                'position' => 'FW',
+                'number' => 9,
+                'rating' => 8.1,
+                'stats' => ['matches' => 9, 'goals' => 8, 'assists' => 1, 'yellow' => 0],
+            ],
+        ];
+
+        $fallback = static function (string $team, int $seed, string $side): array {
+            $rating = round(6.4 + (($seed + ($side === 'home' ? 2 : 0)) % 20) / 10, 1);
+
+            return [
+                'name' => 'Игрок А.',
+                'position' => $side === 'home' ? 'ПЗ' : 'Нап',
+                'number' => 10 + ($seed % 9),
+                'rating' => $rating,
+                'photo_url' => null,
+                'stats' => [
+                    'matches' => 12 + ($seed % 6),
+                    'goals' => 2 + ($seed % 5),
+                    'assists' => 1 + ($seed % 4),
+                    'yellow' => $seed % 4,
+                ],
+            ];
+        };
+
+        $wrap = static function (array $row): array {
+            return [
+                'name' => $row['name'],
+                'position' => $row['position'],
+                'number' => (int) $row['number'],
+                'rating' => (float) $row['rating'],
+                'photo_url' => $row['photo_url'] ?? null,
+                'stats' => [
+                    'matches' => (int) ($row['stats']['matches'] ?? 0),
+                    'goals' => (int) ($row['stats']['goals'] ?? 0),
+                    'assists' => (int) ($row['stats']['assists'] ?? 0),
+                    'yellow' => (int) ($row['stats']['yellow'] ?? 0),
+                ],
+            ];
+        };
+
+        $homeRow = $catalog[$home] ?? $fallback($home, $id, 'home');
+        $awayRow = $catalog[$away] ?? $fallback($away, $id + 3, 'away');
+
+        // Лёгкая вариация рейтинга по id, чтобы демо не было плоским.
+        $nudge = static function (array $row, int $delta): array {
+            $row['rating'] = round(max(5.5, min(9.5, (float) $row['rating'] + $delta * 0.1)), 1);
+
+            return $row;
+        };
+
+        $homeRow = $nudge($homeRow, $id % 3);
+        $awayRow = $nudge($awayRow, ($id + 1) % 3);
+
+        return [
+            'home' => $wrap($homeRow),
+            'away' => $wrap($awayRow),
+        ];
     }
 
     /**

@@ -1,5 +1,6 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
+import PlayerAvatar from '@/Components/PlayerAvatar.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -20,6 +21,8 @@ const props = defineProps({
     },
     standings: { type: Array, default: () => [] },
     scorers: { type: Object, default: () => ({ home: [], away: [] }) },
+    /** { home, away } — лучший игрок: name, position, number, rating, photo_url, stats */
+    bestPlayers: { type: Object, default: () => ({ home: null, away: null }) },
     absences: { type: Object, default: () => ({ home: [], away: [] }) },
     /** { scale, scored: [{band,home,away}], conceded: [...] } */
     goalMinutes: {
@@ -577,6 +580,29 @@ const scorerTables = computed(() => [
         leaders: scorerLeaders(props.scorers?.away),
     },
 ]);
+
+/** Sofascore-style: ≥7.5 зелёный, ≥6.5 жёлтый, иначе красный */
+function ratingTone(rating) {
+    const n = Number(rating);
+    if (!Number.isFinite(n)) return 'muted';
+    if (n >= 7.5) return 'good';
+    if (n >= 6.5) return 'ok';
+    return 'poor';
+}
+
+function formatRating(rating) {
+    const n = Number(rating);
+    if (!Number.isFinite(n)) return '—';
+    return n.toFixed(1);
+}
+
+const bestPlayerCards = computed(() => {
+    const bag = props.bestPlayers || {};
+    return [
+        { key: 'home', team: props.match?.home || 'Хозяева', tone: 'home', player: bag.home || null },
+        { key: 'away', team: props.match?.away || 'Гости', tone: 'away', player: bag.away || null },
+    ].filter((card) => card.player);
+});
 
 /** Карточки формы с активным фильтром турнира и сводкой. */
 const formBlockViews = computed(() => {
@@ -1727,6 +1753,78 @@ function loginHref() {
                             </table>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- Лучшие игроки — по одному на команду -->
+            <section
+                v-if="bestPlayerCards.length"
+                class="miq-panel"
+                aria-label="Лучшие игроки"
+            >
+                <div class="miq-panel-head">
+                    <h2 class="miq-panel-title">Лучшие игроки</h2>
+                    <p class="text-xs text-miq-muted">средняя оценка · сезон</p>
+                </div>
+                <div class="miq-best-grid">
+                    <article
+                        v-for="card in bestPlayerCards"
+                        :key="card.key"
+                        class="miq-best-card"
+                        :class="card.tone === 'home' ? 'is-team-home' : 'is-team-away'"
+                    >
+                        <p
+                            class="miq-best-team"
+                            :class="card.tone === 'home' ? 'is-team-home' : 'is-team-away'"
+                        >
+                            {{ card.team }}
+                        </p>
+                        <div class="miq-best-body">
+                            <PlayerAvatar
+                                :photo-url="card.player.photo_url"
+                                :name="card.player.name"
+                                :alt="card.player.name"
+                                size="lg"
+                            />
+                            <div class="miq-best-meta min-w-0">
+                                <div class="miq-best-name-row">
+                                    <h3 class="miq-best-name truncate">{{ card.player.name }}</h3>
+                                    <span
+                                        class="miq-rating-badge"
+                                        :class="`is-${ratingTone(card.player.rating)}`"
+                                        :title="`Средняя оценка ${formatRating(card.player.rating)}`"
+                                    >
+                                        {{ formatRating(card.player.rating) }}
+                                    </span>
+                                </div>
+                                <p class="miq-best-role">
+                                    <span v-if="card.player.position">{{ card.player.position }}</span>
+                                    <span
+                                        v-if="card.player.number != null"
+                                        class="tabular-nums"
+                                    >· №{{ card.player.number }}</span>
+                                </p>
+                            </div>
+                        </div>
+                        <dl class="miq-best-stats">
+                            <div>
+                                <dt>Матчи</dt>
+                                <dd class="tabular-nums">{{ card.player.stats?.matches ?? '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt>Голы</dt>
+                                <dd class="tabular-nums">{{ card.player.stats?.goals ?? '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt title="Голевые передачи">ГП</dt>
+                                <dd class="tabular-nums">{{ card.player.stats?.assists ?? '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt title="Жёлтые карточки">ЖК</dt>
+                                <dd class="tabular-nums">{{ card.player.stats?.yellow ?? '—' }}</dd>
+                            </div>
+                        </dl>
+                    </article>
                 </div>
             </section>
 
