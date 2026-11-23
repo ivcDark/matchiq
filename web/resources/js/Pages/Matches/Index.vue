@@ -903,35 +903,60 @@ const listKey = computed(
                                                 class="miq-match-row px-3.5 py-3"
                                             >
                                                 <div class="miq-match-row-inner">
-                                                    <div class="miq-match-time">
-                                                        <p
-                                                            v-if="match.status === 'live'"
-                                                            class="text-xs font-bold uppercase tracking-wide text-miq-live"
-                                                        >
-                                                            Live
+                                                    <!-- Line 1: time/status · home — away · score -->
+                                                    <div class="miq-match-line1">
+                                                        <div class="miq-match-time">
+                                                            <p
+                                                                v-if="match.status === 'live'"
+                                                                class="text-xs font-bold uppercase tracking-wide text-miq-live"
+                                                            >
+                                                                Live
+                                                            </p>
+                                                            <p
+                                                                v-else
+                                                                class="text-sm font-semibold tabular-nums text-miq-ink-soft"
+                                                            >
+                                                                {{ formatKickoff(match.kickoff_at) }}
+                                                            </p>
+                                                            <p
+                                                                class="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted"
+                                                            >
+                                                                {{ statusLabel(match.status) }}
+                                                            </p>
+                                                        </div>
+
+                                                        <p class="miq-match-fixture miq-display">
+                                                            <span class="miq-team-name">{{ match.home }}</span>
+                                                            <span class="miq-fixture-sep" aria-hidden="true">—</span>
+                                                            <span class="miq-team-name">{{ match.away }}</span>
                                                         </p>
-                                                        <p
-                                                            v-else
-                                                            class="text-sm font-semibold tabular-nums text-miq-ink-soft"
-                                                        >
-                                                            {{ formatKickoff(match.kickoff_at) }}
-                                                        </p>
-                                                        <p
-                                                            class="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted"
-                                                        >
-                                                            {{ statusLabel(match.status) }}
-                                                        </p>
+
+                                                        <div class="miq-match-score" aria-label="Счёт">
+                                                            <span
+                                                                v-if="scoreText(match)"
+                                                                class="miq-match-score-val"
+                                                            >
+                                                                {{ scoreText(match) }}
+                                                            </span>
+                                                            <span
+                                                                v-else
+                                                                class="miq-match-score-dash"
+                                                                aria-hidden="true"
+                                                            >—</span>
+                                                        </div>
                                                     </div>
 
-                                                    <div class="miq-match-main">
-                                                        <div class="miq-match-scoreline">
-                                                            <div class="miq-side miq-side--home">
-                                                                <div
-                                                                    v-if="formResults(match, 'home').length"
-                                                                    class="miq-form-sticks"
-                                                                    role="group"
-                                                                    :aria-label="formAriaLabel(formResults(match, 'home'), 'home')"
-                                                                >
+                                                    <!-- Line 2: form sticks (labeled) · П1/X/П2 + top market -->
+                                                    <div class="miq-match-line2">
+                                                        <div class="miq-match-forms">
+                                                            <div
+                                                                v-if="formResults(match, 'home').length"
+                                                                class="miq-form-block"
+                                                                role="group"
+                                                                :aria-label="formAriaLabel(formResults(match, 'home'), 'home')"
+                                                            >
+                                                                <span class="miq-form-label" :title="match.home">{{ match.home }}</span>
+                                                                <div class="miq-form-sticks">
                                                                     <span
                                                                         v-for="(result, idx) in formResults(match, 'home')"
                                                                         :key="`h-${match.id}-${idx}`"
@@ -940,35 +965,15 @@ const listKey = computed(
                                                                         :title="result"
                                                                     ></span>
                                                                 </div>
-                                                                <p class="miq-team-name miq-display text-[15px] font-semibold leading-snug text-miq-ink sm:text-base">
-                                                                    {{ match.home }}
-                                                                </p>
                                                             </div>
-
-                                                            <div class="miq-match-score">
-                                                                <span
-                                                                    v-if="scoreText(match)"
-                                                                    class="miq-match-score-val"
-                                                                >
-                                                                    {{ scoreText(match) }}
-                                                                </span>
-                                                                <span
-                                                                    v-else
-                                                                    class="miq-match-score-dash"
-                                                                    aria-hidden="true"
-                                                                >—</span>
-                                                            </div>
-
-                                                            <div class="miq-side miq-side--away">
-                                                                <p class="miq-team-name miq-display text-[15px] font-semibold leading-snug text-miq-ink sm:text-base">
-                                                                    {{ match.away }}
-                                                                </p>
-                                                                <div
-                                                                    v-if="formResults(match, 'away').length"
-                                                                    class="miq-form-sticks"
-                                                                    role="group"
-                                                                    :aria-label="formAriaLabel(formResults(match, 'away'), 'away')"
-                                                                >
+                                                            <div
+                                                                v-if="formResults(match, 'away').length"
+                                                                class="miq-form-block"
+                                                                role="group"
+                                                                :aria-label="formAriaLabel(formResults(match, 'away'), 'away')"
+                                                            >
+                                                                <span class="miq-form-label" :title="match.away">{{ match.away }}</span>
+                                                                <div class="miq-form-sticks">
                                                                     <span
                                                                         v-for="(result, idx) in formResults(match, 'away')"
                                                                         :key="`a-${match.id}-${idx}`"

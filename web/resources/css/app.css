@@ -384,46 +384,35 @@
         color: var(--miq-pitch-deep);
     }
 
-    /* Classic scoreboard: time | sticks Home — score — Away sticks | bets
-       Equal 1fr columns keep the score/dash on one vertical axis across rows. */
+    /* Option 1 — two-line card (no centered scoreboard axis).
+       L1: time/status | home — away | score (fixed right slot → no jump)
+       L2: labeled form sticks (left) | П1/X/П2 + top market (right) */
     .miq-match-row-inner {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+        min-width: 0;
+    }
+
+    .miq-match-line1 {
         display: grid;
-        grid-template-columns: 3rem minmax(0, 1fr) var(--miq-bets-col);
+        grid-template-columns: 3rem minmax(0, 1fr) 2.75rem;
         align-items: center;
         column-gap: 0.75rem;
-        row-gap: 0.375rem;
-        --miq-bets-col: 14.5rem;
+        min-width: 0;
     }
 
     .miq-match-time {
         @apply self-start pt-0.5 text-center;
-        grid-column: 1;
         width: 3rem;
     }
 
-    .miq-match-main {
-        display: contents;
+    .miq-match-fixture {
+        @apply flex min-w-0 items-baseline gap-1.5 text-[15px] font-semibold leading-snug text-miq-ink sm:text-base;
     }
 
-    .miq-match-scoreline {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 2.75rem minmax(0, 1fr);
-        align-items: center;
-        column-gap: 0.5rem;
-        min-width: 0;
-        grid-column: 2;
-    }
-
-    .miq-side {
-        @apply flex min-w-0 items-center gap-1.5;
-    }
-
-    .miq-side--home {
-        @apply justify-end text-right;
-    }
-
-    .miq-side--away {
-        @apply justify-start text-left;
+    .miq-fixture-sep {
+        @apply shrink-0 font-semibold text-miq-muted;
     }
 
     .miq-team-name {
@@ -431,7 +420,7 @@
     }
 
     .miq-match-score {
-        @apply flex items-center justify-center;
+        @apply flex h-6 items-center justify-end;
         width: 2.75rem;
     }
 
@@ -443,8 +432,34 @@
         @apply text-base font-semibold leading-none text-miq-muted;
     }
 
+    .miq-match-line2 {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem 0.75rem;
+        padding-left: calc(3rem + 0.75rem);
+        min-height: 1.25rem;
+        min-width: 0;
+    }
+
+    .miq-match-forms {
+        @apply flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1;
+        flex: 1 1 auto;
+    }
+
+    .miq-form-block {
+        @apply flex min-w-0 items-center gap-1.5;
+    }
+
+    .miq-form-label {
+        @apply max-w-[4.75rem] truncate text-[10px] font-semibold leading-none text-miq-muted;
+    }
+
     .miq-form-sticks {
         @apply flex shrink-0 items-center gap-[3px];
+        min-width: calc(5 * 3px + 4 * 3px);
+        min-height: 12px;
     }
 
     .miq-form-stick {
@@ -467,27 +482,27 @@
         background: #dc2626;
     }
 
-    /* Right column on wide rows; always wrap under scoreline when narrow — never clip away */
     .miq-match-bets {
         @apply flex flex-wrap items-center justify-end gap-1.5;
-        grid-column: 3;
-        justify-self: stretch;
+        flex: 0 0 auto;
         min-width: 0;
+        min-height: 1.25rem;
     }
 
     .miq-match-bets.is-empty {
+        min-width: 0;
         min-height: 0;
+        padding: 0;
     }
 
-    @container miq-match (max-width: 40rem) {
-        .miq-match-row-inner {
-            grid-template-columns: 3rem minmax(0, 1fr);
-            --miq-bets-col: 0;
+    @container miq-match (max-width: 28rem) {
+        .miq-match-line2 {
+            padding-left: 0;
         }
 
         .miq-match-bets {
-            grid-column: 2;
-            justify-self: end;
+            width: 100%;
+            justify-content: flex-start;
         }
 
         .miq-match-bets.is-empty {
