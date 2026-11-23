@@ -216,9 +216,10 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'today',
-                'prob_home' => 48,
-                'prob_draw' => 26,
-                'prob_away' => 26,
+                'prob_home' => 42,
+                'prob_draw' => 2,
+                'prob_away' => 56,
+                'top_market' => ['label' => 'ТМ 3.5', 'prob' => 82],
             ],
             [
                 'id' => 108,
@@ -230,9 +231,10 @@ class MatchController extends Controller
                 'score_home' => null,
                 'score_away' => null,
                 'period_bucket' => 'today',
-                'prob_home' => 42,
-                'prob_draw' => 29,
-                'prob_away' => 29,
+                'prob_home' => 48,
+                'prob_draw' => 26,
+                'prob_away' => 26,
+                'top_market' => ['label' => 'ТБ 2.5', 'prob' => 71],
             ],
             [
                 'id' => 102,
@@ -247,6 +249,7 @@ class MatchController extends Controller
                 'prob_home' => 35,
                 'prob_draw' => 31,
                 'prob_away' => 34,
+                'top_market' => ['label' => 'Обе забьют', 'prob' => 68],
             ],
             [
                 'id' => 109,
@@ -261,6 +264,7 @@ class MatchController extends Controller
                 'prob_home' => null,
                 'prob_draw' => null,
                 'prob_away' => null,
+                'top_market' => null,
             ],
             [
                 'id' => 103,
@@ -275,6 +279,7 @@ class MatchController extends Controller
                 'prob_home' => 52,
                 'prob_draw' => 24,
                 'prob_away' => 24,
+                'top_market' => ['label' => 'ТМ 2.5', 'prob' => 61],
             ],
             [
                 'id' => 104,
@@ -289,6 +294,7 @@ class MatchController extends Controller
                 'prob_home' => 41,
                 'prob_draw' => 28,
                 'prob_away' => 31,
+                'top_market' => ['label' => 'ТБ 1.5', 'prob' => 77],
             ],
             [
                 'id' => 105,
@@ -303,6 +309,7 @@ class MatchController extends Controller
                 'prob_home' => 38,
                 'prob_draw' => 30,
                 'prob_away' => 32,
+                'top_market' => ['label' => 'ТМ 3.5', 'prob' => 74],
             ],
             [
                 'id' => 106,
@@ -317,6 +324,7 @@ class MatchController extends Controller
                 'prob_home' => null,
                 'prob_draw' => null,
                 'prob_away' => null,
+                'top_market' => null,
             ],
             [
                 'id' => 107,
@@ -331,6 +339,7 @@ class MatchController extends Controller
                 'prob_home' => null,
                 'prob_draw' => null,
                 'prob_away' => null,
+                'top_market' => null,
             ],
             [
                 'id' => 151,
@@ -345,6 +354,7 @@ class MatchController extends Controller
                 'prob_home' => 46,
                 'prob_draw' => 27,
                 'prob_away' => 27,
+                'top_market' => ['label' => 'ТМ 2.5', 'prob' => 59],
             ],
             [
                 'id' => 152,
@@ -359,6 +369,7 @@ class MatchController extends Controller
                 'prob_home' => 43,
                 'prob_draw' => 28,
                 'prob_away' => 29,
+                'top_market' => ['label' => 'ТБ 2.5', 'prob' => 66],
             ],
             [
                 'id' => 201,
@@ -373,6 +384,7 @@ class MatchController extends Controller
                 'prob_home' => 44,
                 'prob_draw' => 25,
                 'prob_away' => 31,
+                'top_market' => ['label' => 'ТБ 3.5', 'prob' => 58],
             ],
             [
                 'id' => 202,
@@ -387,6 +399,7 @@ class MatchController extends Controller
                 'prob_home' => 49,
                 'prob_draw' => 24,
                 'prob_away' => 27,
+                'top_market' => ['label' => 'ТМ 3.5', 'prob' => 79],
             ],
             [
                 'id' => 203,
@@ -401,6 +414,7 @@ class MatchController extends Controller
                 'prob_home' => null,
                 'prob_draw' => null,
                 'prob_away' => null,
+                'top_market' => null,
             ],
         ];
     }

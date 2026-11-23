@@ -377,6 +377,20 @@
         color: var(--miq-pitch-deep);
     }
 
+    .miq-result-probs {
+        @apply flex flex-wrap items-center gap-x-1 text-[12px] font-semibold tabular-nums;
+        color: var(--miq-ink-soft);
+    }
+
+    .miq-result-probs .is-top {
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-result-sep {
+        @apply font-medium;
+        color: var(--miq-muted);
+    }
+
     .miq-rank {
         @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-bold tabular-nums;
         background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);

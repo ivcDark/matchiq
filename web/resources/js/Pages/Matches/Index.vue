@@ -563,16 +563,34 @@ function scoreText(match) {
     return `${match.score_home}∶${match.score_away}`;
 }
 
-function topProb(match) {
-    const vals = [
-        { key: '1', value: match.prob_home },
-        { key: 'X', value: match.prob_draw },
-        { key: '2', value: match.prob_away },
-    ].filter((v) => typeof v.value === 'number');
+/** П1 / X / П2 — все три вероятности исхода, если заданы. */
+function hasResultProbs(match) {
+    return (
+        typeof match.prob_home === 'number' &&
+        typeof match.prob_draw === 'number' &&
+        typeof match.prob_away === 'number'
+    );
+}
 
-    if (vals.length === 0) return null;
+function resultProbMaxKey(match) {
+    if (!hasResultProbs(match)) return null;
+    const vals = [
+        { key: 'home', value: match.prob_home },
+        { key: 'draw', value: match.prob_draw },
+        { key: 'away', value: match.prob_away },
+    ];
     vals.sort((a, b) => b.value - a.value);
-    return vals[0];
+    return vals[0].key;
+}
+
+/** Топ-рынок для тизера справа (демо); у завершённых скрываем. */
+function topMarket(match) {
+    if (match.status === 'finished') return null;
+    const m = match.top_market;
+    if (!m || typeof m.label !== 'string' || typeof m.prob !== 'number') {
+        return null;
+    }
+    return m;
 }
 
 function gdText(gd) {
@@ -890,20 +908,31 @@ const listKey = computed(
                                                             {{ match.away }}
                                                         </p>
                                                         <p
-                                                            v-if="topProb(match)"
-                                                            class="mt-1.5 flex flex-wrap items-center gap-1.5"
+                                                            v-if="hasResultProbs(match)"
+                                                            class="miq-result-probs mt-1.5"
+                                                            :aria-label="`П1 ${match.prob_home}% · X ${match.prob_draw}% · П2 ${match.prob_away}%`"
                                                         >
-                                                            <span class="miq-prob">
-                                                                {{ topProb(match).key }}
-                                                                {{ topProb(match).value }}%
-                                                            </span>
-                                                            <span class="text-[11px] text-miq-muted">
-                                                                топ-исход · открыть события
-                                                            </span>
+                                                            <span
+                                                                :class="{
+                                                                    'is-top': resultProbMaxKey(match) === 'home',
+                                                                }"
+                                                            >{{ match.prob_home }}%</span>
+                                                            <span class="miq-result-sep" aria-hidden="true">/</span>
+                                                            <span
+                                                                :class="{
+                                                                    'is-top': resultProbMaxKey(match) === 'draw',
+                                                                }"
+                                                            >{{ match.prob_draw }}%</span>
+                                                            <span class="miq-result-sep" aria-hidden="true">/</span>
+                                                            <span
+                                                                :class="{
+                                                                    'is-top': resultProbMaxKey(match) === 'away',
+                                                                }"
+                                                            >{{ match.prob_away }}%</span>
                                                         </p>
                                                     </div>
 
-                                                    <div class="shrink-0 text-right">
+                                                    <div class="flex shrink-0 flex-col items-end gap-1 text-right">
                                                         <p
                                                             v-if="scoreText(match)"
                                                             class="font-display text-lg font-bold tabular-nums text-miq-ink"
@@ -911,7 +940,15 @@ const listKey = computed(
                                                             {{ scoreText(match) }}
                                                         </p>
                                                         <span
-                                                            v-else
+                                                            v-if="topMarket(match)"
+                                                            class="miq-prob"
+                                                        >
+                                                            {{ topMarket(match).label }}
+                                                            ·
+                                                            {{ topMarket(match).prob }}%
+                                                        </span>
+                                                        <span
+                                                            v-else-if="!scoreText(match)"
                                                             class="text-xs font-medium text-miq-muted"
                                                             aria-hidden="true"
                                                         >
