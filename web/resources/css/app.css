@@ -122,6 +122,87 @@
         animation: miq-underline 280ms ease-out;
     }
 
+    .miq-period-cal {
+        @apply inline-flex items-center justify-center px-2.5;
+    }
+
+    .miq-cal {
+        position: absolute;
+        z-index: 30;
+        top: calc(100% + 0.4rem);
+        left: 0;
+        width: min(17.5rem, calc(100vw - 2rem));
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid color-mix(in srgb, var(--miq-line) 85%, transparent);
+        background: color-mix(in srgb, white 92%, var(--miq-mist));
+        box-shadow: 0 10px 28px color-mix(in srgb, var(--miq-ink) 10%, transparent);
+        animation: miq-fade 160ms ease-out;
+    }
+
+    .miq-cal-head {
+        @apply mb-2 flex items-center justify-between gap-2;
+    }
+
+    .miq-cal-title {
+        @apply text-sm font-semibold capitalize text-miq-ink;
+    }
+
+    .miq-cal-nav {
+        @apply flex h-7 w-7 items-center justify-center rounded-md text-base font-semibold transition;
+        color: var(--miq-muted);
+    }
+
+    .miq-cal-nav:hover,
+    .miq-cal-nav:focus-visible {
+        color: var(--miq-ink);
+        background: color-mix(in srgb, white 70%, var(--miq-mist-deep));
+        outline: none;
+    }
+
+    .miq-cal-weekdays {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 0.15rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .miq-cal-weekdays span {
+        @apply text-center text-[10px] font-semibold uppercase tracking-[0.08em];
+        color: var(--miq-muted);
+    }
+
+    .miq-cal-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 0.15rem;
+    }
+
+    .miq-cal-day {
+        @apply flex h-8 items-center justify-center rounded-md text-sm font-medium transition;
+        color: var(--miq-ink-soft);
+    }
+
+    .miq-cal-day:not(.is-empty):hover,
+    .miq-cal-day:not(.is-empty):focus-visible {
+        background: color-mix(in srgb, white 65%, var(--miq-mist));
+        outline: none;
+    }
+
+    .miq-cal-day.is-empty {
+        pointer-events: none;
+    }
+
+    .miq-cal-day.is-today {
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--miq-pitch) 55%, transparent);
+    }
+
+    .miq-cal-day.is-selected {
+        color: var(--miq-ink);
+        background: color-mix(in srgb, white 55%, var(--miq-lime));
+        font-weight: 700;
+    }
+
     .miq-match-row {
         @apply block w-full border-b text-left transition;
         border-color: color-mix(in srgb, var(--miq-line) 70%, transparent);

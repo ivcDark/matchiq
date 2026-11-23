@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,10 +22,10 @@ class MatchController extends Controller
         $selectedLeagues = $this->resolveSelectedLeagues($request->query('league'), $liveIds);
         $defaultLive = $liveIds->first() ?? 'rpl';
 
-        $period = $request->query('period', 'upcoming');
-        if (! in_array($period, ['today', 'upcoming', 'finished'], true)) {
-            $period = 'upcoming';
-        }
+        [$period, $date] = $this->resolveDateFilter(
+            $request->query('date'),
+            $request->query('period'),
+        );
 
         // Виджеты — по первой выбранной live-лиге (для «Все» — первая live).
         $widgetLeague = $selectedLeagues === ['all']
@@ -39,8 +40,71 @@ class MatchController extends Controller
             'matches' => $this->demoMatches(),
             'selectedLeagues' => $selectedLeagues,
             'period' => $period,
+            'date' => $date,
             'widgets' => $this->demoWidgets($widgetLeague),
         ]);
+    }
+
+    /**
+     * Фильтр дня: `?period=yesterday|today|tomorrow` или `?date=YYYY-MM-DD`.
+     * `date` приоритетнее; если день совпадает с вчера/сегодня/завтра — period именованный.
+     *
+     * @return array{0: ?string, 1: string} [period, date Y-m-d]
+     */
+    private function resolveDateFilter(mixed $dateRaw, mixed $periodRaw): array
+    {
+        $today = now()->startOfDay();
+
+        if (is_string($dateRaw) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateRaw) === 1) {
+            try {
+                $picked = Carbon::createFromFormat('Y-m-d', $dateRaw)->startOfDay();
+
+                return $this->namedPeriodForDate($picked, $today);
+            } catch (\Throwable) {
+                // fall through to period / default
+            }
+        }
+
+        $period = is_string($periodRaw) ? $periodRaw : null;
+
+        // Старые значения MVP → ближайший аналог.
+        if ($period === 'upcoming') {
+            $period = 'tomorrow';
+        } elseif ($period === 'finished') {
+            $period = 'yesterday';
+        }
+
+        if (! in_array($period, ['yesterday', 'today', 'tomorrow'], true)) {
+            $period = 'today';
+        }
+
+        $date = match ($period) {
+            'yesterday' => $today->copy()->subDay(),
+            'tomorrow' => $today->copy()->addDay(),
+            default => $today->copy(),
+        };
+
+        return [$period, $date->toDateString()];
+    }
+
+    /**
+     * @return array{0: ?string, 1: string}
+     */
+    private function namedPeriodForDate(Carbon $picked, Carbon $today): array
+    {
+        $date = $picked->toDateString();
+
+        if ($picked->equalTo($today)) {
+            return ['today', $date];
+        }
+        if ($picked->equalTo($today->copy()->subDay())) {
+            return ['yesterday', $date];
+        }
+        if ($picked->equalTo($today->copy()->addDay())) {
+            return ['tomorrow', $date];
+        }
+
+        return [null, $date];
     }
 
     /**

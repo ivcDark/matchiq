@@ -1,13 +1,19 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     leagues: { type: Array, default: () => [] },
     matches: { type: Array, default: () => [] },
     selectedLeagues: { type: Array, default: () => ['all'] },
-    period: { type: String, default: 'upcoming' },
+    /** yesterday | today | tomorrow | null (произвольная дата из календаря) */
+    period: {
+        default: 'today',
+        validator: (v) => v === null || ['yesterday', 'today', 'tomorrow'].includes(v),
+    },
+    /** Выбранный день YYYY-MM-DD */
+    date: { type: String, default: null },
     widgets: {
         type: Object,
         default: () => ({
@@ -21,10 +27,16 @@ const props = defineProps({
 });
 
 const periods = [
+    { id: 'yesterday', label: 'Вчера' },
     { id: 'today', label: 'Сегодня' },
-    { id: 'upcoming', label: 'Ближайшие' },
-    { id: 'finished', label: 'Завершённые' },
+    { id: 'tomorrow', label: 'Завтра' },
 ];
+
+const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+
+const calendarOpen = ref(false);
+const calendarMonth = ref(null);
+const calendarRoot = ref(null);
 
 /**
  * Коды flagcdn.com для табов стран.
@@ -63,6 +75,97 @@ const mobileWidget = ref('standings');
 /** Активная страна в горизонтальных табах (не аккордеон). */
 const activeCountry = ref(null);
 let soonTimer = null;
+
+function parseYmd(ymd) {
+    if (!ymd || typeof ymd !== 'string') return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function formatYmd(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function startOfLocalDay(d = new Date()) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d, n) {
+    const next = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    next.setDate(next.getDate() + n);
+    return next;
+}
+
+const selectedDate = computed(() => {
+    const fromProp = parseYmd(props.date);
+    if (fromProp) return fromProp;
+
+    const today = startOfLocalDay();
+    if (props.period === 'yesterday') return addDays(today, -1);
+    if (props.period === 'tomorrow') return addDays(today, 1);
+    return today;
+});
+
+const selectedDateKey = computed(() => formatYmd(selectedDate.value));
+
+const isCustomDate = computed(
+    () => props.period !== 'yesterday' && props.period !== 'today' && props.period !== 'tomorrow',
+);
+
+const calendarMonthLabel = computed(() => {
+    const base = calendarMonth.value ?? selectedDate.value;
+    return new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' }).format(base);
+});
+
+const calendarDays = computed(() => {
+    const base = calendarMonth.value ?? selectedDate.value;
+    const year = base.getFullYear();
+    const month = base.getMonth();
+    const first = new Date(year, month, 1);
+    // Пн=0 … Вс=6
+    const startPad = (first.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayKey = formatYmd(startOfLocalDay());
+    const selectedKey = selectedDateKey.value;
+    const cells = [];
+
+    for (let i = 0; i < startPad; i += 1) {
+        cells.push({ key: `pad-${i}`, empty: true });
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+        const d = new Date(year, month, day);
+        const key = formatYmd(d);
+        cells.push({
+            key,
+            empty: false,
+            day,
+            date: d,
+            isToday: key === todayKey,
+            isSelected: key === selectedKey,
+        });
+    }
+
+    return cells;
+});
+
+function syncCalendarMonth() {
+    const d = selectedDate.value;
+    calendarMonth.value = new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+watch(
+    () => props.date,
+    () => {
+        if (calendarOpen.value) {
+            syncCalendarMonth();
+        }
+    },
+);
 
 const liveLeagueIds = computed(
     () => new Set(props.leagues.filter((l) => l.status === 'live').map((l) => l.id)),
@@ -170,6 +273,8 @@ const leagueHint = computed(() => {
 });
 
 const filteredMatches = computed(() => {
+    const dayKey = selectedDateKey.value;
+
     return props.matches.filter((m) => {
         if (isAllMode.value) {
             if (!liveLeagueIds.value.has(m.league_id)) {
@@ -179,13 +284,7 @@ const filteredMatches = computed(() => {
             return false;
         }
 
-        if (props.period === 'today') {
-            return m.period_bucket === 'today';
-        }
-        if (props.period === 'finished') {
-            return m.period_bucket === 'finished' || m.status === 'finished';
-        }
-        return m.period_bucket === 'upcoming' || m.period_bucket === 'today';
+        return kickoffDateKey(m.kickoff_at) === dayKey;
     });
 });
 
@@ -261,11 +360,15 @@ function setActiveCountry(country) {
     activeCountry.value = country;
 }
 
+function currentLeaguesParam() {
+    return isAllMode.value ? ['all'] : selectedLeagueIds.value;
+}
+
 function selectAll() {
     if (isAllMode.value) {
         return;
     }
-    navigate({ leagues: ['all'], period: props.period });
+    navigate({ leagues: ['all'] });
 }
 
 function selectLeague(league) {
@@ -288,7 +391,7 @@ function selectLeague(league) {
         next = [...selectedLeagueIds.value, league.id];
     }
 
-    navigate({ leagues: next, period: props.period });
+    navigate({ leagues: next });
 }
 
 function removeLeague(leagueId) {
@@ -298,28 +401,98 @@ function removeLeague(leagueId) {
     const next = selectedLeagueIds.value.filter((id) => id !== leagueId);
     navigate({
         leagues: next.length === 0 ? ['all'] : next,
-        period: props.period,
     });
 }
 
 function selectPeriod(periodId) {
-    if (periodId === props.period) {
+    calendarOpen.value = false;
+    if (periodId === props.period && !isCustomDate.value) {
         return;
     }
     navigate({
-        leagues: isAllMode.value ? ['all'] : selectedLeagueIds.value,
+        leagues: currentLeaguesParam(),
         period: periodId,
     });
 }
 
-function navigate({ leagues, period }) {
-    const leagueParam = leagues.length === 1 && leagues[0] === 'all'
+function toggleCalendar() {
+    calendarOpen.value = !calendarOpen.value;
+    if (calendarOpen.value) {
+        syncCalendarMonth();
+    }
+}
+
+function shiftCalendarMonth(delta) {
+    const base = calendarMonth.value ?? selectedDate.value;
+    calendarMonth.value = new Date(base.getFullYear(), base.getMonth() + delta, 1);
+}
+
+function selectCalendarDay(day) {
+    if (!day || day.empty) return;
+    calendarOpen.value = false;
+
+    const key = day.key;
+    const today = startOfLocalDay();
+    const yesterday = formatYmd(addDays(today, -1));
+    const todayKey = formatYmd(today);
+    const tomorrow = formatYmd(addDays(today, 1));
+
+    if (key === yesterday) {
+        navigate({ leagues: currentLeaguesParam(), period: 'yesterday' });
+        return;
+    }
+    if (key === todayKey) {
+        navigate({ leagues: currentLeaguesParam(), period: 'today' });
+        return;
+    }
+    if (key === tomorrow) {
+        navigate({ leagues: currentLeaguesParam(), period: 'tomorrow' });
+        return;
+    }
+
+    navigate({ leagues: currentLeaguesParam(), date: key });
+}
+
+function onDocumentPointerDown(event) {
+    if (!calendarOpen.value || !calendarRoot.value) return;
+    if (!calendarRoot.value.contains(event.target)) {
+        calendarOpen.value = false;
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('pointerdown', onDocumentPointerDown);
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('pointerdown', onDocumentPointerDown);
+    clearTimeout(soonTimer);
+});
+
+/**
+ * @param {{ leagues?: string[], period?: string|null, date?: string|null }} opts
+ */
+function navigate({ leagues, period, date } = {}) {
+    const nextLeagues = leagues ?? currentLeaguesParam();
+    const leagueParam = nextLeagues.length === 1 && nextLeagues[0] === 'all'
         ? 'all'
-        : leagues.join(',');
+        : nextLeagues.join(',');
+
+    const query = { league: leagueParam };
+
+    if (date) {
+        query.date = date;
+    } else if (period) {
+        query.period = period;
+    } else if (isCustomDate.value && props.date) {
+        query.date = props.date;
+    } else {
+        query.period = props.period || 'today';
+    }
 
     router.get(
         route('matches.index'),
-        { league: leagueParam, period },
+        query,
         { preserveState: true, preserveScroll: true, replace: true },
     );
 }
@@ -347,18 +520,20 @@ function formatKickoff(iso) {
     }).format(d);
 }
 
-function dateGroupKey(iso) {
+function kickoffDateKey(iso) {
     if (!iso) return 'unknown';
-    const d = new Date(iso);
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    return formatYmd(new Date(iso));
+}
+
+function dateGroupKey(iso) {
+    return kickoffDateKey(iso);
 }
 
 function dateGroupLabel(iso) {
     if (!iso) return 'Без даты';
     const d = new Date(iso);
-    const today = new Date();
-    const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const startMatch = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const startToday = startOfLocalDay();
+    const startMatch = startOfLocalDay(d);
     const diffDays = Math.round((startMatch - startToday) / 86400000);
 
     if (diffDays === 0) return 'Сегодня';
@@ -402,7 +577,7 @@ function matchLeagueShort(match) {
 }
 
 const listKey = computed(
-    () => `${props.selectedLeagues.join(',')}-${props.period}`,
+    () => `${props.selectedLeagues.join(',')}-${selectedDateKey.value}`,
 );
 </script>
 
@@ -552,9 +727,10 @@ const listKey = computed(
             <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(17rem,1fr)] lg:items-start">
                 <!-- Left: matches -->
                 <div class="min-w-0">
-                    <section aria-label="Период">
+                    <section aria-label="Дата матчей" class="relative">
                         <div
-                            class="inline-flex rounded-md border border-miq-line/80 bg-white/60 p-0.5"
+                            ref="calendarRoot"
+                            class="inline-flex items-stretch rounded-md border border-miq-line/80 bg-white/60 p-0.5"
                             role="tablist"
                         >
                             <button
@@ -563,12 +739,85 @@ const listKey = computed(
                                 type="button"
                                 role="tab"
                                 class="miq-period"
-                                :class="{ 'is-active': period === p.id }"
-                                :aria-selected="period === p.id"
+                                :class="{ 'is-active': period === p.id && !isCustomDate }"
+                                :aria-selected="period === p.id && !isCustomDate"
                                 @click="selectPeriod(p.id)"
                             >
                                 {{ p.label }}
                             </button>
+                            <button
+                                type="button"
+                                class="miq-period miq-period-cal"
+                                :class="{ 'is-active': isCustomDate || calendarOpen }"
+                                :aria-expanded="calendarOpen"
+                                aria-haspopup="dialog"
+                                :aria-label="isCustomDate
+                                    ? `Календарь, выбрано ${selectedDateKey}`
+                                    : 'Открыть календарь'"
+                                :title="isCustomDate ? selectedDateKey : 'Календарь'"
+                                @click="toggleCalendar"
+                            >
+                                <svg
+                                    class="h-4 w-4"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                                    <path d="M16 2v4M8 2v4M3 10h18" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div
+                            v-if="calendarOpen"
+                            class="miq-cal"
+                            role="dialog"
+                            aria-label="Выбор даты"
+                        >
+                            <div class="miq-cal-head">
+                                <button
+                                    type="button"
+                                    class="miq-cal-nav"
+                                    aria-label="Предыдущий месяц"
+                                    @click="shiftCalendarMonth(-1)"
+                                >
+                                    ‹
+                                </button>
+                                <p class="miq-cal-title">{{ calendarMonthLabel }}</p>
+                                <button
+                                    type="button"
+                                    class="miq-cal-nav"
+                                    aria-label="Следующий месяц"
+                                    @click="shiftCalendarMonth(1)"
+                                >
+                                    ›
+                                </button>
+                            </div>
+                            <div class="miq-cal-weekdays">
+                                <span v-for="wd in WEEKDAYS" :key="wd">{{ wd }}</span>
+                            </div>
+                            <div class="miq-cal-grid">
+                                <template v-for="cell in calendarDays" :key="cell.key">
+                                    <span v-if="cell.empty" class="miq-cal-day is-empty" />
+                                    <button
+                                        v-else
+                                        type="button"
+                                        class="miq-cal-day"
+                                        :class="{
+                                            'is-today': cell.isToday,
+                                            'is-selected': cell.isSelected,
+                                        }"
+                                        @click="selectCalendarDay(cell)"
+                                    >
+                                        {{ cell.day }}
+                                    </button>
+                                </template>
+                            </div>
                         </div>
                     </section>
 
@@ -586,10 +835,10 @@ const listKey = computed(
                                 class="animate-miq-fade px-4 py-10 text-center"
                             >
                                 <p class="font-medium text-miq-ink-soft">
-                                    На этот период матчей нет
+                                    На эту дату матчей нет
                                 </p>
                                 <p class="mt-1 text-sm text-miq-muted">
-                                    Попробуйте другой период выше.
+                                    Попробуйте другой день выше.
                                 </p>
                             </div>
 
