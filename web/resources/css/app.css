@@ -1142,6 +1142,47 @@
         @apply flex flex-col items-center justify-center text-center;
     }
 
+    /* Категории рынков */
+    .miq-market-cats {
+        @apply mt-2 flex max-w-full gap-1 overflow-x-auto pb-0.5;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .miq-market-cat {
+        @apply inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 text-[12px] font-semibold transition;
+        color: var(--miq-muted);
+        background: color-mix(in srgb, white 70%, var(--miq-mist));
+        border: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+    }
+
+    .miq-market-cat.is-active {
+        color: var(--miq-ink);
+        border-color: color-mix(in srgb, var(--miq-pitch) 45%, var(--miq-line));
+        background: color-mix(in srgb, var(--miq-pitch) 12%, white);
+        box-shadow: inset 0 -2px 0 var(--miq-lime);
+    }
+
+    .miq-market-cat-count {
+        @apply text-[10px] font-bold;
+        color: var(--miq-muted);
+        opacity: 0.85;
+    }
+
+    .miq-market-cat.is-active .miq-market-cat-count {
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-market-group-title {
+        @apply mb-1.5 flex items-center gap-1.5 px-0.5 text-[11px] font-bold uppercase tracking-[0.12em] text-miq-muted;
+    }
+
+    .miq-market-group-count {
+        @apply rounded px-1 py-0.5 text-[10px] font-semibold normal-case tracking-normal;
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
+        color: var(--miq-ink-soft);
+    }
+
     /* BK-style markets: компактная группа исходов */
     .miq-market-card {
         @apply rounded-md border px-1.5 py-1.5 sm:px-2 sm:py-1.5;

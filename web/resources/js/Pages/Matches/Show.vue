@@ -59,7 +59,29 @@ const filters = [
     { id: 'popular', label: 'Популярные' },
 ];
 
+/** Категории рынков (как у БК). */
+const marketCategories = [
+    { id: 'all', label: 'Все', title: 'Все рынки' },
+    { id: 'results', label: 'Исходы', title: 'Исходы' },
+    { id: 'totals', label: 'Тоталы', title: 'Тоталы' },
+    { id: 'goals', label: 'Голы', title: 'Голы' },
+    { id: 'corners', label: 'Угловые', title: 'Угловые' },
+    { id: 'yellows', label: 'ЖК', title: 'Жёлтые карточки' },
+    { id: 'reds', label: 'КК', title: 'Красные карточки' },
+];
+
+const MARKET_CATEGORY_ORDER = ['results', 'totals', 'goals', 'corners', 'yellows', 'reds'];
+const MARKET_CATEGORY_TITLE = {
+    results: 'Исходы',
+    totals: 'Тоталы',
+    goals: 'Голы',
+    corners: 'Угловые',
+    yellows: 'Жёлтые карточки',
+    reds: 'Красные карточки',
+};
+
 const activeFilter = ref('best');
+const activeMarketCategory = ref('all');
 const localPickId = ref(props.userPickEventId);
 const guestCtaOpen = ref(false);
 
@@ -141,17 +163,83 @@ function marketPopular(market) {
     return Math.max(...outcomes.map((o) => Number(o.popular_pct) || 0));
 }
 
-/** Сортировка рынков: лучшие = max p; худшие = min p; популярные = popular. */
-const filteredMarkets = computed(() => {
-    const list = [...(props.markets || [])];
+function marketCategoryOf(market) {
+    return market?.category || 'results';
+}
+
+function sortMarkets(list) {
+    const next = [...list];
     if (activeFilter.value === 'worst') {
-        list.sort((a, b) => marketMinProb(a) - marketMinProb(b));
+        next.sort((a, b) => marketMinProb(a) - marketMinProb(b));
     } else if (activeFilter.value === 'popular') {
-        list.sort((a, b) => marketPopular(b) - marketPopular(a));
+        next.sort((a, b) => marketPopular(b) - marketPopular(a));
     } else {
-        list.sort((a, b) => marketMaxProb(b) - marketMaxProb(a));
+        next.sort((a, b) => marketMaxProb(b) - marketMaxProb(a));
     }
-    return list;
+    return next;
+}
+
+const marketCategoryCounts = computed(() => {
+    const counts = { all: 0 };
+    for (const cat of MARKET_CATEGORY_ORDER) counts[cat] = 0;
+    for (const market of props.markets || []) {
+        const cat = marketCategoryOf(market);
+        counts.all += 1;
+        if (counts[cat] != null) counts[cat] += 1;
+        else counts[cat] = 1;
+    }
+    return counts;
+});
+
+const marketCategoryTabs = computed(() =>
+    marketCategories.map((cat) => ({
+        ...cat,
+        count: marketCategoryCounts.value[cat.id] || 0,
+    })),
+);
+
+/** Рынки с учётом категории + сортировки Лучшие/Худшие/Популярные. */
+const filteredMarkets = computed(() => {
+    const cat = activeMarketCategory.value;
+    const list = (props.markets || []).filter(
+        (m) => cat === 'all' || marketCategoryOf(m) === cat,
+    );
+    return sortMarkets(list);
+});
+
+/** Группы для режима «Все»: заголовок категории → рынки. */
+const marketGroups = computed(() => {
+    if (activeMarketCategory.value !== 'all') {
+        return [{
+            id: activeMarketCategory.value,
+            title: MARKET_CATEGORY_TITLE[activeMarketCategory.value] || 'Рынки',
+            markets: filteredMarkets.value,
+        }];
+    }
+
+    const buckets = new Map();
+    for (const market of filteredMarkets.value) {
+        const cat = marketCategoryOf(market);
+        if (!buckets.has(cat)) buckets.set(cat, []);
+        buckets.get(cat).push(market);
+    }
+
+    const groups = [];
+    for (const cat of MARKET_CATEGORY_ORDER) {
+        const markets = buckets.get(cat);
+        if (!markets?.length) continue;
+        groups.push({
+            id: cat,
+            title: MARKET_CATEGORY_TITLE[cat] || cat,
+            markets,
+        });
+    }
+    // Неизвестные категории — в конец.
+    for (const [cat, markets] of buckets) {
+        if (MARKET_CATEGORY_ORDER.includes(cat) || !markets.length) continue;
+        groups.push({ id: cat, title: cat, markets });
+    }
+    return groups;
 });
 
 /** Общий max шкалы голов: max(номинальный scale, все значения). */
@@ -754,7 +842,7 @@ function loginHref() {
                     <div
                         class="inline-flex max-w-full flex-wrap rounded-md border border-miq-line/80 bg-white/60 p-0.5"
                         role="tablist"
-                        aria-label="Фильтр рынков"
+                        aria-label="Сортировка рынков"
                     >
                         <button
                             v-for="f in filters"
@@ -769,6 +857,31 @@ function loginHref() {
                             {{ f.label }}
                         </button>
                     </div>
+
+                    <div
+                        class="miq-market-cats"
+                        role="tablist"
+                        aria-label="Категории рынков"
+                    >
+                        <button
+                            v-for="cat in marketCategoryTabs"
+                            :key="cat.id"
+                            type="button"
+                            role="tab"
+                            class="miq-market-cat"
+                            :class="{ 'is-active': activeMarketCategory === cat.id }"
+                            :aria-selected="activeMarketCategory === cat.id"
+                            :title="cat.title"
+                            @click="activeMarketCategory = cat.id"
+                        >
+                            <span>{{ cat.label }}</span>
+                            <span
+                                v-if="cat.count"
+                                class="miq-market-cat-count tabular-nums"
+                            >{{ cat.count }}</span>
+                        </button>
+                    </div>
+
                     <p class="mt-1.5 text-[10px] leading-snug text-miq-muted sm:text-[11px]">
                         1 исход на матч · больше баллов за смелый верный выбор (низкая вероятность)
                     </p>
@@ -795,76 +908,92 @@ function loginHref() {
                     </Link>.
                 </div>
 
-                <ul
-                    v-if="filteredMarkets.length"
-                    class="mt-2 space-y-1.5 px-2.5 pb-2.5 sm:px-3 sm:pb-3"
+                <div
+                    v-if="marketGroups.some((g) => g.markets.length)"
+                    class="mt-2 space-y-3 px-2.5 pb-2.5 sm:px-3 sm:pb-3"
                 >
-                    <li
-                        v-for="market in filteredMarkets"
-                        :key="market.id"
-                        class="miq-market-card"
-                        :class="{ 'has-pick': marketHasPick(market) }"
+                    <section
+                        v-for="group in marketGroups"
+                        :key="group.id"
+                        class="miq-market-group"
+                        :aria-label="group.title"
                     >
-                        <div class="miq-market-head">
-                            <h3 class="miq-market-name">{{ market.name }}</h3>
-                            <p
-                                v-if="marketPopular(market)"
-                                class="miq-market-pop"
-                            >
-                                топ {{ marketPopular(market) }}%
-                            </p>
-                        </div>
-
-                        <div
-                            class="miq-outcome-grid"
-                            :class="{
-                                'is-triple': (market.outcomes || []).length === 3,
-                                'is-binary': (market.outcomes || []).length === 2,
-                            }"
-                            role="group"
-                            :aria-label="market.name"
+                        <h3
+                            v-if="activeMarketCategory === 'all' || marketGroups.length > 1"
+                            class="miq-market-group-title"
                         >
-                            <div
-                                v-for="outcome in market.outcomes"
-                                :key="outcome.id"
-                                class="miq-outcome-cell"
-                                :class="{ 'is-picked': isPicked(outcome.id) }"
+                            {{ group.title }}
+                            <span class="miq-market-group-count tabular-nums">{{ group.markets.length }}</span>
+                        </h3>
+                        <ul class="space-y-1.5">
+                            <li
+                                v-for="market in group.markets"
+                                :key="market.id"
+                                class="miq-market-card"
+                                :class="{ 'has-pick': marketHasPick(market) }"
                             >
-                                <p class="miq-outcome-label">{{ outcome.label }}</p>
-                                <p class="miq-outcome-prob tabular-nums">
-                                    {{ outcome.prob }}<span class="miq-outcome-unit">%</span>
-                                </p>
-                                <p class="miq-outcome-meta">
-                                    <span>выбрали {{ outcome.popular_pct }}%</span>
-                                    <span
-                                        v-if="outcome.hit === true"
-                                        class="miq-outcome-hit is-yes"
-                                    >· зашло</span>
-                                    <span
-                                        v-else-if="outcome.hit === false"
-                                        class="miq-outcome-hit"
-                                    >· мимо</span>
-                                </p>
-                                <button
-                                    v-if="!pickClosed"
-                                    type="button"
-                                    class="miq-pick-btn miq-outcome-pick"
-                                    :class="{ 'is-active': isPicked(outcome.id) }"
-                                    :aria-pressed="isPicked(outcome.id)"
-                                    @click="onPick(outcome)"
+                                <div class="miq-market-head">
+                                    <h4 class="miq-market-name">{{ market.name }}</h4>
+                                    <p
+                                        v-if="marketPopular(market)"
+                                        class="miq-market-pop"
+                                    >
+                                        топ {{ marketPopular(market) }}%
+                                    </p>
+                                </div>
+
+                                <div
+                                    class="miq-outcome-grid"
+                                    :class="{
+                                        'is-triple': (market.outcomes || []).length === 3,
+                                        'is-binary': (market.outcomes || []).length === 2,
+                                    }"
+                                    role="group"
+                                    :aria-label="market.name"
                                 >
-                                    {{ isPicked(outcome.id) ? 'Выбрано' : 'Выбрать' }}
-                                </button>
-                                <span
-                                    v-else-if="isPicked(outcome.id)"
-                                    class="miq-pick-btn miq-outcome-pick is-active is-locked"
-                                >
-                                    Ваш выбор
-                                </span>
-                            </div>
-                        </div>
-                    </li>
-                </ul>
+                                    <div
+                                        v-for="outcome in market.outcomes"
+                                        :key="outcome.id"
+                                        class="miq-outcome-cell"
+                                        :class="{ 'is-picked': isPicked(outcome.id) }"
+                                    >
+                                        <p class="miq-outcome-label">{{ outcome.label }}</p>
+                                        <p class="miq-outcome-prob tabular-nums">
+                                            {{ outcome.prob }}<span class="miq-outcome-unit">%</span>
+                                        </p>
+                                        <p class="miq-outcome-meta">
+                                            <span>выбрали {{ outcome.popular_pct }}%</span>
+                                            <span
+                                                v-if="outcome.hit === true"
+                                                class="miq-outcome-hit is-yes"
+                                            >· зашло</span>
+                                            <span
+                                                v-else-if="outcome.hit === false"
+                                                class="miq-outcome-hit"
+                                            >· мимо</span>
+                                        </p>
+                                        <button
+                                            v-if="!pickClosed"
+                                            type="button"
+                                            class="miq-pick-btn miq-outcome-pick"
+                                            :class="{ 'is-active': isPicked(outcome.id) }"
+                                            :aria-pressed="isPicked(outcome.id)"
+                                            @click="onPick(outcome)"
+                                        >
+                                            {{ isPicked(outcome.id) ? 'Выбрано' : 'Выбрать' }}
+                                        </button>
+                                        <span
+                                            v-else-if="isPicked(outcome.id)"
+                                            class="miq-pick-btn miq-outcome-pick is-active is-locked"
+                                        >
+                                            Ваш выбор
+                                        </span>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                    </section>
+                </div>
                 <div
                     v-else
                     class="px-4 py-8 text-center text-sm text-miq-muted"
