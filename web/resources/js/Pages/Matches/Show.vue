@@ -258,6 +258,12 @@ function barWidth(value, max) {
     return `${Math.max(6, Math.round((v / m) * 100))}%`;
 }
 
+function barHeight(value, max) {
+    const v = Number(value) || 0;
+    const m = Number(max) || 0.01;
+    return `${Math.max(8, Math.round((v / m) * 100))}%`;
+}
+
 function absenceLabel(status) {
     return status === 'doubt' ? 'Сомнительно' : 'Вне заявки';
 }
@@ -942,33 +948,49 @@ function loginHref() {
                 </div>
             </section>
 
-            <!-- 8. Goal minutes -->
+            <!-- 8. Goal minutes — vertical paired columns -->
             <section class="miq-panel" aria-label="Минуты голов">
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Голы по минутам</h2>
                     <p class="text-xs text-miq-muted">средние</p>
                 </div>
-                <ul class="space-y-2.5 px-3.5 py-3.5">
-                    <li
+
+                <div class="miq-compare-legend px-3.5 pt-2.5">
+                    <span class="miq-compare-legend-item">
+                        <span class="miq-compare-legend-swatch is-team-home" aria-hidden="true" />
+                        {{ match.home }}
+                    </span>
+                    <span class="miq-compare-legend-item">
+                        <span class="miq-compare-legend-swatch is-team-away" aria-hidden="true" />
+                        {{ match.away }}
+                    </span>
+                </div>
+
+                <div
+                    class="miq-minute-chart px-3 pb-3.5 pt-2"
+                    role="img"
+                    :aria-label="`Голы по интервалам: ${match.home} и ${match.away}`"
+                >
+                    <div
                         v-for="band in goalMinutes"
                         :key="band.band"
-                        class="miq-minute-row"
+                        class="miq-minute-col"
                     >
-                        <span class="miq-minute-label tabular-nums">{{ band.band }}</span>
-                        <div class="miq-minute-bars" aria-hidden="true">
-                            <div class="miq-minute-bar is-home">
-                                <span :style="{ width: barWidth(band.home, goalMax) }" />
+                        <div class="miq-minute-vpair" aria-hidden="true">
+                            <div class="miq-minute-vbar is-team-home" :title="`${match.home}: ${formatStat(band.home)}`">
+                                <span :style="{ height: barHeight(band.home, goalMax) }" />
                             </div>
-                            <div class="miq-minute-bar is-away">
-                                <span :style="{ width: barWidth(band.away, goalMax) }" />
+                            <div class="miq-minute-vbar is-team-away" :title="`${match.away}: ${formatStat(band.away)}`">
+                                <span :style="{ height: barHeight(band.away, goalMax) }" />
                             </div>
                         </div>
-                        <div class="miq-minute-nums tabular-nums">
-                            <span class="text-miq-pitch-deep">{{ formatStat(band.home) }}</span>
-                            <span style="color: var(--miq-chip-away)">{{ formatStat(band.away) }}</span>
+                        <div class="miq-minute-vals tabular-nums">
+                            <span class="is-team-home">{{ formatStat(band.home) }}</span>
+                            <span class="is-team-away">{{ formatStat(band.away) }}</span>
                         </div>
-                    </li>
-                </ul>
+                        <span class="miq-minute-xlabel tabular-nums">{{ band.band }}</span>
+                    </div>
+                </div>
             </section>
 
             <!-- 9. Form + H2H -->

@@ -1073,38 +1073,53 @@
         background: color-mix(in srgb, var(--miq-warn) 12%, white);
     }
 
-    .miq-minute-row {
-        @apply grid grid-cols-[3.25rem_1fr_3.25rem] items-center gap-2;
+    /* Голы по минутам: вертикальные пары столбцов */
+    .miq-minute-chart {
+        @apply flex items-stretch gap-1 sm:gap-2;
+        min-height: 11rem;
     }
 
-    .miq-minute-label {
-        @apply text-[11px] font-semibold text-miq-muted;
+    .miq-minute-col {
+        @apply flex min-w-0 flex-1 flex-col items-center;
     }
 
-    .miq-minute-bars {
-        @apply grid gap-1;
+    .miq-minute-vpair {
+        @apply flex w-full flex-1 items-end justify-center gap-[3px];
+        min-height: 7.5rem;
     }
 
-    .miq-minute-bar {
-        @apply h-1.5 overflow-hidden rounded-sm;
-        background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
+    .miq-minute-vbar {
+        @apply flex h-full w-[42%] max-w-[1.15rem] items-end overflow-hidden rounded-t-md;
+        background: color-mix(in srgb, var(--miq-mist-deep) 75%, white);
     }
 
-    .miq-minute-bar span {
-        @apply block h-full rounded-sm;
-        transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    .miq-minute-vbar span {
+        @apply w-full rounded-t-md;
+        transition: height 420ms cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .miq-minute-bar.is-home span {
-        background: color-mix(in srgb, var(--miq-pitch) 75%, var(--miq-lime));
+    .miq-minute-vbar.is-team-home span {
+        background: var(--miq-team-home);
     }
 
-    .miq-minute-bar.is-away span {
-        background: color-mix(in srgb, var(--miq-chip-away) 80%, white);
+    .miq-minute-vbar.is-team-away span {
+        background: var(--miq-team-away);
     }
 
-    .miq-minute-nums {
-        @apply flex flex-col items-end gap-0.5 text-[11px] font-semibold;
+    .miq-minute-vals {
+        @apply mt-1 flex w-full justify-center gap-1 text-[9px] font-semibold leading-none sm:text-[10px];
+    }
+
+    .miq-minute-vals .is-team-home {
+        color: var(--miq-team-home-ink);
+    }
+
+    .miq-minute-vals .is-team-away {
+        color: var(--miq-team-away-ink);
+    }
+
+    .miq-minute-xlabel {
+        @apply mt-1 text-center text-[9px] font-semibold leading-tight text-miq-muted sm:text-[10px];
     }
 }
 
