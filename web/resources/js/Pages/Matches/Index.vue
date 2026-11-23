@@ -852,7 +852,7 @@ const listKey = computed(
                                     :key="group.key"
                                 >
                                     <p
-                                        class="border-b border-miq-line/50 bg-miq-mist/60 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-miq-muted"
+                                        class="border-b border-miq-line/60 bg-[color-mix(in_srgb,var(--miq-lime)_22%,white)] px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-miq-ink-soft"
                                     >
                                         {{ group.label }}
                                     </p>
