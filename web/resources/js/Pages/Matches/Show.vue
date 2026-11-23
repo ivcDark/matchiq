@@ -22,7 +22,8 @@ const props = defineProps({
     scorers: { type: Object, default: () => ({ home: [], away: [] }) },
     absences: { type: Object, default: () => ({ home: [], away: [] }) },
     goalMinutes: { type: Array, default: () => [] },
-    h2h: { type: Object, default: () => ({ summary: null, meetings: [] }) },
+    /** 5 карточек формы: { id, title, matches: [{ date, home, away, score_home, score_away, result }] } */
+    formBlocks: { type: Array, default: () => [] },
     comments: { type: Array, default: () => [] },
     userPickEventId: { type: Number, default: null },
     returnLeague: { type: String, default: null },
@@ -249,6 +250,13 @@ function formStickClass(result) {
     if (result === 'W') return 'is-w';
     if (result === 'D') return 'is-d';
     return 'is-l';
+}
+
+function formResultLabel(result) {
+    if (result === 'W') return 'П';
+    if (result === 'D') return 'Н';
+    if (result === 'L') return 'Пр';
+    return result || '—';
 }
 
 function formatStat(value, unit) {
@@ -998,64 +1006,42 @@ function loginHref() {
                 </div>
             </section>
 
-            <!-- 9. Form + H2H -->
-            <section class="miq-panel" aria-label="Форма и очные">
-                <div class="miq-panel-head">
-                    <h2 class="miq-panel-title">Форма и H2H</h2>
-                </div>
-                <div class="space-y-4 px-3.5 py-3.5">
-                    <div class="grid gap-3 sm:grid-cols-2">
-                        <div
-                            v-for="side in [
-                                { team: match.home, results: formResults('home') },
-                                { team: match.away, results: formResults('away') },
-                            ]"
-                            :key="side.team"
-                            class="flex items-center justify-between gap-3"
-                        >
-                            <p class="min-w-0 truncate text-sm font-semibold text-miq-ink">
-                                {{ side.team }}
-                            </p>
-                            <div class="miq-form-sticks shrink-0">
-                                <span
-                                    v-for="(result, idx) in side.results"
-                                    :key="`${side.team}-f-${idx}`"
-                                    class="miq-form-stick"
-                                    :class="formStickClass(result)"
-                                    :title="result"
-                                />
-                            </div>
-                        </div>
+            <!-- 9. Form blocks — 5 карточек -->
+            <section class="space-y-3.5" aria-label="Форма">
+                <article
+                    v-for="block in formBlocks"
+                    :key="block.id"
+                    class="miq-panel miq-form-block-card"
+                >
+                    <div class="miq-panel-head">
+                        <h2 class="miq-panel-title">{{ block.title }}</h2>
                     </div>
-
-                    <p
-                        v-if="h2h?.summary"
-                        class="text-sm leading-relaxed text-miq-ink-soft"
-                    >
-                        {{ h2h.summary }}
-                    </p>
-
-                    <ul
-                        v-if="h2h?.meetings?.length"
-                        class="divide-y divide-miq-line/50 rounded-md border border-miq-line/60 overflow-hidden"
-                    >
+                    <ul class="miq-form-match-list">
                         <li
-                            v-for="(m, idx) in h2h.meetings"
-                            :key="idx"
-                            class="flex flex-wrap items-center justify-between gap-2 bg-white/50 px-3 py-2.5 text-sm"
+                            v-for="(m, idx) in block.matches"
+                            :key="`${block.id}-${idx}`"
+                            class="miq-form-match-row"
                         >
-                            <div class="min-w-0">
-                                <p class="font-medium text-miq-ink">
-                                    {{ m.home }} {{ m.score_home }}∶{{ m.score_away }} {{ m.away }}
-                                </p>
-                                <p class="text-[11px] text-miq-muted">
-                                    {{ formatH2hDate(m.date) }}
-                                    <span v-if="m.competition"> · {{ m.competition }}</span>
-                                </p>
-                            </div>
+                            <time class="miq-form-match-date tabular-nums" :datetime="m.date">
+                                {{ formatH2hDate(m.date) }}
+                            </time>
+                            <p class="miq-form-match-pair">
+                                <span class="miq-form-match-team">{{ m.home }}</span>
+                                <span class="miq-form-match-score tabular-nums">
+                                    {{ m.score_home }}∶{{ m.score_away }}
+                                </span>
+                                <span class="miq-form-match-team">{{ m.away }}</span>
+                            </p>
+                            <span
+                                class="miq-form-wdl"
+                                :class="formStickClass(m.result)"
+                                :title="m.result"
+                            >
+                                {{ formResultLabel(m.result) }}
+                            </span>
                         </li>
                     </ul>
-                </div>
+                </article>
             </section>
 
             <!-- 10. Comments -->

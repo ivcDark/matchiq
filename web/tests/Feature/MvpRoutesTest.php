@@ -120,7 +120,7 @@ class MvpRoutesTest extends TestCase
                 ->has('scorers')
                 ->has('absences')
                 ->has('goalMinutes')
-                ->has('h2h')
+                ->has('formBlocks')
                 ->has('comments'));
     }
 

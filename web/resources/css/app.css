@@ -496,6 +496,54 @@
         background: #dc2626;
     }
 
+    /* Карточки формы (5 блоков last-5) */
+    .miq-form-block-card .miq-panel-head {
+        @apply py-2.5;
+    }
+
+    .miq-form-match-list {
+        @apply divide-y divide-miq-line/45;
+    }
+
+    .miq-form-match-row {
+        @apply grid grid-cols-[4.75rem_1fr_auto] items-center gap-2 px-3 py-2 sm:grid-cols-[5.5rem_1fr_auto] sm:gap-2.5 sm:px-3.5;
+    }
+
+    .miq-form-match-date {
+        @apply text-[11px] font-medium leading-tight text-miq-muted;
+    }
+
+    .miq-form-match-pair {
+        @apply flex min-w-0 items-center gap-1.5 text-[13px] font-semibold leading-snug text-miq-ink;
+    }
+
+    .miq-form-match-team {
+        @apply min-w-0 truncate;
+    }
+
+    .miq-form-match-score {
+        @apply shrink-0 text-[13px] font-bold tabular-nums text-miq-ink;
+    }
+
+    .miq-form-wdl {
+        @apply inline-flex h-6 min-w-[1.75rem] items-center justify-center rounded-md px-1.5 text-[11px] font-bold uppercase tracking-wide;
+    }
+
+    .miq-form-wdl.is-w {
+        color: #166534;
+        background: color-mix(in srgb, #16a34a 16%, white);
+    }
+
+    .miq-form-wdl.is-d {
+        color: #854d0e;
+        background: color-mix(in srgb, #ca8a04 16%, white);
+    }
+
+    .miq-form-wdl.is-l {
+        color: #991b1b;
+        background: color-mix(in srgb, #dc2626 14%, white);
+    }
+
     .miq-match-bets {
         @apply flex flex-wrap items-center justify-end gap-1.5;
         flex: 0 0 auto;

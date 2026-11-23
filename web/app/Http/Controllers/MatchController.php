@@ -197,7 +197,7 @@ class MatchController extends Controller
             'scorers' => $detail['scorers'],
             'absences' => $detail['absences'],
             'goalMinutes' => $detail['goalMinutes'],
-            'h2h' => $detail['h2h'],
+            'formBlocks' => $detail['formBlocks'],
             'comments' => $detail['comments'],
             'userPickEventId' => null,
             'returnLeague' => is_string($returnLeague) && $returnLeague !== '' ? $returnLeague : null,
@@ -253,7 +253,7 @@ class MatchController extends Controller
                 'away' => $this->demoAbsences($away, $id, 'away'),
             ],
             'goalMinutes' => $this->demoGoalMinutes($id),
-            'h2h' => $this->demoH2h($home, $away, $id),
+            'formBlocks' => $this->demoFormBlocks($home, $away, $id),
             'comments' => $this->demoComments($home, $away, $id, $isFinished || $isLive),
         ];
     }
@@ -784,77 +784,119 @@ class MatchController extends Controller
     }
 
     /**
-     * @return array{summary: string, meetings: list<array<string, mixed>>}
+     * 5 блоков формы: H2H, хозяева, гости, хозяева дома, гости в гостях.
+     * На матч: дата, пары, счёт, result (W/D/L с точки зрения focus-команды; для H2H — хозяев предстоящего матча).
+     *
+     * @return list<array{id: string, title: string, matches: list<array<string, mixed>>}>
      */
-    private function demoH2h(string $home, string $away, int $id): array
+    private function demoFormBlocks(string $home, string $away, int $id): array
     {
-        $meetings = [
-            [
-                'date' => now()->subMonths(5)->toDateString(),
-                'home' => $away,
-                'away' => $home,
-                'score_home' => 1,
-                'score_away' => 2,
-                'competition' => 'РПЛ',
-            ],
-            [
-                'date' => now()->subMonths(11)->toDateString(),
-                'home' => $home,
-                'away' => $away,
-                'score_home' => 2,
-                'score_away' => 2,
-                'competition' => 'РПЛ',
-            ],
-            [
-                'date' => now()->subMonths(17)->toDateString(),
-                'home' => $away,
-                'away' => $home,
-                'score_home' => 0,
-                'score_away' => 1,
-                'competition' => 'Кубок',
-            ],
-            [
-                'date' => now()->subMonths(23)->toDateString(),
-                'home' => $home,
-                'away' => $away,
-                'score_home' => 3,
-                'score_away' => 1,
-                'competition' => 'РПЛ',
-            ],
+        $pool = array_values(array_filter(
+            ['ЦСКА', 'Краснодар', 'Локомотив', 'Динамо', 'Ростов', 'Рубин', 'Ахмат', 'Крылья Советов', 'Пари НН', 'Оренбург', 'Man City', 'Bayern', 'Arsenal', 'Inter'],
+            fn (string $t) => $t !== $home && $t !== $away,
+        ));
+
+        $shift = abs($id % 5);
+
+        $row = function (
+            int $daysAgo,
+            string $homeTeam,
+            string $awayTeam,
+            int $sh,
+            int $sa,
+            string $focus,
+        ): array {
+            if ($sh === $sa) {
+                $result = 'D';
+            } elseif ($focus === $homeTeam) {
+                $result = $sh > $sa ? 'W' : 'L';
+            } else {
+                $result = $sa > $sh ? 'W' : 'L';
+            }
+
+            return [
+                'date' => now()->subDays($daysAgo)->toDateString(),
+                'home' => $homeTeam,
+                'away' => $awayTeam,
+                'score_home' => $sh,
+                'score_away' => $sa,
+                'result' => $result,
+            ];
+        };
+
+        $opp = fn (int $i) => $pool[($i + $shift) % count($pool)];
+
+        // 1. H2H — последние 5 между этими командами (focus = хозяева предстоящего)
+        $h2h = [
+            $row(28 + $shift, $away, $home, 1, 2, $home),
+            $row(90 + $shift, $home, $away, 2, 2, $home),
+            $row(160 + $shift, $away, $home, 0, 1, $home),
+            $row(250 + $shift, $home, $away, 3, 1, $home),
+            $row(340 + $shift, $away, $home, 2, 0, $home),
         ];
 
-        if ($id === 201) {
-            $meetings = [
-                [
-                    'date' => now()->subMonths(3)->toDateString(),
-                    'home' => 'Man City',
-                    'away' => 'Real Madrid',
-                    'score_home' => 2,
-                    'score_away' => 3,
-                    'competition' => 'UCL',
-                ],
-                [
-                    'date' => now()->subMonths(8)->toDateString(),
-                    'home' => 'Real Madrid',
-                    'away' => 'Man City',
-                    'score_home' => 1,
-                    'score_away' => 1,
-                    'competition' => 'UCL',
-                ],
-                [
-                    'date' => now()->subYears(1)->toDateString(),
-                    'home' => 'Man City',
-                    'away' => 'Real Madrid',
-                    'score_home' => 4,
-                    'score_away' => 0,
-                    'competition' => 'UCL',
-                ],
-            ];
-        }
+        // 2. Последние 5 хозяев (все матчи)
+        $homeAll = [
+            $row(7, $home, $opp(0), 2, 1, $home),
+            $row(14, $opp(1), $home, 1, 1, $home),
+            $row(21, $home, $opp(2), 3, 0, $home),
+            $row(28, $opp(3), $home, 2, 0, $home),
+            $row(35, $home, $opp(4), 1, 0, $home),
+        ];
+
+        // 3. Последние 5 гостей
+        $awayAll = [
+            $row(6, $away, $opp(2), 1, 0, $away),
+            $row(13, $opp(0), $away, 2, 2, $away),
+            $row(20, $away, $opp(4), 0, 2, $away),
+            $row(27, $opp(1), $away, 1, 3, $away),
+            $row(34, $away, $opp(3), 2, 1, $away),
+        ];
+
+        // 4. Последние 5 хозяев дома
+        $homeHome = [
+            $row(7, $home, $opp(0), 2, 1, $home),
+            $row(21, $home, $opp(2), 3, 0, $home),
+            $row(35, $home, $opp(4), 1, 0, $home),
+            $row(49, $home, $opp(1), 2, 2, $home),
+            $row(63, $home, $opp(3), 0, 1, $home),
+        ];
+
+        // 5. Последние 5 гостей в гостях
+        $awayAway = [
+            $row(13, $opp(0), $away, 2, 2, $away),
+            $row(27, $opp(1), $away, 1, 3, $away),
+            $row(41, $opp(4), $away, 0, 1, $away),
+            $row(55, $opp(2), $away, 2, 0, $away),
+            $row(69, $opp(3), $away, 1, 1, $away),
+        ];
 
         return [
-            'summary' => 'В последних встречах чаще забивали обе; домашний фактор заметен, но не решающий.',
-            'meetings' => $meetings,
+            [
+                'id' => 'h2h',
+                'title' => 'Последние 5 между этими командами',
+                'matches' => $h2h,
+            ],
+            [
+                'id' => 'home_all',
+                'title' => 'Последние 5 · '.$home,
+                'matches' => $homeAll,
+            ],
+            [
+                'id' => 'away_all',
+                'title' => 'Последние 5 · '.$away,
+                'matches' => $awayAll,
+            ],
+            [
+                'id' => 'home_home',
+                'title' => 'Последние 5 · '.$home.' дома',
+                'matches' => $homeHome,
+            ],
+            [
+                'id' => 'away_away',
+                'title' => 'Последние 5 · '.$away.' в гостях',
+                'matches' => $awayAway,
+            ],
         ];
     }
 
