@@ -1667,6 +1667,54 @@
     .miq-minute-xlabel {
         @apply mt-1 text-center text-[9px] font-semibold leading-tight text-miq-muted sm:text-[10px];
     }
+
+    /* Статистика судьи */
+    .miq-ref-tiles {
+        @apply grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-5;
+    }
+
+    .miq-ref-tile {
+        @apply rounded-md px-3 py-2.5;
+        border: 1px solid color-mix(in srgb, var(--miq-line) 70%, transparent);
+        background: color-mix(in srgb, white 70%, var(--miq-mist));
+    }
+
+    .miq-ref-tile.is-yellow {
+        border-color: color-mix(in srgb, #ca8a04 28%, white);
+        background: color-mix(in srgb, #eab308 8%, white);
+    }
+
+    .miq-ref-tile.is-red {
+        border-color: color-mix(in srgb, #dc2626 28%, white);
+        background: color-mix(in srgb, #ef4444 8%, white);
+    }
+
+    .miq-ref-tile-label {
+        @apply flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-ref-tile-value {
+        @apply mt-1 text-2xl font-bold leading-none tracking-tight text-miq-ink;
+    }
+
+    .miq-card-icon {
+        display: inline-block;
+        width: 0.55rem;
+        height: 0.75rem;
+        border-radius: 0.1rem;
+        flex-shrink: 0;
+        box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent);
+    }
+
+    .miq-card-icon.is-yellow {
+        background: #eab308;
+        color: #a16207;
+    }
+
+    .miq-card-icon.is-red {
+        background: #dc2626;
+        color: #991b1b;
+    }
 }
 
 @layer utilities {

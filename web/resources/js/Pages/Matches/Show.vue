@@ -46,6 +46,11 @@ const props = defineProps({
         default: () => ({ averages: null, ht_ft: [], halves: [] }),
     },
     comments: { type: Array, default: () => [] },
+    /** Статистика судьи за сезон: { name, place, season, tabs, samples } */
+    refereeStats: {
+        type: Object,
+        default: () => null,
+    },
     userPickEventId: { type: Number, default: null },
     returnLeague: { type: String, default: null },
 });
@@ -127,6 +132,37 @@ const activeHomeAway = computed(() => {
     // fallback на старую плоскую форму { home, away }
     if (bag.home && bag.away) return bag;
     return null;
+});
+
+/** all | rpl | cup */
+const refereeSample = ref('all');
+
+const refereeTabs = computed(() => {
+    const tabs = props.refereeStats?.tabs;
+    if (Array.isArray(tabs) && tabs.length) return tabs;
+    return [
+        { id: 'all', label: 'Все' },
+        { id: 'rpl', label: 'РПЛ' },
+        { id: 'cup', label: 'Кубок России' },
+    ];
+});
+
+const activeRefereeSample = computed(() => {
+    const bag = props.refereeStats?.samples || {};
+    return bag[refereeSample.value] || bag.all || null;
+});
+
+const refereeTiles = computed(() => {
+    const s = activeRefereeSample.value;
+    if (!s) return [];
+    const dash = (v) => (v === null || v === undefined ? '—' : v);
+    return [
+        { id: 'matches', label: 'Матчи', value: dash(s.matches), tone: 'neutral', icon: null },
+        { id: 'yellows', label: 'ЖК', value: dash(s.yellows), tone: 'yellow', icon: 'yellow' },
+        { id: 'reds', label: 'КК', value: dash(s.reds), tone: 'red', icon: 'red' },
+        { id: 'ypm', label: 'ЖК/матч', value: dash(s.ypm), tone: 'yellow', icon: 'yellow' },
+        { id: 'rpm', label: 'КК/матч', value: dash(s.rpm), tone: 'red', icon: 'red' },
+    ];
 });
 
 const backHref = computed(() => {
@@ -1391,6 +1427,75 @@ function loginHref() {
                                 <dd class="font-semibold tabular-nums text-miq-ink">{{ formatStat(side.offsides) }}</dd>
                             </div>
                         </dl>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Referee season stats -->
+            <section
+                v-if="refereeStats"
+                class="miq-panel animate-miq-fade-up"
+                aria-label="Статистика судьи"
+            >
+                <div class="miq-panel-head">
+                    <div class="min-w-0">
+                        <h2 class="miq-panel-title">Статистика судьи</h2>
+                        <p class="truncate text-xs text-miq-muted">
+                            <span class="font-semibold text-miq-ink-soft">{{ refereeStats.name }}</span>
+                            <span v-if="refereeStats.place"> · {{ refereeStats.place }}</span>
+                            <span v-if="refereeStats.season"> · сезон {{ refereeStats.season }}</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="px-3 pt-2.5">
+                    <div
+                        class="inline-flex max-w-full flex-wrap rounded-md border border-miq-line/80 bg-white/60 p-0.5"
+                        role="tablist"
+                        aria-label="Турнир судьи"
+                    >
+                        <button
+                            v-for="tab in refereeTabs"
+                            :key="tab.id"
+                            type="button"
+                            role="tab"
+                            class="miq-period"
+                            :class="{ 'is-active': refereeSample === tab.id }"
+                            :aria-selected="refereeSample === tab.id"
+                            @click="refereeSample = tab.id"
+                        >
+                            {{ tab.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <div
+                    class="miq-ref-tiles px-3 pb-3.5 pt-3"
+                    :key="refereeSample"
+                >
+                    <div
+                        v-for="tile in refereeTiles"
+                        :key="tile.id"
+                        class="miq-ref-tile"
+                        :class="{
+                            'is-yellow': tile.tone === 'yellow',
+                            'is-red': tile.tone === 'red',
+                        }"
+                    >
+                        <p class="miq-ref-tile-label">
+                            <span
+                                v-if="tile.icon === 'yellow'"
+                                class="miq-card-icon is-yellow"
+                                aria-hidden="true"
+                            />
+                            <span
+                                v-else-if="tile.icon === 'red'"
+                                class="miq-card-icon is-red"
+                                aria-hidden="true"
+                            />
+                            {{ tile.label }}
+                        </p>
+                        <p class="miq-ref-tile-value tabular-nums">{{ tile.value }}</p>
                     </div>
                 </div>
             </section>

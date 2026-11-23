@@ -202,6 +202,7 @@ class MatchController extends Controller
             'insights' => $detail['insights'],
             'trends' => $detail['trends'],
             'goalProfile' => $detail['goalProfile'],
+            'refereeStats' => $detail['refereeStats'],
             'comments' => $detail['comments'],
             'userPickEventId' => null,
             'returnLeague' => is_string($returnLeague) && $returnLeague !== '' ? $returnLeague : null,
@@ -268,6 +269,7 @@ class MatchController extends Controller
                 $id,
                 $league['short'] ?? $league['name'] ?? 'РПЛ',
             ),
+            'refereeStats' => $this->demoRefereeStats($meta['referee'], $id),
             'comments' => $this->demoComments($home, $away, $id, $isFinished || $isLive),
         ];
     }
@@ -312,6 +314,114 @@ class MatchController extends Controller
             'temp_c' => $leagueId === 'ucl' ? 14 + ($id % 8) : 1 + ($id % 11),
             'wind_ms' => 2 + ($id % 7),
             'condition' => $conditions[$id % count($conditions)],
+        ];
+    }
+
+    /**
+     * Статистика судьи за текущий сезон: Все / РПЛ / Кубок России.
+     * При малом числе матчей в выборке averages = null → UI показывает «—».
+     *
+     * @return array{
+     *     name: string,
+     *     place: string,
+     *     season: string,
+     *     tabs: list<array{id: string, label: string}>,
+     *     samples: array<string, array{
+     *         matches: int,
+     *         yellows: int|null,
+     *         reds: int|null,
+     *         pens: int|null,
+     *         ypm: float|null,
+     *         rpm: float|null,
+     *         ppm: float|null
+     *     }>
+     * }
+     */
+    private function demoRefereeStats(string $referee, int $id): array
+    {
+        $places = [
+            'В. Мешков' => 'Россия · Санкт-Петербург',
+            'С. Карасев' => 'Россия · Москва',
+            'А. Матюнин' => 'Россия · Москва',
+            'M. Oliver' => 'Англия · Чешир',
+        ];
+
+        $place = $places[$referee] ?? 'Россия';
+        $seed = abs($id % 5);
+        $minSample = 3;
+
+        $build = static function (int $matches, int $yellows, int $reds, int $pens) use ($minSample): array {
+            if ($matches < $minSample) {
+                return [
+                    'matches' => $matches,
+                    'yellows' => null,
+                    'reds' => null,
+                    'pens' => null,
+                    'ypm' => null,
+                    'rpm' => null,
+                    'ppm' => null,
+                ];
+            }
+
+            return [
+                'matches' => $matches,
+                'yellows' => $yellows,
+                'reds' => $reds,
+                'pens' => $pens,
+                'ypm' => round($yellows / $matches, 2),
+                'rpm' => round($reds / $matches, 2),
+                'ppm' => round($pens / $matches, 2),
+            ];
+        };
+
+        // Три демо-набора: полный сезон, РПЛ, кубок с малой выборкой.
+        $rplMatches = 12 + $seed;
+        $rplY = 42 + $seed * 4;
+        $rplR = 2 + ($seed % 3);
+        $rplP = 4 + ($seed % 3);
+
+        $cupMatches = 1 + ($id % 2); // 1–2 → прочерки
+        $cupY = 3 + $seed;
+        $cupR = $id % 2;
+        $cupP = $id % 2;
+
+        $allMatches = $rplMatches + $cupMatches;
+        $allY = $rplY + $cupY;
+        $allR = $rplR + $cupR;
+        $allP = $rplP + $cupP;
+
+        if ($referee === 'Назначение позже') {
+            return [
+                'name' => $referee,
+                'place' => $place,
+                'season' => '2025/26',
+                'tabs' => [
+                    ['id' => 'all', 'label' => 'Все'],
+                    ['id' => 'rpl', 'label' => 'РПЛ'],
+                    ['id' => 'cup', 'label' => 'Кубок России'],
+                ],
+                'samples' => [
+                    'all' => $build(0, 0, 0, 0),
+                    'rpl' => $build(0, 0, 0, 0),
+                    'cup' => $build(0, 0, 0, 0),
+                ],
+            ];
+        }
+
+        return [
+            'name' => $referee,
+            'place' => $place,
+            'season' => '2025/26',
+            'tabs' => [
+                ['id' => 'all', 'label' => 'Все'],
+                ['id' => 'rpl', 'label' => 'РПЛ'],
+                ['id' => 'cup', 'label' => 'Кубок России'],
+            ],
+            'samples' => [
+                'all' => $build($allMatches, $allY, $allR, $allP),
+                'rpl' => $build($rplMatches, $rplY, $rplR, $rplP),
+                'cup' => $build($cupMatches, $cupY, $cupR, $cupP),
+            ],
         ];
     }
 

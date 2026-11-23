@@ -125,6 +125,9 @@ class MvpRoutesTest extends TestCase
                 ->has('insights')
                 ->has('trends')
                 ->has('goalProfile')
+                ->has('refereeStats')
+                ->has('refereeStats.samples')
+                ->has('refereeStats.tabs')
                 ->has('comments')
                 ->has('match.weather'));
     }
@@ -172,6 +175,17 @@ class MvpRoutesTest extends TestCase
                 ->has('standings')
                 ->where('standings.0.form', ['В', 'В', 'Н', 'П', 'В'])
                 ->where('match.form_home', ['В', 'В', 'Н', 'В', 'П'])
+                ->where('match.referee', 'В. Мешков')
+                ->where('refereeStats.name', 'В. Мешков')
+                ->where('refereeStats.place', 'Россия · Санкт-Петербург')
+                ->where('refereeStats.season', '2025/26')
+                ->has('refereeStats.tabs', 3)
+                ->where('refereeStats.tabs.0.id', 'all')
+                ->where('refereeStats.tabs.1.id', 'rpl')
+                ->where('refereeStats.tabs.2.id', 'cup')
+                ->has('refereeStats.samples.all.matches')
+                ->has('refereeStats.samples.rpl.matches')
+                ->where('refereeStats.samples.cup.ypm', null)
                 ->where('userPickEventId', null));
     }
 
