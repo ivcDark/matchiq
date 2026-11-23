@@ -18,24 +18,18 @@ class MatchController extends Controller
         $leagues = $this->demoLeagues();
         $liveIds = collect($leagues)->where('status', 'live')->pluck('id');
 
-        $requestedLeague = $request->query('league');
+        $selectedLeagues = $this->resolveSelectedLeagues($request->query('league'), $liveIds);
         $defaultLive = $liveIds->first() ?? 'rpl';
-        // «all» — матчи всех live-лиг; иначе — конкретная live-лига.
-        if ($requestedLeague === 'all' || $requestedLeague === null || $requestedLeague === '') {
-            $selectedLeague = 'all';
-        } elseif ($liveIds->contains($requestedLeague)) {
-            $selectedLeague = $requestedLeague;
-        } else {
-            $selectedLeague = 'all';
-        }
 
         $period = $request->query('period', 'upcoming');
         if (! in_array($period, ['today', 'upcoming', 'finished'], true)) {
             $period = 'upcoming';
         }
 
-        // Виджеты таблицы/бомбардиров — по конкретной лиге (для «Все» — первая live).
-        $widgetLeague = $selectedLeague === 'all' ? $defaultLive : $selectedLeague;
+        // Виджеты — по первой выбранной live-лиге (для «Все» — первая live).
+        $widgetLeague = $selectedLeagues === ['all']
+            ? $defaultLive
+            : ($selectedLeagues[0] ?? $defaultLive);
         if (! $liveIds->contains($widgetLeague)) {
             $widgetLeague = $defaultLive;
         }
@@ -43,10 +37,52 @@ class MatchController extends Controller
         return Inertia::render('Matches/Index', [
             'leagues' => $leagues,
             'matches' => $this->demoMatches(),
-            'selectedLeague' => $selectedLeague,
+            'selectedLeagues' => $selectedLeagues,
             'period' => $period,
             'widgets' => $this->demoWidgets($widgetLeague),
         ]);
+    }
+
+    /**
+     * Мультивыбор лиг из query: `league=all` | `league=rpl,ucl` | `league[]=rpl&league[]=ucl`.
+     * «all» эксклюзивно; неизвестные / soon-id отбрасываются; пустой набор → all.
+     *
+     * @param  mixed  $raw
+     * @param  \Illuminate\Support\Collection<int, string>  $liveIds
+     * @return list<string>
+     */
+    private function resolveSelectedLeagues(mixed $raw, $liveIds): array
+    {
+        if ($raw === null || $raw === '') {
+            return ['all'];
+        }
+
+        if (is_array($raw)) {
+            $tokens = $raw;
+        } else {
+            $tokens = preg_split('/\s*,\s*/', (string) $raw) ?: [];
+        }
+
+        $tokens = array_values(array_filter(array_map(
+            static fn ($t) => is_string($t) ? trim($t) : '',
+            $tokens,
+        )));
+
+        if ($tokens === [] || $tokens === ['all']) {
+            return ['all'];
+        }
+
+        // Нельзя смешивать «Все» с конкретными — при смеси берём только конкретные live.
+        $tokens = array_values(array_filter($tokens, static fn (string $t) => $t !== 'all'));
+
+        $selected = [];
+        foreach ($tokens as $id) {
+            if ($liveIds->contains($id) && ! in_array($id, $selected, true)) {
+                $selected[] = $id;
+            }
+        }
+
+        return $selected === [] ? ['all'] : $selected;
     }
 
     /**
@@ -91,7 +127,7 @@ class MatchController extends Controller
             ['id' => 'seriea', 'country' => 'Италия', 'name' => 'Serie A', 'short' => 'SA', 'status' => 'soon'],
             ['id' => 'bundesliga', 'country' => 'Германия', 'name' => 'Bundesliga', 'short' => 'BL', 'status' => 'soon'],
             ['id' => 'ligue1', 'country' => 'Франция', 'name' => 'Ligue 1', 'short' => 'L1', 'status' => 'soon'],
-            ['id' => 'ucl', 'country' => 'Европа', 'name' => 'Champions League', 'short' => 'UCL', 'status' => 'soon'],
+            ['id' => 'ucl', 'country' => 'Европа', 'name' => 'Champions League', 'short' => 'UCL', 'status' => 'live'],
             ['id' => 'eredivisie', 'country' => 'Нидерланды', 'name' => 'Eredivisie', 'short' => 'ERE', 'status' => 'soon'],
         ];
     }
@@ -197,6 +233,48 @@ class MatchController extends Controller
                 'status' => 'finished',
                 'score_home' => 1,
                 'score_away' => 3,
+                'period_bucket' => 'finished',
+                'prob_home' => null,
+                'prob_draw' => null,
+                'prob_away' => null,
+            ],
+            [
+                'id' => 201,
+                'league_id' => 'ucl',
+                'home' => 'Real Madrid',
+                'away' => 'Man City',
+                'kickoff_at' => $today->copy()->setTime(22, 0)->toIso8601String(),
+                'status' => 'scheduled',
+                'score_home' => null,
+                'score_away' => null,
+                'period_bucket' => 'today',
+                'prob_home' => 44,
+                'prob_draw' => 25,
+                'prob_away' => 31,
+            ],
+            [
+                'id' => 202,
+                'league_id' => 'ucl',
+                'home' => 'Bayern',
+                'away' => 'PSG',
+                'kickoff_at' => $today->copy()->addDay()->setTime(22, 0)->toIso8601String(),
+                'status' => 'scheduled',
+                'score_home' => null,
+                'score_away' => null,
+                'period_bucket' => 'upcoming',
+                'prob_home' => 49,
+                'prob_draw' => 24,
+                'prob_away' => 27,
+            ],
+            [
+                'id' => 203,
+                'league_id' => 'ucl',
+                'home' => 'Inter',
+                'away' => 'Arsenal',
+                'kickoff_at' => $today->copy()->subDay()->setTime(22, 0)->toIso8601String(),
+                'status' => 'finished',
+                'score_home' => 2,
+                'score_away' => 1,
                 'period_bucket' => 'finished',
                 'prob_home' => null,
                 'prob_draw' => null,

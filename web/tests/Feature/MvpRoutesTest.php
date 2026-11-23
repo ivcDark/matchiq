@@ -23,7 +23,7 @@ class MvpRoutesTest extends TestCase
                 ->has('widgets.scorers')
                 ->has('widgets.hotScorers')
                 ->has('widgets.news')
-                ->where('selectedLeague', 'all')
+                ->where('selectedLeagues', ['all'])
                 ->where('period', 'upcoming'));
     }
 
@@ -33,8 +33,27 @@ class MvpRoutesTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Matches/Index')
-                ->where('selectedLeague', 'rpl')
+                ->where('selectedLeagues', ['rpl'])
                 ->where('period', 'today'));
+    }
+
+    public function test_matches_index_accepts_multi_league_filter(): void
+    {
+        $this->get('/?league=rpl,ucl&period=upcoming')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Matches/Index')
+                ->where('selectedLeagues', ['rpl', 'ucl'])
+                ->where('period', 'upcoming'));
+    }
+
+    public function test_matches_index_accepts_repeated_league_params(): void
+    {
+        $this->get('/?league[]=rpl&league[]=ucl')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Matches/Index')
+                ->where('selectedLeagues', ['rpl', 'ucl']));
     }
 
     public function test_matches_show_renders(): void

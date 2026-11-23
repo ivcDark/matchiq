@@ -156,6 +156,26 @@
         color: var(--miq-muted);
     }
 
+    .miq-selected-chips {
+        @apply flex flex-wrap gap-1.5;
+    }
+
+    .miq-chip {
+        @apply inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-1 text-xs font-semibold;
+        border-color: var(--miq-pitch);
+        background: color-mix(in srgb, var(--miq-pitch) 12%, white);
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-chip-remove {
+        @apply -mr-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-sm leading-none transition;
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-chip-remove:hover {
+        background: color-mix(in srgb, var(--miq-pitch) 22%, white);
+    }
+
     .miq-league-menu {
         @apply flex flex-col gap-2;
     }

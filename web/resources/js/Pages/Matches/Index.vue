@@ -6,7 +6,7 @@ import { computed, ref, watch } from 'vue';
 const props = defineProps({
     leagues: { type: Array, default: () => [] },
     matches: { type: Array, default: () => [] },
-    selectedLeague: { type: String, default: 'all' },
+    selectedLeagues: { type: Array, default: () => ['all'] },
     period: { type: String, default: 'upcoming' },
     widgets: {
         type: Object,
@@ -82,15 +82,33 @@ const leaguesByCountry = computed(() => {
     return order;
 });
 
-const activeLeague = computed(() => {
-    if (props.selectedLeague === 'all') {
-        return null;
+const isAllMode = computed(
+    () => props.selectedLeagues.length === 1 && props.selectedLeagues[0] === 'all',
+);
+
+const selectedLeagueIds = computed(() => {
+    if (isAllMode.value) {
+        return [];
     }
-    return props.leagues.find((l) => l.id === props.selectedLeague) ?? null;
+    return props.selectedLeagues.filter((id) => liveLeagueIds.value.has(id));
+});
+
+const selectedChips = computed(() => {
+    if (isAllMode.value) {
+        return [{ id: 'all', label: 'Все', removable: false }];
+    }
+    return selectedLeagueIds.value.map((id) => {
+        const league = leagueById.value.get(id);
+        return {
+            id,
+            label: league?.short || league?.name || id,
+            removable: true,
+        };
+    });
 });
 
 const leagueHint = computed(() => {
-    if (props.selectedLeague === 'all') {
+    if (isAllMode.value) {
         const n = liveLeagueIds.value.size;
         if (n === 0) {
             return 'Нет активных лиг';
@@ -101,19 +119,31 @@ const leagueHint = computed(() => {
         }
         return `Все активные · ${n}`;
     }
-    if (!activeLeague.value) {
+    if (selectedLeagueIds.value.length === 0) {
         return null;
     }
-    return `${activeLeague.value.country} · ${activeLeague.value.name}`;
+    if (selectedLeagueIds.value.length === 1) {
+        const league = leagueById.value.get(selectedLeagueIds.value[0]);
+        if (!league) {
+            return null;
+        }
+        return `${league.country} · ${league.name}`;
+    }
+    return selectedLeagueIds.value
+        .map((id) => {
+            const league = leagueById.value.get(id);
+            return league?.short || league?.name || id;
+        })
+        .join(' · ');
 });
 
 const filteredMatches = computed(() => {
     return props.matches.filter((m) => {
-        if (props.selectedLeague === 'all') {
+        if (isAllMode.value) {
             if (!liveLeagueIds.value.has(m.league_id)) {
                 return false;
             }
-        } else if (m.league_id !== props.selectedLeague) {
+        } else if (!selectedLeagueIds.value.includes(m.league_id)) {
             return false;
         }
 
@@ -150,12 +180,18 @@ const widgetLeagueLabel = computed(
     () => props.widgets?.league?.label ?? leagueHint.value ?? 'Лига',
 );
 
-const showLeagueInRow = computed(() => props.selectedLeague === 'all');
+const showLeagueInRow = computed(
+    () => isAllMode.value || selectedLeagueIds.value.length > 1,
+);
+
+function isLeagueSelected(leagueId) {
+    return selectedLeagueIds.value.includes(leagueId);
+}
 
 function initOpenCountries() {
     const next = {};
     for (const group of leaguesByCountry.value) {
-        const selectedHere = group.leagues.some((l) => l.id === props.selectedLeague);
+        const selectedHere = group.leagues.some((l) => isLeagueSelected(l.id));
         // Live-страны и страна выбранной лиги открыты; «скоро»-только — свёрнуты при коллапсе.
         next[group.country] = !useCollapsibleCountries.value
             || group.hasLive
@@ -165,7 +201,7 @@ function initOpenCountries() {
 }
 
 watch(
-    () => [props.leagues, props.selectedLeague, useCollapsibleCountries.value],
+    () => [props.leagues, props.selectedLeagues, useCollapsibleCountries.value],
     () => initOpenCountries(),
     { immediate: true },
 );
@@ -188,10 +224,10 @@ function isCountryOpen(country) {
 }
 
 function selectAll() {
-    if (props.selectedLeague === 'all') {
+    if (isAllMode.value) {
         return;
     }
-    navigate({ league: 'all', period: props.period });
+    navigate({ leagues: ['all'], period: props.period });
 }
 
 function selectLeague(league) {
@@ -199,23 +235,53 @@ function selectLeague(league) {
         showSoonHint();
         return;
     }
-    if (league.id === props.selectedLeague) {
+
+    let next;
+    if (isAllMode.value) {
+        // С «Все» → только эта лига.
+        next = [league.id];
+    } else if (isLeagueSelected(league.id)) {
+        // Повторный клик снимает лигу; последняя → «Все».
+        next = selectedLeagueIds.value.filter((id) => id !== league.id);
+        if (next.length === 0) {
+            next = ['all'];
+        }
+    } else {
+        next = [...selectedLeagueIds.value, league.id];
+    }
+
+    navigate({ leagues: next, period: props.period });
+}
+
+function removeLeague(leagueId) {
+    if (leagueId === 'all') {
         return;
     }
-    navigate({ league: league.id, period: props.period });
+    const next = selectedLeagueIds.value.filter((id) => id !== leagueId);
+    navigate({
+        leagues: next.length === 0 ? ['all'] : next,
+        period: props.period,
+    });
 }
 
 function selectPeriod(periodId) {
     if (periodId === props.period) {
         return;
     }
-    navigate({ league: props.selectedLeague, period: periodId });
+    navigate({
+        leagues: isAllMode.value ? ['all'] : selectedLeagueIds.value,
+        period: periodId,
+    });
 }
 
-function navigate({ league, period }) {
+function navigate({ leagues, period }) {
+    const leagueParam = leagues.length === 1 && leagues[0] === 'all'
+        ? 'all'
+        : leagues.join(',');
+
     router.get(
         route('matches.index'),
-        { league, period },
+        { league: leagueParam, period },
         { preserveState: true, preserveScroll: true, replace: true },
     );
 }
@@ -298,7 +364,7 @@ function matchLeagueShort(match) {
 }
 
 const listKey = computed(
-    () => `${props.selectedLeague}-${props.period}`,
+    () => `${props.selectedLeagues.join(',')}-${props.period}`,
 );
 </script>
 
@@ -309,6 +375,30 @@ const listKey = computed(
         <!-- Tournament / league menu ABOVE matches -->
         <section class="animate-miq-fade-up" style="animation-delay: 60ms" aria-label="Лиги">
             <div class="miq-panel">
+                <div
+                    class="miq-selected-chips px-3 pt-3"
+                    role="list"
+                    aria-label="Выбранные турниры"
+                >
+                    <span
+                        v-for="chip in selectedChips"
+                        :key="chip.id"
+                        class="miq-chip"
+                        role="listitem"
+                    >
+                        <span>{{ chip.label }}</span>
+                        <button
+                            v-if="chip.removable"
+                            type="button"
+                            class="miq-chip-remove"
+                            :aria-label="`Убрать ${chip.label}`"
+                            @click="removeLeague(chip.id)"
+                        >
+                            ×
+                        </button>
+                    </span>
+                </div>
+
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Турниры</h2>
                     <p
@@ -319,7 +409,7 @@ const listKey = computed(
                         {{ soonHint }}
                     </p>
                     <p v-else class="text-xs text-miq-muted">
-                        Все · live · «скоро»
+                        Мультивыбор · «Все» · «скоро»
                     </p>
                 </div>
 
@@ -327,13 +417,14 @@ const listKey = computed(
                     class="miq-league-menu animate-miq-stagger p-3"
                     role="listbox"
                     aria-label="Переключатель лиг"
+                    aria-multiselectable="true"
                 >
                     <button
                         type="button"
                         role="option"
                         class="miq-league-all"
-                        :class="{ 'is-active': selectedLeague === 'all' }"
-                        :aria-selected="selectedLeague === 'all'"
+                        :class="{ 'is-active': isAllMode }"
+                        :aria-selected="isAllMode"
                         @click="selectAll"
                     >
                         <span class="min-w-0">
@@ -343,7 +434,7 @@ const listKey = computed(
                             </span>
                         </span>
                         <span
-                            v-if="selectedLeague === 'all'"
+                            v-if="isAllMode"
                             class="h-1.5 w-1.5 shrink-0 rounded-full bg-miq-pitch"
                             aria-hidden="true"
                         />
@@ -398,10 +489,10 @@ const listKey = computed(
                                 role="option"
                                 class="miq-league-item"
                                 :class="{
-                                    'is-active': league.id === selectedLeague && league.status === 'live',
+                                    'is-active': isLeagueSelected(league.id) && league.status === 'live',
                                     'is-soon': league.status === 'soon',
                                 }"
-                                :aria-selected="league.id === selectedLeague"
+                                :aria-selected="isLeagueSelected(league.id)"
                                 :aria-disabled="league.status === 'soon'"
                                 @click="selectLeague(league)"
                             >
@@ -420,7 +511,7 @@ const listKey = computed(
                                     Скоро
                                 </span>
                                 <span
-                                    v-else-if="league.id === selectedLeague"
+                                    v-else-if="isLeagueSelected(league.id)"
                                     class="h-1.5 w-1.5 shrink-0 rounded-full bg-miq-pitch"
                                     aria-hidden="true"
                                 />
