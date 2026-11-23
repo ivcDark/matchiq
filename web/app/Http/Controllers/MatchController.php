@@ -410,7 +410,7 @@ class MatchController extends Controller
                 ],
                 [
                     'key' => 'btts',
-                    'label' => 'BTTS',
+                    'label' => 'Обе забьют',
                     'value' => (string) (2 + $n % 3),
                     'unit' => 'из 5',
                     'hint' => 'обе забили',
@@ -465,13 +465,13 @@ class MatchController extends Controller
             ],
             'ht_ft' => [
                 ['label' => '1/1', 'pct' => 26 + ($id % 4)],
-                ['label' => 'X/1', 'pct' => 11],
+                ['label' => 'Н/1', 'pct' => 11],
                 ['label' => '2/1', 'pct' => 6],
-                ['label' => '1/X', 'pct' => 8],
-                ['label' => 'X/X', 'pct' => 10],
-                ['label' => '2/X', 'pct' => 7],
+                ['label' => '1/Н', 'pct' => 8],
+                ['label' => 'Н/Н', 'pct' => 10],
+                ['label' => '2/Н', 'pct' => 7],
                 ['label' => '1/2', 'pct' => 5],
-                ['label' => 'X/2', 'pct' => 9],
+                ['label' => 'Н/2', 'pct' => 9],
                 ['label' => '2/2', 'pct' => 18 - ($id % 3)],
             ],
             'halves' => [
@@ -494,7 +494,7 @@ class MatchController extends Controller
     private function demoPreview(string $home, string $away, string $status): string
     {
         if ($status === 'finished') {
-            return "Матч {$home} — {$away} уже сыгран. Ниже — снимок вероятностей на kickoff и то, как разошлись выборы сообщества. Сверка pick с итогом — в блоке событий.";
+            return "Матч {$home} — {$away} уже сыгран. Ниже — снимок вероятностей на старт и то, как разошлись выборы сообщества. Сверка выбора с итогом — в блоке событий.";
         }
 
         if ($status === 'live') {
@@ -529,7 +529,7 @@ class MatchController extends Controller
             $markets = [
                 $this->demoMarket('1x2', 'Исход матча', [
                     ['id' => $id * 100 + 1, 'label' => 'П1', 'prob' => 42, 'popular_pct' => 24],
-                    ['id' => $id * 100 + 2, 'label' => 'X', 'prob' => 27, 'popular_pct' => 12],
+                    ['id' => $id * 100 + 2, 'label' => 'Н', 'prob' => 27, 'popular_pct' => 12],
                     ['id' => $id * 100 + 3, 'label' => 'П2', 'prob' => 31, 'popular_pct' => 19],
                 ]),
                 $this->demoBinaryMarket($id * 100 + 10, 'Обе забьют', 72, 44, 18),
@@ -540,13 +540,13 @@ class MatchController extends Controller
                 $this->demoBinaryMarket($id * 100 + 60, 'Гости забьют', 71, 12, 5),
                 $this->demoTotalMarket($id * 100 + 70, 'Угловые 9.5', 61, 15, 8),
                 $this->demoTotalMarket($id * 100 + 80, 'Жёлтые 4.5', 55, 10, 6),
-                $this->demoBinaryMarket($id * 100 + 90, 'Тотал голов · чёт/нечет', 48, 7, 5, 'Чёт', 'Нечет'),
+                $this->demoBinaryMarket($id * 100 + 90, 'Тотал голов · чёт/нечёт', 48, 7, 5, 'Чёт', 'Нечёт'),
             ];
         } else {
             $markets = [
                 $this->demoMarket('1x2', 'Исход матча', [
                     ['id' => $id * 100 + 1, 'label' => 'П1', 'prob' => $nudge($p1, 0), 'popular_pct' => $pop(22, 0)],
-                    ['id' => $id * 100 + 2, 'label' => 'X', 'prob' => $nudge($px, 1), 'popular_pct' => $pop(11, 1)],
+                    ['id' => $id * 100 + 2, 'label' => 'Н', 'prob' => $nudge($px, 1), 'popular_pct' => $pop(11, 1)],
                     ['id' => $id * 100 + 3, 'label' => 'П2', 'prob' => $nudge($p2, 2), 'popular_pct' => $pop(18, 2)],
                 ]),
                 $this->demoBinaryMarket($id * 100 + 10, 'Обе забьют', $nudge(68, 3), $pop(41, 3), $pop(18, 4)),
@@ -557,7 +557,7 @@ class MatchController extends Controller
                 $this->demoBinaryMarket($id * 100 + 60, 'Гости забьют', $nudge(71, 8), $pop(12, 13), $pop(5, 14)),
                 $this->demoTotalMarket($id * 100 + 70, 'Угловые 9.5', $nudge(57, 9), $pop(14, 15), $pop(8, 16), null, 'ТБ', 'ТМ'),
                 $this->demoTotalMarket($id * 100 + 80, 'Жёлтые 4.5', $nudge(53, 10), $pop(9, 17), $pop(6, 18), null, 'ТБ', 'ТМ'),
-                $this->demoBinaryMarket($id * 100 + 90, 'Тотал голов · чёт/нечет', $nudge(48, 11), $pop(7, 19), $pop(5, 20), 'Чёт', 'Нечет'),
+                $this->demoBinaryMarket($id * 100 + 90, 'Тотал голов · чёт/нечёт', $nudge(48, 11), $pop(7, 19), $pop(5, 20), 'Чёт', 'Нечёт'),
             ];
 
             // После nudge пересоберём 1X2 к сумме 100.
@@ -712,7 +712,7 @@ class MatchController extends Controller
             ['key' => 'yellows', 'label' => 'Жёлтые', 'home' => $yelH, 'away' => $yelA, 'scale' => 4],
             ['key' => 'fouls', 'label' => 'Фолы', 'home' => $foulsH, 'away' => $foulsA, 'scale' => 18],
             ['key' => 'possession', 'label' => 'Владение %', 'home' => $possH, 'away' => $possA, 'scale' => 100, 'unit' => '%'],
-            ['key' => 'btts', 'label' => 'BTTS %', 'home' => $bttsH, 'away' => $bttsA, 'scale' => 100, 'unit' => '%'],
+            ['key' => 'btts', 'label' => 'Обе забьют %', 'home' => $bttsH, 'away' => $bttsA, 'scale' => 100, 'unit' => '%'],
             ['key' => 'cs', 'label' => 'Сухие %', 'home' => $csH, 'away' => $csA, 'scale' => 100, 'unit' => '%'],
         ];
     }
@@ -1139,7 +1139,7 @@ class MatchController extends Controller
             [
                 'id' => $id * 100 + 4,
                 'author' => 'matchiq_newbie',
-                'body' => 'Первый pick в рейтинге — П2 с низкой вероятностью. Поехали.',
+                'body' => 'Первый выбор в рейтинге — П2 с низкой вероятностью. Поехали.',
                 'ago' => '3 ч',
                 'likes' => 3,
             ],
@@ -1149,7 +1149,7 @@ class MatchController extends Controller
             array_unshift($comments, [
                 'id' => $id * 100,
                 'author' => 'live_watcher',
-                'body' => 'Темп высокий, как в превью. Выбор уже закрыт — остаётся болеть за свой pick.',
+                'body' => 'Темп высокий, как в превью. Выбор уже закрыт — остаётся болеть за свой исход.',
                 'ago' => '12 мин',
                 'likes' => 6,
             ]);

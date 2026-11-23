@@ -141,6 +141,16 @@
         @apply inline-flex items-center justify-center px-2.5;
     }
 
+    .miq-period-icon {
+        @apply inline-flex items-center gap-1.5;
+    }
+
+    .miq-period-svg {
+        width: 0.9rem;
+        height: 0.9rem;
+        flex-shrink: 0;
+    }
+
     .miq-cal {
         position: absolute;
         z-index: 30;
@@ -685,6 +695,10 @@
         background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
     }
 
+    .miq-goalprof-htft-hint {
+        @apply mt-2 text-[11px] leading-snug text-miq-muted;
+    }
+
     .miq-goalprof-halves {
         @apply grid gap-2 px-3.5 py-3 sm:grid-cols-2;
         border-top: 1px solid color-mix(in srgb, var(--miq-line) 50%, transparent);
@@ -695,7 +709,7 @@
     }
 
     .miq-goalprof-half-grid dt {
-        @apply text-[10px] uppercase tracking-wide text-miq-muted;
+        @apply text-[10px] font-medium leading-snug text-miq-muted;
     }
 
     .miq-goalprof-half-grid dd {

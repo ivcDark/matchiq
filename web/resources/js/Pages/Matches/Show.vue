@@ -63,7 +63,7 @@ const activeFilter = ref('best');
 const localPickId = ref(props.userPickEventId);
 const guestCtaOpen = ref(false);
 
-/** B = bars + pie % · C = все pie */
+/** b = шкалы + круги для % · c = все кругами */
 const compareView = ref('b');
 /** match | first_half | second_half */
 const comparePeriod = ref('match');
@@ -75,8 +75,18 @@ const comparePeriods = [
 ];
 
 const compareViews = [
-    { id: 'b', label: 'B · шкалы + pie %' },
-    { id: 'c', label: 'C · все pie' },
+    {
+        id: 'b',
+        label: 'Шкалы',
+        title: 'Шкалы, проценты кругами',
+        icon: 'bars',
+    },
+    {
+        id: 'c',
+        label: 'Круги',
+        title: 'Все показатели кругами',
+        icon: 'pie',
+    },
 ];
 
 /** tournament | last5 | last10 */
@@ -280,6 +290,13 @@ function formResultLabel(result) {
     return result || '—';
 }
 
+function formResultTitle(result) {
+    if (result === 'W') return 'Победа';
+    if (result === 'D') return 'Ничья';
+    if (result === 'L') return 'Поражение';
+    return result || '';
+}
+
 function forecastMaxKey() {
     const f = props.forecast || {};
     const triples = [
@@ -406,7 +423,7 @@ function loginHref() {
                                     :key="`hh-${idx}`"
                                     class="miq-form-stick"
                                     :class="formStickClass(result)"
-                                    :title="result"
+                                    :title="formResultTitle(result)"
                                 />
                             </div>
                         </div>
@@ -444,7 +461,7 @@ function loginHref() {
                                     :key="`ha-${idx}`"
                                     class="miq-form-stick"
                                     :class="formStickClass(result)"
-                                    :title="result"
+                                    :title="formResultTitle(result)"
                                 />
                             </div>
                         </div>
@@ -479,7 +496,7 @@ function loginHref() {
             >
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Прогноз исхода</h2>
-                    <p class="text-[11px] font-medium text-miq-muted">1X2 · модель</p>
+                    <p class="text-[11px] font-medium text-miq-muted">П1 · Н · П2 · модель</p>
                 </div>
 
                 <div class="miq-forecast-body">
@@ -490,7 +507,7 @@ function loginHref() {
                         </p>
                     </div>
 
-                    <div class="miq-forecast-1x2" role="group" aria-label="Вероятности 1X2">
+                    <div class="miq-forecast-1x2" role="group" aria-label="Вероятности П1 · Н · П2">
                         <div
                             class="miq-forecast-cell is-team-home"
                             :class="{ 'is-lead': forecastMaxKey() === 'home' }"
@@ -505,7 +522,7 @@ function loginHref() {
                             class="miq-forecast-cell is-draw"
                             :class="{ 'is-lead': forecastMaxKey() === 'draw' }"
                         >
-                            <p class="miq-forecast-cell-label">X</p>
+                            <p class="miq-forecast-cell-label">Н</p>
                             <p class="miq-forecast-cell-team">Ничья</p>
                             <p class="miq-forecast-cell-pct tabular-nums">
                                 {{ forecast.draw_pct }}<span>%</span>
@@ -612,7 +629,7 @@ function loginHref() {
                         v-if="pickClosed"
                         class="mt-1 text-[10px] font-semibold text-miq-warn sm:text-[11px]"
                     >
-                        Выбор закрыт — вероятности как снимок на kickoff
+                        Выбор закрыт — вероятности как снимок на старт
                     </p>
                 </div>
 
@@ -695,7 +712,7 @@ function loginHref() {
                                     v-else-if="isPicked(outcome.id)"
                                     class="miq-pick-btn miq-outcome-pick is-active is-locked"
                                 >
-                                    Ваш pick
+                                    Ваш выбор
                                 </span>
                             </div>
                         </div>
@@ -717,7 +734,7 @@ function loginHref() {
             >
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Тренды и серии</h2>
-                    <p class="text-[11px] font-medium text-miq-muted">last-5</p>
+                    <p class="text-[11px] font-medium text-miq-muted">последние 5</p>
                 </div>
                 <div class="miq-trends-grid">
                     <div
@@ -752,14 +769,14 @@ function loginHref() {
                 </div>
             </section>
 
-            <!-- Goal averages / HT-FT / halves -->
+            <!-- Goal averages / тайм-матч / halves -->
             <section
                 v-if="goalProfile?.averages"
                 class="miq-panel animate-miq-fade-up"
                 aria-label="Голы и таймы"
             >
                 <div class="miq-panel-head">
-                    <h2 class="miq-panel-title">Голы · HT-FT · таймы</h2>
+                    <h2 class="miq-panel-title">Голы · тайм/матч · таймы</h2>
                     <p class="text-[11px] font-medium text-miq-muted">средние</p>
                 </div>
 
@@ -798,7 +815,7 @@ function loginHref() {
                     v-if="goalProfile.ht_ft?.length"
                     class="miq-goalprof-htft"
                 >
-                    <p class="miq-goalprof-subhead">HT / FT</p>
+                    <p class="miq-goalprof-subhead">Тайм / матч</p>
                     <ul class="miq-goalprof-htft-list">
                         <li
                             v-for="row in goalProfile.ht_ft"
@@ -809,6 +826,10 @@ function loginHref() {
                             <span class="tabular-nums text-miq-muted">{{ row.pct }}%</span>
                         </li>
                     </ul>
+                    <p class="miq-goalprof-htft-hint">
+                        Первый символ — исход 1-го тайма, второй — исход матча;
+                        1 — хозяева, Н — ничья, 2 — гости.
+                    </p>
                 </div>
 
                 <div
@@ -827,11 +848,11 @@ function loginHref() {
                                 <dd class="tabular-nums">{{ formatStat(half.avg) }}</dd>
                             </div>
                             <div>
-                                <dt>ТБ 0.5</dt>
+                                <dt>ТБ 0.5 (1+ гол)</dt>
                                 <dd class="tabular-nums">{{ half.over_05 }}%</dd>
                             </div>
                             <div>
-                                <dt>ТБ 1.5</dt>
+                                <dt>ТБ 1.5 (2+ гола)</dt>
                                 <dd class="tabular-nums">{{ half.over_15 }}%</dd>
                             </div>
                         </dl>
@@ -848,7 +869,7 @@ function loginHref() {
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Сравнение · последние 5</h2>
                     <p class="truncate text-[10px] font-medium text-miq-muted">
-                        цвета команд · шкала от baseline
+                        цвета команд · шкала от нормы
                     </p>
                 </div>
 
@@ -881,12 +902,39 @@ function loginHref() {
                             :key="v.id"
                             type="button"
                             role="tab"
-                            class="miq-period"
+                            class="miq-period miq-period-icon"
                             :class="{ 'is-active': compareView === v.id }"
                             :aria-selected="compareView === v.id"
+                            :title="v.title"
                             @click="compareView = v.id"
                         >
-                            {{ v.label }}
+                            <svg
+                                v-if="v.icon === 'bars'"
+                                class="miq-period-svg"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                                stroke-linecap="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M3 12.5V7.5M8 12.5V3.5M13 12.5V6" />
+                            </svg>
+                            <svg
+                                v-else
+                                class="miq-period-svg"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <circle cx="8" cy="8" r="5.25" />
+                                <path d="M8 2.75V8l3.75 2.1" />
+                            </svg>
+                            <span>{{ v.label }}</span>
                         </button>
                     </div>
                 </div>
@@ -931,7 +979,7 @@ function loginHref() {
                         </li>
                     </ul>
 
-                    <div class="miq-compare-ab-donuts" aria-label="Pie для %">
+                    <div class="miq-compare-ab-donuts" aria-label="Круги для процентов">
                         <p class="miq-compare-ab-donuts-title">Только %</p>
                         <ul class="space-y-3">
                             <li
@@ -1092,7 +1140,7 @@ function loginHref() {
                                     <th class="px-1.5 py-2 text-right font-semibold" title="Разница">+/−</th>
                                     <th class="px-1.5 py-2 text-right font-semibold" title="Очки">О</th>
                                     <th class="px-1.5 py-2 text-right font-semibold" title="Очки за игру">О/И</th>
-                                    <th class="px-2 py-2 text-right font-semibold sm:px-3" title="Форма last-5">Ф</th>
+                                    <th class="px-2 py-2 text-right font-semibold sm:px-3" title="Форма · последние 5">Ф</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1313,7 +1361,7 @@ function loginHref() {
                             <span
                                 class="miq-form-wdl"
                                 :class="formStickClass(m.result)"
-                                :title="m.result"
+                                :title="formResultTitle(m.result)"
                             >
                                 {{ formResultLabel(m.result) }}
                             </span>
