@@ -2,43 +2,92 @@
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
+defineProps({
+    /** Compact league label when picker scrolled away (optional). */
+    leagueHint: { type: String, default: null },
+});
+
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-50 text-slate-900">
-        <header class="border-b border-slate-200 bg-white">
-            <div
-                class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3"
-            >
-                <Link :href="route('matches.index')" class="text-lg font-semibold tracking-tight">
-                    MatchIQ
-                </Link>
-                <nav class="flex items-center gap-4 text-sm">
-                    <Link :href="route('matches.index')" class="hover:underline">Матчи</Link>
-                    <Link :href="route('leaderboard')" class="hover:underline">Рейтинг</Link>
-                    <template v-if="user">
-                        <Link :href="route('me')" class="hover:underline">Профиль</Link>
+    <div class="miq-atmosphere min-h-screen">
+        <div class="miq-shell flex min-h-screen flex-col">
+            <header class="border-b border-miq-line/60">
+                <div
+                    class="mx-auto flex max-w-home flex-col gap-3 px-4 pb-4 pt-6 sm:flex-row sm:items-end sm:justify-between sm:gap-4 sm:px-6 sm:pt-8"
+                >
+                    <div class="min-w-0">
                         <Link
-                            :href="route('logout')"
-                            method="post"
-                            as="button"
-                            class="hover:underline"
+                            :href="route('matches.index')"
+                            class="miq-brand animate-miq-fade-up block text-[2.75rem] leading-none text-miq-ink sm:text-5xl"
                         >
-                            Выйти
+                            MatchIQ
                         </Link>
-                    </template>
-                    <template v-else>
-                        <Link :href="route('login')" class="hover:underline">Вход</Link>
-                        <Link :href="route('register')" class="hover:underline">Регистрация</Link>
-                    </template>
-                </nav>
-            </div>
-        </header>
+                        <p
+                            v-if="leagueHint"
+                            class="mt-1.5 truncate text-xs font-medium uppercase tracking-[0.14em] text-miq-muted"
+                        >
+                            {{ leagueHint }}
+                        </p>
+                    </div>
 
-        <main class="mx-auto max-w-5xl px-4 py-8">
-            <slot />
-        </main>
+                    <nav
+                        class="animate-miq-fade flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-medium text-miq-ink-soft sm:justify-end sm:pb-1"
+                        style="animation-delay: 120ms"
+                    >
+                        <Link
+                            :href="route('leaderboard')"
+                            class="transition hover:text-miq-pitch"
+                        >
+                            Рейтинг
+                        </Link>
+                        <template v-if="user">
+                            <Link
+                                :href="route('me')"
+                                class="transition hover:text-miq-pitch"
+                            >
+                                Мои выборы
+                            </Link>
+                            <Link
+                                :href="route('logout')"
+                                method="post"
+                                as="button"
+                                class="transition hover:text-miq-pitch"
+                            >
+                                Выйти
+                            </Link>
+                        </template>
+                        <template v-else>
+                            <Link
+                                :href="route('login')"
+                                class="transition hover:text-miq-pitch"
+                            >
+                                Войти
+                            </Link>
+                            <Link
+                                :href="route('register')"
+                                class="rounded-md bg-miq-pitch px-2.5 py-1 text-white transition hover:bg-miq-pitch-deep"
+                            >
+                                Регистрация
+                            </Link>
+                        </template>
+                    </nav>
+                </div>
+            </header>
+
+            <main class="mx-auto w-full max-w-home flex-1 px-4 pb-12 pt-6 sm:px-6 sm:pt-8">
+                <slot />
+            </main>
+
+            <footer class="border-t border-miq-line/50">
+                <div
+                    class="mx-auto max-w-home px-4 py-5 text-sm text-miq-muted sm:px-6"
+                >
+                    Откройте матч → события 0–100 → выберите одно в рейтинг.
+                </div>
+            </footer>
+        </div>
     </div>
 </template>

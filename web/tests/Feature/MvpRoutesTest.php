@@ -14,7 +14,12 @@ class MvpRoutesTest extends TestCase
     {
         $this->get('/')
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Matches/Index'));
+            ->assertInertia(fn ($page) => $page
+                ->component('Matches/Index')
+                ->has('leagues')
+                ->has('matches')
+                ->where('selectedLeague', 'rpl')
+                ->where('period', 'upcoming'));
     }
 
     public function test_matches_show_renders(): void
