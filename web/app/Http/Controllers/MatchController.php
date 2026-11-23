@@ -514,38 +514,59 @@ class MatchController extends Controller
     }
 
     /**
-     * Home/away split averages — competitor-inspired extra.
+     * Home/away split averages — 3 выборки: турнир / last 5 / last 10.
      *
-     * @return array{home: array<string, mixed>, away: array<string, mixed>}
+     * @return array{tournament: array, last5: array, last10: array}
      */
     private function demoHomeAwaySplits(string $home, string $away, int $id): array
     {
+        return [
+            'tournament' => $this->demoHomeAwaySample($home, $away, $id, 'tournament'),
+            'last5' => $this->demoHomeAwaySample($home, $away, $id, 'last5'),
+            'last10' => $this->demoHomeAwaySample($home, $away, $id, 'last10'),
+        ];
+    }
+
+    /**
+     * @return array{home: array<string, mixed>, away: array<string, mixed>}
+     */
+    private function demoHomeAwaySample(string $home, string $away, int $id, string $sample): array
+    {
         $n = abs($id % 5);
+        // Турнир — длинная выборка (ближе к «среднему сезону»);
+        // 5 матчей — более «горячие» цифры; 10 — посередине.
+        [$boostH, $boostA] = match ($sample) {
+            'last5' => [1.12, 1.08],
+            'last10' => [1.05, 1.03],
+            default => [1.0, 1.0],
+        };
+
+        $r1 = static fn (float $v): float => round($v, 1);
 
         return [
             'home' => [
                 'team' => $home,
                 'context' => 'дома',
-                'gf' => 1.9 + $n * 0.1,
-                'ga' => 0.9 + ($n % 3) * 0.1,
-                'xg' => 1.7 + $n * 0.05,
-                'corners' => 5.6 + ($n % 3) * 0.2,
-                'yellows' => round(1.6 + ($n % 3) * 0.2, 1),
-                'sot' => round(5.4 + ($n % 3) * 0.3, 1),
-                'fouls' => 11 + ($n % 4),
-                'offsides' => round(1.8 + ($n % 2) * 0.3, 1),
+                'gf' => $r1((1.9 + $n * 0.1) * $boostH),
+                'ga' => $r1((0.9 + ($n % 3) * 0.1) * ($sample === 'last5' ? 0.92 : 1.0)),
+                'xg' => $r1((1.7 + $n * 0.05) * $boostH),
+                'corners' => $r1((5.6 + ($n % 3) * 0.2) * $boostH),
+                'yellows' => $r1((1.6 + ($n % 3) * 0.2) * ($sample === 'tournament' ? 1.0 : 1.1)),
+                'sot' => $r1((5.4 + ($n % 3) * 0.3) * $boostH),
+                'fouls' => (int) round((11 + ($n % 4)) * ($sample === 'last5' ? 1.08 : 1.0)),
+                'offsides' => $r1((1.8 + ($n % 2) * 0.3) * $boostH),
             ],
             'away' => [
                 'team' => $away,
                 'context' => 'в гостях',
-                'gf' => 1.3 + ($n % 3) * 0.1,
-                'ga' => 1.4 + ($n % 2) * 0.2,
-                'xg' => 1.2 + ($n % 4) * 0.08,
-                'corners' => 4.2 + ($n % 3) * 0.3,
-                'yellows' => round(2.1 + ($n % 3) * 0.2, 1),
-                'sot' => round(4.0 + ($n % 2) * 0.4, 1),
-                'fouls' => 13 + ($n % 3),
-                'offsides' => round(2.2 + ($n % 3) * 0.2, 1),
+                'gf' => $r1((1.3 + ($n % 3) * 0.1) * $boostA),
+                'ga' => $r1((1.4 + ($n % 2) * 0.2) * ($sample === 'last5' ? 1.05 : 1.0)),
+                'xg' => $r1((1.2 + ($n % 4) * 0.08) * $boostA),
+                'corners' => $r1((4.2 + ($n % 3) * 0.3) * $boostA),
+                'yellows' => $r1((2.1 + ($n % 3) * 0.2) * ($sample === 'tournament' ? 1.0 : 1.08)),
+                'sot' => $r1((4.0 + ($n % 2) * 0.4) * $boostA),
+                'fouls' => (int) round((13 + ($n % 3)) * ($sample === 'last10' ? 1.04 : 1.0)),
+                'offsides' => $r1((2.2 + ($n % 3) * 0.2) * $boostA),
             ],
         ];
     }

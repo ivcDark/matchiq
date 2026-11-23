@@ -13,7 +13,11 @@ const props = defineProps({
         type: Object,
         default: () => ({ match: [], first_half: [], second_half: [] }),
     },
-    homeAway: { type: Object, default: () => ({ home: null, away: null }) },
+    /** { tournament, last5, last10 } → { home, away } */
+    homeAway: {
+        type: Object,
+        default: () => ({ tournament: null, last5: null, last10: null }),
+    },
     standings: { type: Array, default: () => [] },
     scorers: { type: Object, default: () => ({ home: [], away: [] }) },
     absences: { type: Object, default: () => ({ home: [], away: [] }) },
@@ -52,6 +56,24 @@ const compareViews = [
     { id: 'b', label: 'B · шкалы + pie %' },
     { id: 'c', label: 'C · все pie' },
 ];
+
+/** tournament | last5 | last10 */
+const homeAwaySample = ref('tournament');
+const homeAwaySamples = [
+    { id: 'tournament', label: 'В турнире' },
+    { id: 'last5', label: '5 матчей' },
+    { id: 'last10', label: '10 матчей' },
+];
+
+const activeHomeAway = computed(() => {
+    const bag = props.homeAway || {};
+    const sample = bag[homeAwaySample.value];
+    if (sample?.home && sample?.away) return sample;
+    if (bag.tournament?.home && bag.tournament?.away) return bag.tournament;
+    // fallback на старую плоскую форму { home, away }
+    if (bag.home && bag.away) return bag;
+    return null;
+});
 
 const backHref = computed(() => {
     if (props.returnLeague) {
@@ -687,7 +709,7 @@ function loginHref() {
 
             <!-- Extra: home/away splits -->
             <section
-                v-if="homeAway?.home && homeAway?.away"
+                v-if="activeHomeAway"
                 class="miq-panel animate-miq-fade-up"
                 aria-label="Дома и в гостях"
             >
@@ -695,10 +717,32 @@ function loginHref() {
                     <h2 class="miq-panel-title">Дома / в гостях</h2>
                     <p class="text-[11px] text-miq-muted">средние</p>
                 </div>
+
+                <div class="px-3 pt-2.5">
+                    <div
+                        class="inline-flex max-w-full flex-wrap rounded-md border border-miq-line/80 bg-white/60 p-0.5"
+                        role="tablist"
+                        aria-label="Выборка средних"
+                    >
+                        <button
+                            v-for="s in homeAwaySamples"
+                            :key="s.id"
+                            type="button"
+                            role="tab"
+                            class="miq-period"
+                            :class="{ 'is-active': homeAwaySample === s.id }"
+                            :aria-selected="homeAwaySample === s.id"
+                            @click="homeAwaySample = s.id"
+                        >
+                            {{ s.label }}
+                        </button>
+                    </div>
+                </div>
+
                 <div class="grid gap-3 px-3.5 py-3.5 sm:grid-cols-2">
                     <div
-                        v-for="side in [homeAway.home, homeAway.away]"
-                        :key="side.team + side.context"
+                        v-for="side in [activeHomeAway.home, activeHomeAway.away]"
+                        :key="side.team + side.context + homeAwaySample"
                         class="miq-split-card"
                     >
                         <p class="text-xs font-bold uppercase tracking-wide text-miq-muted">
