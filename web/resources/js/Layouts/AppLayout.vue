@@ -2,11 +2,6 @@
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
-defineProps({
-    /** Compact league label when picker scrolled away (optional). */
-    leagueHint: { type: String, default: null },
-});
-
 const page = usePage();
 const user = computed(() => page.props.auth?.user);
 </script>
@@ -25,12 +20,6 @@ const user = computed(() => page.props.auth?.user);
                         >
                             MatchIQ
                         </Link>
-                        <p
-                            v-if="leagueHint"
-                            class="mt-1.5 truncate text-xs font-medium uppercase tracking-[0.14em] text-miq-muted"
-                        >
-                            {{ leagueHint }}
-                        </p>
                     </div>
 
                     <nav

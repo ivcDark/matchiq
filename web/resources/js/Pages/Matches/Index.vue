@@ -305,25 +305,9 @@ const listKey = computed(
 <template>
     <Head title="Матчи" />
 
-    <AppLayout :league-hint="leagueHint">
-        <section class="animate-miq-fade-up" style="animation-delay: 60ms">
-            <div class="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                    <p class="text-base font-semibold text-miq-ink-soft sm:text-lg">
-                        Вероятности событий по матчам
-                    </p>
-                    <p class="mt-1 max-w-xl text-sm leading-relaxed text-miq-muted">
-                        Откройте матч → события 0–100 → выберите одно в рейтинг.
-                    </p>
-                </div>
-                <p class="hidden text-xs font-medium text-miq-muted lg:block">
-                    1 событие · 1 матч
-                </p>
-            </div>
-        </section>
-
+    <AppLayout>
         <!-- Tournament / league menu ABOVE matches -->
-        <section class="mt-6 animate-miq-fade-up" style="animation-delay: 100ms" aria-label="Лиги">
+        <section class="animate-miq-fade-up" style="animation-delay: 60ms" aria-label="Лиги">
             <div class="miq-panel">
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Турниры</h2>
