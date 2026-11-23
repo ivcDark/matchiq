@@ -24,6 +24,27 @@ const props = defineProps({
     goalMinutes: { type: Array, default: () => [] },
     /** 5 карточек формы: { id, title, matches: [{ date, home, away, score_home, score_away, result }] } */
     formBlocks: { type: Array, default: () => [] },
+    /** Крупный 1X2 + correct score */
+    forecast: {
+        type: Object,
+        default: () => ({
+            home_pct: 0,
+            draw_pct: 0,
+            away_pct: 0,
+            score_home: 0,
+            score_away: 0,
+            correct_scores: [],
+        }),
+    },
+    /** Bullet-факты под AI-превью */
+    insights: { type: Array, default: () => [] },
+    /** Серии/тренды home|away */
+    trends: { type: Object, default: () => ({ home: [], away: [] }) },
+    /** Средние голы / HT-FT / тоталы по таймам */
+    goalProfile: {
+        type: Object,
+        default: () => ({ averages: null, ht_ft: [], halves: [] }),
+    },
     comments: { type: Array, default: () => [] },
     userPickEventId: { type: Number, default: null },
     returnLeague: { type: String, default: null },
@@ -259,6 +280,27 @@ function formResultLabel(result) {
     return result || '—';
 }
 
+function forecastMaxKey() {
+    const f = props.forecast || {};
+    const triples = [
+        ['home', Number(f.home_pct) || 0],
+        ['draw', Number(f.draw_pct) || 0],
+        ['away', Number(f.away_pct) || 0],
+    ];
+    triples.sort((a, b) => b[1] - a[1]);
+    return triples[0]?.[0] || 'home';
+}
+
+function weatherLine() {
+    const w = props.match?.weather;
+    if (!w) return null;
+    const bits = [];
+    if (w.condition) bits.push(w.condition);
+    if (w.temp_c != null) bits.push(`${w.temp_c}°C`);
+    if (w.wind_ms != null) bits.push(`ветер ${w.wind_ms} м/с`);
+    return bits.length ? bits.join(' · ') : null;
+}
+
 function formatStat(value, unit) {
     if (typeof value !== 'number') return '—';
     if (unit === '%') return `${Math.round(value)}%`;
@@ -409,7 +451,7 @@ function loginHref() {
                     </div>
 
                     <div
-                        v-if="match.venue || match.referee"
+                        v-if="match.venue || match.referee || weatherLine()"
                         class="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-miq-line/50 pt-3 text-xs text-miq-muted"
                     >
                         <p v-if="match.venue">
@@ -420,13 +462,89 @@ function loginHref() {
                             <span class="font-semibold text-miq-ink-soft">Судья</span>
                             · {{ match.referee }}
                         </p>
+                        <p v-if="weatherLine()">
+                            <span class="font-semibold text-miq-ink-soft">Погода</span>
+                            · {{ weatherLine() }}
+                        </p>
                     </div>
                 </div>
             </section>
 
-            <!-- 2. AI preview -->
+            <!-- 2. Forecast 1X2 + correct score -->
             <section
-                v-if="preview"
+                v-if="forecast"
+                class="miq-panel animate-miq-fade-up"
+                style="animation-delay: 60ms"
+                aria-label="Прогноз исхода"
+            >
+                <div class="miq-panel-head">
+                    <h2 class="miq-panel-title">Прогноз исхода</h2>
+                    <p class="text-[11px] font-medium text-miq-muted">1X2 · модель</p>
+                </div>
+
+                <div class="miq-forecast-body">
+                    <div class="miq-forecast-score" aria-label="Возможный счёт">
+                        <p class="miq-forecast-score-label">Возможный счёт</p>
+                        <p class="miq-forecast-score-value tabular-nums">
+                            {{ forecast.score_home }}∶{{ forecast.score_away }}
+                        </p>
+                    </div>
+
+                    <div class="miq-forecast-1x2" role="group" aria-label="Вероятности 1X2">
+                        <div
+                            class="miq-forecast-cell is-team-home"
+                            :class="{ 'is-lead': forecastMaxKey() === 'home' }"
+                        >
+                            <p class="miq-forecast-cell-label">П1</p>
+                            <p class="miq-forecast-cell-team truncate">{{ match.home }}</p>
+                            <p class="miq-forecast-cell-pct tabular-nums">
+                                {{ forecast.home_pct }}<span>%</span>
+                            </p>
+                        </div>
+                        <div
+                            class="miq-forecast-cell is-draw"
+                            :class="{ 'is-lead': forecastMaxKey() === 'draw' }"
+                        >
+                            <p class="miq-forecast-cell-label">X</p>
+                            <p class="miq-forecast-cell-team">Ничья</p>
+                            <p class="miq-forecast-cell-pct tabular-nums">
+                                {{ forecast.draw_pct }}<span>%</span>
+                            </p>
+                        </div>
+                        <div
+                            class="miq-forecast-cell is-team-away"
+                            :class="{ 'is-lead': forecastMaxKey() === 'away' }"
+                        >
+                            <p class="miq-forecast-cell-label">П2</p>
+                            <p class="miq-forecast-cell-team truncate">{{ match.away }}</p>
+                            <p class="miq-forecast-cell-pct tabular-nums">
+                                {{ forecast.away_pct }}<span>%</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="forecast.correct_scores?.length"
+                        class="miq-forecast-cs"
+                    >
+                        <p class="miq-forecast-cs-title">Точный счёт · топ</p>
+                        <ul class="miq-forecast-cs-list">
+                            <li
+                                v-for="row in forecast.correct_scores"
+                                :key="row.score"
+                                class="miq-forecast-cs-item"
+                            >
+                                <span class="tabular-nums font-semibold text-miq-ink">{{ row.score }}</span>
+                                <span class="tabular-nums text-miq-muted">{{ row.pct }}%</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. AI preview + insights -->
+            <section
+                v-if="preview || insights.length"
                 class="miq-panel animate-miq-fade-up"
                 style="animation-delay: 80ms"
                 aria-label="Краткий прогноз модели"
@@ -435,9 +553,26 @@ function loginHref() {
                     <h2 class="miq-panel-title">Краткий прогноз модели</h2>
                     <p class="text-[11px] font-medium text-miq-muted">не гарантия</p>
                 </div>
-                <p class="px-3.5 py-3.5 text-sm leading-relaxed text-miq-ink-soft sm:text-[15px]">
+                <p
+                    v-if="preview"
+                    class="px-3.5 pt-3.5 text-sm leading-relaxed text-miq-ink-soft sm:text-[15px]"
+                    :class="{ 'pb-3.5': !insights.length }"
+                >
                     {{ preview }}
                 </p>
+                <ul
+                    v-if="insights.length"
+                    class="miq-insight-list"
+                    :class="{ 'border-t border-miq-line/50': preview }"
+                >
+                    <li
+                        v-for="(fact, idx) in insights"
+                        :key="idx"
+                        class="miq-insight-item"
+                    >
+                        {{ fact }}
+                    </li>
+                </ul>
             </section>
 
             <!-- 3. Markets (BK-style groups) -->
@@ -574,7 +709,137 @@ function loginHref() {
                 </div>
             </section>
 
-            <!-- 4. Comparison last 5 — final: B (default) | C + period -->
+            <!-- Trends / streaks -->
+            <section
+                v-if="trends?.home?.length || trends?.away?.length"
+                class="miq-panel animate-miq-fade-up"
+                aria-label="Тренды и серии"
+            >
+                <div class="miq-panel-head">
+                    <h2 class="miq-panel-title">Тренды и серии</h2>
+                    <p class="text-[11px] font-medium text-miq-muted">last-5</p>
+                </div>
+                <div class="miq-trends-grid">
+                    <div
+                        v-for="side in [
+                            { key: 'home', team: match.home, rows: trends.home || [] },
+                            { key: 'away', team: match.away, rows: trends.away || [] },
+                        ]"
+                        :key="side.key"
+                        class="miq-trends-side"
+                    >
+                        <p
+                            class="miq-trends-team"
+                            :class="side.key === 'home' ? 'is-team-home' : 'is-team-away'"
+                        >
+                            {{ side.team }}
+                        </p>
+                        <ul class="miq-trends-list">
+                            <li
+                                v-for="row in side.rows"
+                                :key="`${side.key}-${row.key}`"
+                                class="miq-trends-row"
+                            >
+                                <span class="miq-trends-label">{{ row.label }}</span>
+                                <span class="miq-trends-value tabular-nums">
+                                    {{ row.value }}
+                                    <span class="miq-trends-unit">{{ row.unit }}</span>
+                                </span>
+                                <span class="miq-trends-hint">{{ row.hint }}</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Goal averages / HT-FT / halves -->
+            <section
+                v-if="goalProfile?.averages"
+                class="miq-panel animate-miq-fade-up"
+                aria-label="Голы и таймы"
+            >
+                <div class="miq-panel-head">
+                    <h2 class="miq-panel-title">Голы · HT-FT · таймы</h2>
+                    <p class="text-[11px] font-medium text-miq-muted">средние</p>
+                </div>
+
+                <div class="miq-goalprof-avgs">
+                    <div
+                        v-for="side in [goalProfile.averages.home, goalProfile.averages.away]"
+                        :key="side.team"
+                        class="miq-goalprof-avg-card"
+                    >
+                        <p class="miq-goalprof-avg-team truncate">{{ side.team }}</p>
+                        <dl class="miq-goalprof-avg-grid">
+                            <div>
+                                <dt>ЗП</dt>
+                                <dd class="tabular-nums">{{ formatStat(side.gf) }}</dd>
+                            </div>
+                            <div>
+                                <dt>ПР</dt>
+                                <dd class="tabular-nums">{{ formatStat(side.ga) }}</dd>
+                            </div>
+                            <div>
+                                <dt>Тотал</dt>
+                                <dd class="tabular-nums">{{ formatStat(side.total) }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+                    <p
+                        v-if="goalProfile.averages.match_exp != null"
+                        class="miq-goalprof-exp"
+                    >
+                        Ожидаемый тотал матча
+                        <strong class="tabular-nums">{{ formatStat(goalProfile.averages.match_exp) }}</strong>
+                    </p>
+                </div>
+
+                <div
+                    v-if="goalProfile.ht_ft?.length"
+                    class="miq-goalprof-htft"
+                >
+                    <p class="miq-goalprof-subhead">HT / FT</p>
+                    <ul class="miq-goalprof-htft-list">
+                        <li
+                            v-for="row in goalProfile.ht_ft"
+                            :key="row.label"
+                            class="miq-goalprof-htft-item"
+                        >
+                            <span class="font-semibold tabular-nums text-miq-ink">{{ row.label }}</span>
+                            <span class="tabular-nums text-miq-muted">{{ row.pct }}%</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div
+                    v-if="goalProfile.halves"
+                    class="miq-goalprof-halves"
+                >
+                    <div
+                        v-for="half in [goalProfile.halves.first, goalProfile.halves.second]"
+                        :key="half.label"
+                        class="miq-goalprof-half"
+                    >
+                        <p class="miq-goalprof-subhead">{{ half.label }}</p>
+                        <dl class="miq-goalprof-half-grid">
+                            <div>
+                                <dt>Ср. голы</dt>
+                                <dd class="tabular-nums">{{ formatStat(half.avg) }}</dd>
+                            </div>
+                            <div>
+                                <dt>ТБ 0.5</dt>
+                                <dd class="tabular-nums">{{ half.over_05 }}%</dd>
+                            </div>
+                            <div>
+                                <dt>ТБ 1.5</dt>
+                                <dd class="tabular-nums">{{ half.over_15 }}%</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Comparison last 5 — final: B (default) | C + period -->
             <section
                 class="miq-panel animate-miq-fade-up"
                 style="animation-delay: 160ms"
@@ -814,7 +1079,7 @@ function loginHref() {
                         <p class="truncate text-xs text-miq-muted">{{ match.league_short }}</p>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[22rem] text-left text-sm">
+                        <table class="w-full min-w-[26rem] text-left text-sm">
                             <thead>
                                 <tr class="border-b border-miq-line/60 text-[10px] uppercase tracking-wider text-miq-muted">
                                     <th class="px-2 py-2 font-semibold sm:px-3">#</th>
@@ -825,7 +1090,9 @@ function loginHref() {
                                     <th class="px-1.5 py-2 text-right font-semibold" title="Забитые">ЗП</th>
                                     <th class="px-1.5 py-2 text-right font-semibold" title="Пропущенные">ПР</th>
                                     <th class="px-1.5 py-2 text-right font-semibold" title="Разница">+/−</th>
-                                    <th class="px-2 py-2 text-right font-semibold sm:px-3" title="Очки">О</th>
+                                    <th class="px-1.5 py-2 text-right font-semibold" title="Очки">О</th>
+                                    <th class="px-1.5 py-2 text-right font-semibold" title="Очки за игру">О/И</th>
+                                    <th class="px-2 py-2 text-right font-semibold sm:px-3" title="Форма last-5">Ф</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -861,8 +1128,19 @@ function loginHref() {
                                     <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
                                         {{ row.gd > 0 ? `+${row.gd}` : row.gd }}
                                     </td>
-                                    <td class="px-2 py-2 text-right font-semibold tabular-nums text-miq-ink sm:px-3">
+                                    <td class="px-1.5 py-2 text-right font-semibold tabular-nums text-miq-ink">
                                         {{ row.pts }}
+                                    </td>
+                                    <td class="px-1.5 py-2 text-right tabular-nums text-miq-muted">
+                                        {{ row.ppg != null ? formatStat(row.ppg) : '—' }}
+                                    </td>
+                                    <td class="px-2 py-2 text-right sm:px-3">
+                                        <span
+                                            v-if="row.form"
+                                            class="miq-table-form tabular-nums"
+                                            :title="`Форма: ${row.form}`"
+                                        >{{ row.form }}</span>
+                                        <span v-else class="text-miq-muted">—</span>
                                     </td>
                                 </tr>
                             </tbody>

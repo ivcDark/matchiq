@@ -121,7 +121,12 @@ class MvpRoutesTest extends TestCase
                 ->has('absences')
                 ->has('goalMinutes')
                 ->has('formBlocks')
-                ->has('comments'));
+                ->has('forecast')
+                ->has('insights')
+                ->has('trends')
+                ->has('goalProfile')
+                ->has('comments')
+                ->has('match.weather'));
     }
 
     public function test_matches_show_zenit_spartak_demo_detail(): void

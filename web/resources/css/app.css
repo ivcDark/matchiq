@@ -496,6 +496,215 @@
         background: #dc2626;
     }
 
+    /* Прогноз исхода 1X2 */
+    .miq-forecast-body {
+        @apply space-y-3.5 px-3.5 py-3.5;
+    }
+
+    .miq-forecast-score {
+        @apply flex items-end justify-between gap-3 rounded-md px-3 py-2.5;
+        background: color-mix(in srgb, var(--miq-pitch) 8%, white);
+        border: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+    }
+
+    .miq-forecast-score-label {
+        @apply text-[11px] font-semibold uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-forecast-score-value {
+        @apply text-3xl font-bold leading-none text-miq-ink sm:text-4xl;
+        font-family: var(--font-display, Syne, sans-serif);
+    }
+
+    .miq-forecast-1x2 {
+        @apply grid grid-cols-3 gap-1.5 sm:gap-2;
+    }
+
+    .miq-forecast-cell {
+        @apply rounded-md px-2 py-2.5 text-center sm:px-2.5;
+        border: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+    }
+
+    .miq-forecast-cell.is-lead {
+        border-color: color-mix(in srgb, var(--miq-pitch) 40%, var(--miq-line));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--miq-pitch) 18%, transparent);
+    }
+
+    .miq-forecast-cell.is-team-home.is-lead {
+        background: color-mix(in srgb, var(--miq-team-home) 16%, white);
+    }
+
+    .miq-forecast-cell.is-team-away.is-lead {
+        background: color-mix(in srgb, var(--miq-team-away) 16%, white);
+    }
+
+    .miq-forecast-cell-label {
+        @apply text-[10px] font-bold uppercase tracking-wider text-miq-muted;
+    }
+
+    .miq-forecast-cell-team {
+        @apply mt-0.5 text-[11px] font-medium text-miq-ink-soft;
+    }
+
+    .miq-forecast-cell-pct {
+        @apply mt-1 text-2xl font-bold leading-none text-miq-ink sm:text-[1.75rem];
+        font-family: var(--font-display, Syne, sans-serif);
+    }
+
+    .miq-forecast-cell-pct span {
+        @apply ml-0.5 text-sm font-semibold text-miq-muted;
+    }
+
+    .miq-forecast-cs-title {
+        @apply mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-forecast-cs-list {
+        @apply grid grid-cols-5 gap-1;
+    }
+
+    .miq-forecast-cs-item {
+        @apply flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[11px];
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
+        border: 1px solid color-mix(in srgb, var(--miq-line) 75%, transparent);
+    }
+
+    /* Факты под AI */
+    .miq-insight-list {
+        @apply space-y-1.5 px-3.5 py-3;
+    }
+
+    .miq-insight-item {
+        @apply relative pl-3.5 text-[13px] leading-snug text-miq-ink-soft;
+    }
+
+    .miq-insight-item::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0.45em;
+        width: 0.35rem;
+        height: 0.35rem;
+        border-radius: 999px;
+        background: var(--miq-team-home);
+    }
+
+    /* Тренды */
+    .miq-trends-grid {
+        @apply grid gap-3 px-3.5 py-3 sm:grid-cols-2;
+    }
+
+    .miq-trends-team {
+        @apply mb-1.5 text-[11px] font-bold uppercase tracking-wide;
+    }
+
+    .miq-trends-team.is-team-home {
+        color: var(--miq-team-home-ink);
+    }
+
+    .miq-trends-team.is-team-away {
+        color: var(--miq-team-away-ink);
+    }
+
+    .miq-trends-list {
+        @apply space-y-1;
+    }
+
+    .miq-trends-row {
+        @apply grid grid-cols-[1fr_auto] items-baseline gap-x-2 gap-y-0.5 rounded-md px-2 py-1.5;
+        background: color-mix(in srgb, var(--miq-mist-deep) 65%, white);
+    }
+
+    .miq-trends-label {
+        @apply text-[12px] font-semibold text-miq-ink;
+    }
+
+    .miq-trends-value {
+        @apply text-[13px] font-bold text-miq-ink;
+    }
+
+    .miq-trends-unit {
+        @apply ml-0.5 text-[10px] font-semibold text-miq-muted;
+    }
+
+    .miq-trends-hint {
+        @apply col-span-2 text-[10px] text-miq-muted;
+    }
+
+    /* Голы / HT-FT / таймы */
+    .miq-goalprof-avgs {
+        @apply space-y-2 px-3.5 pt-3;
+    }
+
+    .miq-goalprof-avg-card {
+        @apply rounded-md px-2.5 py-2;
+        border: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+    }
+
+    .miq-goalprof-avg-team {
+        @apply mb-1 text-[12px] font-bold text-miq-ink;
+    }
+
+    .miq-goalprof-avg-grid {
+        @apply grid grid-cols-3 gap-2 text-center;
+    }
+
+    .miq-goalprof-avg-grid dt {
+        @apply text-[10px] uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-goalprof-avg-grid dd {
+        @apply text-sm font-bold text-miq-ink;
+    }
+
+    .miq-goalprof-exp {
+        @apply text-center text-[12px] text-miq-ink-soft;
+    }
+
+    .miq-goalprof-exp strong {
+        @apply ml-1 text-miq-ink;
+    }
+
+    .miq-goalprof-subhead {
+        @apply mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-goalprof-htft {
+        @apply border-t border-miq-line/50 px-3.5 py-3;
+    }
+
+    .miq-goalprof-htft-list {
+        @apply grid grid-cols-3 gap-1 sm:grid-cols-9;
+    }
+
+    .miq-goalprof-htft-item {
+        @apply flex flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[11px];
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
+    }
+
+    .miq-goalprof-halves {
+        @apply grid gap-2 border-t border-miq-line/50 px-3.5 py-3 sm:grid-cols-2;
+    }
+
+    .miq-goalprof-half-grid {
+        @apply grid grid-cols-3 gap-2 text-center;
+    }
+
+    .miq-goalprof-half-grid dt {
+        @apply text-[10px] uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-goalprof-half-grid dd {
+        @apply text-sm font-bold tabular-nums text-miq-ink;
+    }
+
+    .miq-table-form {
+        @apply text-[10px] font-bold tracking-wide text-miq-ink-soft;
+        letter-spacing: 0.04em;
+    }
+
     /* Карточки формы (5 блоков last-5) */
     .miq-form-block-card .miq-panel-head {
         @apply py-2.5;

@@ -198,6 +198,10 @@ class MatchController extends Controller
             'absences' => $detail['absences'],
             'goalMinutes' => $detail['goalMinutes'],
             'formBlocks' => $detail['formBlocks'],
+            'forecast' => $detail['forecast'],
+            'insights' => $detail['insights'],
+            'trends' => $detail['trends'],
+            'goalProfile' => $detail['goalProfile'],
             'comments' => $detail['comments'],
             'userPickEventId' => null,
             'returnLeague' => is_string($returnLeague) && $returnLeague !== '' ? $returnLeague : null,
@@ -229,6 +233,7 @@ class MatchController extends Controller
             'venue' => $meta['venue'],
             'referee' => $meta['referee'],
             'round' => $meta['round'],
+            'weather' => $this->demoWeather($id, $league['id'] ?? 'rpl'),
         ]);
 
         $markets = $this->demoMarketsForMatch($id, $status, $match);
@@ -236,7 +241,11 @@ class MatchController extends Controller
         return [
             'match' => $enriched,
             'preview' => $this->demoPreview($home, $away, $status),
+            'insights' => $this->demoInsights($home, $away, $id),
+            'forecast' => $this->demoForecast($home, $away, $id, $markets),
             'markets' => $markets,
+            'trends' => $this->demoTrends($home, $away, $id),
+            'goalProfile' => $this->demoGoalProfile($home, $away, $id),
             'comparison' => [
                 'match' => $this->demoComparison($home, $away, $id, 'match'),
                 'first_half' => $this->demoComparison($home, $away, $id, 'first_half'),
@@ -284,6 +293,201 @@ class MatchController extends Controller
             'venue' => $fallbackVenue,
             'referee' => 'Назначение позже',
             'round' => $leagueId === 'ucl' ? 'Group stage' : 'Тур РПЛ',
+        ];
+    }
+
+    /**
+     * @return array{temp_c: int, wind_ms: int, condition: string}
+     */
+    private function demoWeather(int $id, string $leagueId): array
+    {
+        $conditions = ['облачно', 'ясно', 'пасмурно', 'морось', 'ветрено'];
+
+        return [
+            'temp_c' => $leagueId === 'ucl' ? 14 + ($id % 8) : 1 + ($id % 11),
+            'wind_ms' => 2 + ($id % 7),
+            'condition' => $conditions[$id % count($conditions)],
+        ];
+    }
+
+    /**
+     * Крупный прогноз 1X2 + топ correct score (из рынков / mock).
+     *
+     * @param  list<array<string, mixed>>  $markets
+     * @return array{home_pct: int, draw_pct: int, away_pct: int, score_home: int, score_away: int, correct_scores: list<array{score: string, pct: int}>}
+     */
+    private function demoForecast(string $home, string $away, int $id, array $markets): array
+    {
+        $p1 = 42;
+        $px = 27;
+        $p2 = 31;
+        if (isset($markets[0]['outcomes'][0]['prob'])) {
+            $p1 = (int) $markets[0]['outcomes'][0]['prob'];
+            $px = (int) $markets[0]['outcomes'][1]['prob'];
+            $p2 = (int) $markets[0]['outcomes'][2]['prob'];
+        }
+
+        // Возможный счёт — в пользу фаворита 1X2.
+        if ($p1 >= $p2 && $p1 >= $px) {
+            $sh = 2;
+            $sa = 1;
+        } elseif ($p2 >= $p1 && $p2 >= $px) {
+            $sh = 1;
+            $sa = 2;
+        } else {
+            $sh = 1;
+            $sa = 1;
+        }
+
+        if ($id === 101) {
+            $sh = 2;
+            $sa = 1;
+        }
+
+        $scores = [
+            ['score' => "{$sh}:{$sa}", 'pct' => 14 + ($id % 4)],
+            ['score' => '1:1', 'pct' => 11 + ($id % 3)],
+            ['score' => '2:0', 'pct' => 9 + ($id % 3)],
+            ['score' => '1:0', 'pct' => 8],
+            ['score' => '0:1', 'pct' => 7],
+            ['score' => '2:2', 'pct' => 6],
+        ];
+        usort($scores, static fn ($a, $b) => $b['pct'] <=> $a['pct']);
+
+        return [
+            'home_pct' => $p1,
+            'draw_pct' => $px,
+            'away_pct' => $p2,
+            'score_home' => $sh,
+            'score_away' => $sa,
+            'correct_scores' => array_slice($scores, 0, 5),
+        ];
+    }
+
+    /**
+     * Краткие факты под AI-превью.
+     *
+     * @return list<string>
+     */
+    private function demoInsights(string $home, string $away, int $id): array
+    {
+        $n = abs($id % 3);
+
+        return [
+            "{$home} забивают в ". (4 + $n).' из последних 5 домашних матчей.',
+            "{$away} пропускают в среднем ". number_format(1.1 + $n * 0.2, 1, '.', '').' гола в гостях.',
+            'В 3 из 5 очных встреч забивали обе команды.',
+            'После 60′ у хозяев чаще второй гол, чем у гостей.',
+            'Тотал 2.5 заходил в '. (55 + $n * 5).'% последних матчей обеих команд.',
+            'Сухие матчи редки: чистый лист у любой стороны — менее чем в каждом третьем.',
+        ];
+    }
+
+    /**
+     * Тренды / серии для обеих команд.
+     *
+     * @return array{home: list<array<string, mixed>>, away: list<array<string, mixed>>}
+     */
+    private function demoTrends(string $home, string $away, int $id): array
+    {
+        $n = abs($id % 4);
+
+        $side = static function (string $team, int $base) use ($n): array {
+            return [
+                [
+                    'key' => 'scored',
+                    'label' => 'Забьёт',
+                    'value' => (string) (3 + $base + $n),
+                    'unit' => 'подряд',
+                    'hint' => 'матчи с голом',
+                ],
+                [
+                    'key' => 'clean',
+                    'label' => 'Сухие',
+                    'value' => (string) (1 + ($base % 2)),
+                    'unit' => 'из 5',
+                    'hint' => 'чистый лист',
+                ],
+                [
+                    'key' => 'btts',
+                    'label' => 'BTTS',
+                    'value' => (string) (2 + $n % 3),
+                    'unit' => 'из 5',
+                    'hint' => 'обе забили',
+                ],
+                [
+                    'key' => 'over',
+                    'label' => 'ТБ 2.5',
+                    'value' => (string) (2 + (($base + $n) % 3)),
+                    'unit' => 'из 5',
+                    'hint' => 'тотал больше',
+                ],
+                [
+                    'key' => 'under',
+                    'label' => 'ТМ 2.5',
+                    'value' => (string) (1 + (($base + 1) % 3)),
+                    'unit' => 'из 5',
+                    'hint' => 'тотал меньше',
+                ],
+            ];
+        };
+
+        return [
+            'home' => $side($home, 1),
+            'away' => $side($away, 0),
+        ];
+    }
+
+    /**
+     * Средние голы, HT-FT, тоталы по таймам.
+     *
+     * @return array<string, mixed>
+     */
+    private function demoGoalProfile(string $home, string $away, int $id): array
+    {
+        $n = ($id % 5) * 0.1;
+
+        return [
+            'averages' => [
+                'home' => [
+                    'team' => $home,
+                    'gf' => round(1.7 + $n, 1),
+                    'ga' => round(0.9 + $n * 0.5, 1),
+                    'total' => round(2.6 + $n, 1),
+                ],
+                'away' => [
+                    'team' => $away,
+                    'gf' => round(1.3 + $n * 0.8, 1),
+                    'ga' => round(1.2 + $n * 0.4, 1),
+                    'total' => round(2.5 + $n * 0.7, 1),
+                ],
+                'match_exp' => round(2.7 + $n, 1),
+            ],
+            'ht_ft' => [
+                ['label' => '1/1', 'pct' => 26 + ($id % 4)],
+                ['label' => 'X/1', 'pct' => 11],
+                ['label' => '2/1', 'pct' => 6],
+                ['label' => '1/X', 'pct' => 8],
+                ['label' => 'X/X', 'pct' => 10],
+                ['label' => '2/X', 'pct' => 7],
+                ['label' => '1/2', 'pct' => 5],
+                ['label' => 'X/2', 'pct' => 9],
+                ['label' => '2/2', 'pct' => 18 - ($id % 3)],
+            ],
+            'halves' => [
+                'first' => [
+                    'label' => '1-й тайм',
+                    'avg' => round(1.1 + $n * 0.3, 1),
+                    'over_05' => 74 + ($id % 5),
+                    'over_15' => 36 + ($id % 6),
+                ],
+                'second' => [
+                    'label' => '2-й тайм',
+                    'avg' => round(1.5 + $n * 0.2, 1),
+                    'over_05' => 81 + ($id % 4),
+                    'over_15' => 48 + ($id % 5),
+                ],
+            ],
         ];
     }
 
@@ -661,8 +865,13 @@ class MatchController extends Controller
             static fn ($row) => $row['pos'] >= $minPos && $row['pos'] <= $maxPos,
         ));
 
-        return array_map(static function (array $row) use ($home, $away) {
+        $formBank = ['WWDLW', 'WDWLW', 'LWWWD', 'DWWLW', 'WLWDL', 'LWWDW', 'WDLWW', 'DLWWL'];
+
+        return array_map(static function (array $row) use ($home, $away, $formBank) {
             $row['highlight'] = $row['team'] === $home || $row['team'] === $away;
+            $row['form'] = $formBank[($row['pos'] - 1) % count($formBank)];
+            $played = max(1, (int) $row['played']);
+            $row['ppg'] = round(((int) $row['pts']) / $played, 2);
 
             return $row;
         }, $slice);
