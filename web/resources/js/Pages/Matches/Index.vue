@@ -26,20 +26,29 @@ const periods = [
     { id: 'finished', label: 'Завершённые' },
 ];
 
-/** Компактные emoji-флаги для табов стран (Европа → EU). */
-const COUNTRY_FLAGS = {
-    Россия: '🇷🇺',
-    Англия: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
-    Испания: '🇪🇸',
-    Италия: '🇮🇹',
-    Германия: '🇩🇪',
-    Франция: '🇫🇷',
-    Европа: '🇪🇺',
-    Нидерланды: '🇳🇱',
+/**
+ * Коды flagcdn.com для табов стран.
+ * Англия → gb-eng (не UK), Европа → eu. Без emoji — они ломаются на части ОС.
+ */
+const COUNTRY_FLAG_CODES = {
+    Россия: 'ru',
+    Англия: 'gb-eng',
+    Испания: 'es',
+    Италия: 'it',
+    Германия: 'de',
+    Франция: 'fr',
+    Европа: 'eu',
+    Нидерланды: 'nl',
 };
 
-function countryFlag(country) {
-    return COUNTRY_FLAGS[country] || '🏳️';
+function countryFlagUrl(country) {
+    const code = COUNTRY_FLAG_CODES[country];
+    return code ? `https://flagcdn.com/w20/${code}.png` : null;
+}
+
+function countryFlagSrcset(country) {
+    const code = COUNTRY_FLAG_CODES[country];
+    return code ? `https://flagcdn.com/w40/${code}.png 2x` : null;
 }
 
 const mobileWidgetTabs = [
@@ -472,9 +481,23 @@ const listKey = computed(
                             :aria-selected="activeCountry === group.country"
                             @click="setActiveCountry(group.country)"
                         >
-                            <span class="miq-league-tab-flag" aria-hidden="true">{{
-                                countryFlag(group.country)
-                            }}</span>
+                            <img
+                                v-if="countryFlagUrl(group.country)"
+                                class="miq-league-tab-flag"
+                                :src="countryFlagUrl(group.country)"
+                                :srcset="countryFlagSrcset(group.country)"
+                                alt=""
+                                width="20"
+                                height="15"
+                                loading="lazy"
+                                decoding="async"
+                                aria-hidden="true"
+                            />
+                            <span
+                                v-else
+                                class="miq-league-tab-flag miq-league-tab-flag--empty"
+                                aria-hidden="true"
+                            />
                             <span>{{ group.country }}</span>
                             <span
                                 v-if="group.selectedCount > 0"
