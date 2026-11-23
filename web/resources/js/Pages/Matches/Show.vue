@@ -1705,8 +1705,18 @@ function loginHref() {
                                 <thead>
                                     <tr>
                                         <th class="is-player" title="Игрок">Игрок</th>
-                                        <th title="Голы (включая пенальти)">Гол</th>
-                                        <th title="Голевые передачи">ГП</th>
+                                        <th title="Голы (включая пенальти)">
+                                            <span class="miq-th-with-icon">
+                                                <MatchStatIcon kind="goals" />
+                                                <span>Гол</span>
+                                            </span>
+                                        </th>
+                                        <th title="Голевые передачи">
+                                            <span class="miq-th-with-icon">
+                                                <MatchStatIcon kind="assists" />
+                                                <span>ГП</span>
+                                            </span>
+                                        </th>
                                         <th title="Голы с пенальти (входят в Гол)">Пен</th>
                                         <th title="Голы + голевые передачи">Г+П</th>
                                     </tr>

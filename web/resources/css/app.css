@@ -771,6 +771,15 @@
         @apply pl-0 text-left;
     }
 
+    .miq-th-with-icon {
+        @apply inline-flex items-center justify-end gap-1;
+    }
+
+    .miq-th-with-icon .miq-stat-icon {
+        width: 0.95rem;
+        height: 0.95rem;
+    }
+
     .miq-scorers-table td {
         @apply px-1.5 py-1.5 text-right text-miq-ink-soft;
     }
