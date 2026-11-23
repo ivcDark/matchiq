@@ -1654,15 +1654,36 @@
 
     .miq-minute-vbar span {
         @apply w-full rounded-t-md;
-        transition: height 420ms cubic-bezier(0.22, 1, 0.36, 1);
+        transition:
+            height 420ms cubic-bezier(0.22, 1, 0.36, 1),
+            background-color 280ms ease,
+            box-shadow 280ms ease,
+            filter 280ms ease;
     }
 
+    /* Обычные столбцы чуть приглушены; пик — насыщеннее + обводка/свечение */
     .miq-minute-vbar.is-team-home span {
-        background: var(--miq-team-home);
+        background: color-mix(in srgb, var(--miq-team-home) 58%, white);
     }
 
     .miq-minute-vbar.is-team-away span {
-        background: var(--miq-team-away);
+        background: color-mix(in srgb, var(--miq-team-away) 58%, white);
+    }
+
+    .miq-minute-vbar.is-team-home.is-peak span {
+        background: color-mix(in srgb, var(--miq-team-home) 72%, #3d5a2e);
+        box-shadow:
+            0 0 0 1.5px color-mix(in srgb, var(--miq-team-home-ink) 55%, transparent),
+            0 0 10px color-mix(in srgb, var(--miq-team-home) 45%, transparent);
+        filter: saturate(1.15);
+    }
+
+    .miq-minute-vbar.is-team-away.is-peak span {
+        background: color-mix(in srgb, var(--miq-team-away) 72%, #8a4a2e);
+        box-shadow:
+            0 0 0 1.5px color-mix(in srgb, var(--miq-team-away-ink) 55%, transparent),
+            0 0 10px color-mix(in srgb, var(--miq-team-away) 45%, transparent);
+        filter: saturate(1.15);
     }
 
     .miq-minute-vals {
@@ -1670,15 +1691,29 @@
     }
 
     .miq-minute-vals .is-team-home {
-        color: var(--miq-team-home-ink);
+        color: color-mix(in srgb, var(--miq-team-home-ink) 72%, var(--miq-muted));
     }
 
     .miq-minute-vals .is-team-away {
+        color: color-mix(in srgb, var(--miq-team-away-ink) 72%, var(--miq-muted));
+    }
+
+    .miq-minute-vals .is-team-home.is-peak {
+        color: var(--miq-team-home-ink);
+        font-weight: 800;
+    }
+
+    .miq-minute-vals .is-team-away.is-peak {
         color: var(--miq-team-away-ink);
+        font-weight: 800;
     }
 
     .miq-minute-xlabel {
         @apply mt-1 text-center text-[9px] font-semibold leading-tight text-miq-muted sm:text-[10px];
+    }
+
+    .miq-minute-peak-note {
+        @apply px-3.5 pb-3.5 text-[11px] leading-snug text-miq-ink-soft;
     }
 
     /* Статистика судьи */

@@ -312,6 +312,57 @@ const goalMax = computed(() => {
     return max;
 });
 
+/**
+ * Пики по команде в секции: макс. значения и интервалы (ничьи — все).
+ * @param {Array<{band: string, home: number, away: number}>} bands
+ */
+function goalPeaks(bands) {
+    let homeMax = -1;
+    let awayMax = -1;
+    for (const b of bands || []) {
+        homeMax = Math.max(homeMax, Number(b.home) || 0);
+        awayMax = Math.max(awayMax, Number(b.away) || 0);
+    }
+    const homeBands = (bands || [])
+        .filter((b) => homeMax > 0 && Number(b.home) === homeMax)
+        .map((b) => b.band);
+    const awayBands = (bands || [])
+        .filter((b) => awayMax > 0 && Number(b.away) === awayMax)
+        .map((b) => b.band);
+    return { homeMax, awayMax, homeBands, awayBands };
+}
+
+function isGoalPeak(peaks, side, band) {
+    if (!peaks || !band) return false;
+    const value = Number(band[side]) || 0;
+    if (side === 'home') return peaks.homeMax > 0 && value === peaks.homeMax;
+    return peaks.awayMax > 0 && value === peaks.awayMax;
+}
+
+/** «Чаще всего забивает: 75–90 (Зенит), 45–60 (Спартак)» */
+function goalPeakSummary(verb, peaks, homeName, awayName) {
+    if (!peaks) return '';
+    const parts = [];
+    if (peaks.homeBands?.length) {
+        parts.push(`${peaks.homeBands.join(', ')} (${homeName})`);
+    }
+    if (peaks.awayBands?.length) {
+        parts.push(`${peaks.awayBands.join(', ')} (${awayName})`);
+    }
+    if (!parts.length) return '';
+    return `Чаще всего ${verb}: ${parts.join(', ')}`;
+}
+
+const scoredPeaks = computed(() => goalPeaks(goalMinutesScored.value));
+const concededPeaks = computed(() => goalPeaks(goalMinutesConceded.value));
+
+const scoredPeakSummary = computed(() =>
+    goalPeakSummary('забивает', scoredPeaks.value, props.match?.home, props.match?.away),
+);
+const concededPeakSummary = computed(() =>
+    goalPeakSummary('пропускает', concededPeaks.value, props.match?.home, props.match?.away),
+);
+
 const activeComparison = computed(() => {
     const bag = props.comparison || {};
     const rows = bag[comparePeriod.value];
@@ -1748,7 +1799,7 @@ function loginHref() {
                         </p>
                     </div>
                     <div
-                        class="miq-minute-chart px-3 pb-3 pt-2"
+                        class="miq-minute-chart px-3 pb-2 pt-2"
                         role="img"
                         :aria-label="`Забитые голы по интервалам: ${match.home} и ${match.away}`"
                     >
@@ -1760,24 +1811,38 @@ function loginHref() {
                             <div class="miq-minute-vpair" aria-hidden="true">
                                 <div
                                     class="miq-minute-vbar is-team-home"
+                                    :class="{ 'is-peak': isGoalPeak(scoredPeaks, 'home', band) }"
                                     :title="`${match.home}: ${formatStat(band.home)}`"
                                 >
                                     <span :style="{ height: barHeight(band.home, goalMax) }" />
                                 </div>
                                 <div
                                     class="miq-minute-vbar is-team-away"
+                                    :class="{ 'is-peak': isGoalPeak(scoredPeaks, 'away', band) }"
                                     :title="`${match.away}: ${formatStat(band.away)}`"
                                 >
                                     <span :style="{ height: barHeight(band.away, goalMax) }" />
                                 </div>
                             </div>
                             <div class="miq-minute-vals tabular-nums">
-                                <span class="is-team-home">{{ formatStat(band.home) }}</span>
-                                <span class="is-team-away">{{ formatStat(band.away) }}</span>
+                                <span
+                                    class="is-team-home"
+                                    :class="{ 'is-peak': isGoalPeak(scoredPeaks, 'home', band) }"
+                                >{{ formatStat(band.home) }}</span>
+                                <span
+                                    class="is-team-away"
+                                    :class="{ 'is-peak': isGoalPeak(scoredPeaks, 'away', band) }"
+                                >{{ formatStat(band.away) }}</span>
                             </div>
                             <span class="miq-minute-xlabel tabular-nums">{{ band.band }}</span>
                         </div>
                     </div>
+                    <p
+                        v-if="scoredPeakSummary"
+                        class="miq-minute-peak-note"
+                    >
+                        {{ scoredPeakSummary }}
+                    </p>
                 </div>
 
                 <div
@@ -1791,7 +1856,7 @@ function loginHref() {
                         </p>
                     </div>
                     <div
-                        class="miq-minute-chart px-3 pb-3.5 pt-2"
+                        class="miq-minute-chart px-3 pb-2 pt-2"
                         role="img"
                         :aria-label="`Пропущенные голы по интервалам: ${match.home} и ${match.away}`"
                     >
@@ -1803,24 +1868,38 @@ function loginHref() {
                             <div class="miq-minute-vpair" aria-hidden="true">
                                 <div
                                     class="miq-minute-vbar is-team-home"
+                                    :class="{ 'is-peak': isGoalPeak(concededPeaks, 'home', band) }"
                                     :title="`${match.home}: ${formatStat(band.home)}`"
                                 >
                                     <span :style="{ height: barHeight(band.home, goalMax) }" />
                                 </div>
                                 <div
                                     class="miq-minute-vbar is-team-away"
+                                    :class="{ 'is-peak': isGoalPeak(concededPeaks, 'away', band) }"
                                     :title="`${match.away}: ${formatStat(band.away)}`"
                                 >
                                     <span :style="{ height: barHeight(band.away, goalMax) }" />
                                 </div>
                             </div>
                             <div class="miq-minute-vals tabular-nums">
-                                <span class="is-team-home">{{ formatStat(band.home) }}</span>
-                                <span class="is-team-away">{{ formatStat(band.away) }}</span>
+                                <span
+                                    class="is-team-home"
+                                    :class="{ 'is-peak': isGoalPeak(concededPeaks, 'home', band) }"
+                                >{{ formatStat(band.home) }}</span>
+                                <span
+                                    class="is-team-away"
+                                    :class="{ 'is-peak': isGoalPeak(concededPeaks, 'away', band) }"
+                                >{{ formatStat(band.away) }}</span>
                             </div>
                             <span class="miq-minute-xlabel tabular-nums">{{ band.band }}</span>
                         </div>
                     </div>
+                    <p
+                        v-if="concededPeakSummary"
+                        class="miq-minute-peak-note"
+                    >
+                        {{ concededPeakSummary }}
+                    </p>
                 </div>
             </section>
 
