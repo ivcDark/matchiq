@@ -47,6 +47,19 @@ class MvpRoutesTest extends TestCase
                 ->where('period', 'upcoming'));
     }
 
+    public function test_matches_index_accepts_rpl_fnl_multi_select(): void
+    {
+        $this->get('/?league=rpl,fnl&period=upcoming')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Matches/Index')
+                ->where('selectedLeagues', ['rpl', 'fnl'])
+                ->where('leagues.1.id', 'fnl')
+                ->where('leagues.1.country', 'Россия')
+                ->where('leagues.1.status', 'live')
+                ->where('period', 'upcoming'));
+    }
+
     public function test_matches_index_accepts_repeated_league_params(): void
     {
         $this->get('/?league[]=rpl&league[]=ucl')
