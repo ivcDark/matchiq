@@ -610,6 +610,192 @@
         color: var(--miq-ink);
         box-shadow: inset 0 -2px 0 var(--miq-pitch);
     }
+
+    /* —— Match detail —— */
+    .miq-league-badge {
+        @apply inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide;
+        color: var(--miq-pitch-deep);
+        background: color-mix(in srgb, var(--miq-lime) 42%, white);
+        border: 1px solid color-mix(in srgb, var(--miq-pitch) 18%, transparent);
+    }
+
+    .miq-match-hero {
+        @apply px-3.5 py-4 sm:px-5 sm:py-5;
+        background:
+            radial-gradient(90% 80% at 0% 0%, rgba(184, 224, 74, 0.16), transparent 55%),
+            radial-gradient(70% 70% at 100% 0%, rgba(31, 122, 76, 0.1), transparent 50%),
+            color-mix(in srgb, white 70%, var(--miq-chalk));
+    }
+
+    .miq-status-pill {
+        @apply ml-auto rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide;
+        color: var(--miq-ink-soft);
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
+    }
+
+    .miq-status-pill.is-live {
+        color: var(--miq-live);
+        background: color-mix(in srgb, var(--miq-live) 12%, white);
+    }
+
+    .miq-status-pill.is-done {
+        color: var(--miq-muted);
+    }
+
+    .miq-match-hero-teams {
+        @apply mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-5;
+    }
+
+    .miq-match-hero-side.is-away {
+        @apply text-right;
+    }
+
+    .miq-match-hero-mid {
+        @apply flex flex-col items-center justify-center text-center;
+    }
+
+    .miq-event-row {
+        @apply flex items-center gap-2.5 px-3.5 py-3;
+    }
+
+    .miq-event-row.is-picked {
+        background: color-mix(in srgb, var(--miq-pitch) 8%, white);
+        box-shadow: inset 3px 0 0 var(--miq-pitch);
+    }
+
+    .miq-event-prob {
+        @apply shrink-0 font-display text-2xl font-bold leading-none text-miq-pitch-deep;
+    }
+
+    .miq-event-prob-unit {
+        @apply ml-0.5 text-sm font-semibold text-miq-muted;
+    }
+
+    .miq-pick-btn {
+        @apply shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-bold transition;
+        border-color: var(--miq-pitch);
+        color: var(--miq-pitch-deep);
+        background: color-mix(in srgb, var(--miq-pitch) 8%, white);
+    }
+
+    .miq-pick-btn:hover {
+        background: color-mix(in srgb, var(--miq-pitch) 16%, white);
+    }
+
+    .miq-pick-btn.is-active {
+        color: white;
+        background: var(--miq-pitch);
+        border-color: var(--miq-pitch-deep);
+        box-shadow: inset 0 -2px 0 var(--miq-lime);
+    }
+
+    .miq-pick-btn.is-locked {
+        @apply cursor-default;
+    }
+
+    .miq-compare-row {
+        @apply py-2.5;
+    }
+
+    .miq-compare-vals {
+        @apply mb-1.5 grid grid-cols-[3.5rem_1fr_3.5rem] items-center gap-2 text-sm;
+    }
+
+    .miq-compare-vals > :first-child {
+        @apply text-left;
+    }
+
+    .miq-compare-vals > :nth-child(2) {
+        @apply text-center;
+    }
+
+    .miq-compare-vals > :last-child {
+        @apply text-right;
+    }
+
+    .miq-compare-bars {
+        @apply grid grid-cols-2 gap-2;
+    }
+
+    .miq-compare-bar {
+        @apply flex h-1.5 overflow-hidden rounded-sm;
+        background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
+    }
+
+    .miq-compare-bar.is-home {
+        @apply justify-end;
+    }
+
+    .miq-compare-bar span {
+        @apply block h-full rounded-sm;
+        transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .miq-compare-bar.is-home span {
+        background: color-mix(in srgb, var(--miq-pitch) 75%, var(--miq-lime));
+    }
+
+    .miq-compare-bar.is-away span {
+        background: color-mix(in srgb, var(--miq-chip-away) 80%, white);
+    }
+
+    .miq-split-card {
+        @apply rounded-md border px-3 py-2.5;
+        border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, white 75%, var(--miq-mist));
+    }
+
+    .miq-table-highlight {
+        background: color-mix(in srgb, var(--miq-lime) 22%, white);
+    }
+
+    .miq-absence-tag {
+        @apply rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide;
+    }
+
+    .miq-absence-tag.is-out {
+        color: #9f1239;
+        background: color-mix(in srgb, #be123c 12%, white);
+    }
+
+    .miq-absence-tag.is-doubt {
+        color: var(--miq-warn);
+        background: color-mix(in srgb, var(--miq-warn) 12%, white);
+    }
+
+    .miq-minute-row {
+        @apply grid grid-cols-[3.25rem_1fr_3.25rem] items-center gap-2;
+    }
+
+    .miq-minute-label {
+        @apply text-[11px] font-semibold text-miq-muted;
+    }
+
+    .miq-minute-bars {
+        @apply grid gap-1;
+    }
+
+    .miq-minute-bar {
+        @apply h-1.5 overflow-hidden rounded-sm;
+        background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
+    }
+
+    .miq-minute-bar span {
+        @apply block h-full rounded-sm;
+        transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .miq-minute-bar.is-home span {
+        background: color-mix(in srgb, var(--miq-pitch) 75%, var(--miq-lime));
+    }
+
+    .miq-minute-bar.is-away span {
+        background: color-mix(in srgb, var(--miq-chip-away) 80%, white);
+    }
+
+    .miq-minute-nums {
+        @apply flex flex-col items-end gap-0.5 text-[11px] font-semibold;
+    }
 }
 
 @layer utilities {

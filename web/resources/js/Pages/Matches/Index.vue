@@ -615,6 +615,18 @@ function topMarket(match) {
     return m;
 }
 
+/** Ссылка на матч с league для возврата на тот же фильтр. */
+function matchShowHref(match) {
+    const base = route('matches.show', match.id);
+    const leagueParam = isAllMode.value
+        ? 'all'
+        : selectedLeagueIds.value.join(',');
+    if (!leagueParam) {
+        return base;
+    }
+    return `${base}?league=${encodeURIComponent(leagueParam)}`;
+}
+
 function gdText(gd) {
     if (gd > 0) return `+${gd}`;
     return String(gd);
@@ -899,7 +911,7 @@ const listKey = computed(
                                     <ul>
                                         <li v-for="match in group.matches" :key="match.id">
                                             <Link
-                                                :href="route('matches.show', match.id)"
+                                                :href="matchShowHref(match)"
                                                 class="miq-match-row px-3.5 py-3"
                                             >
                                                 <div class="miq-match-row-inner">

@@ -105,7 +105,33 @@ class MvpRoutesTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Matches/Show')
-                ->has('match'));
+                ->has('match')
+                ->has('events')
+                ->has('preview')
+                ->has('comparison')
+                ->has('homeAway')
+                ->has('standings')
+                ->has('scorers')
+                ->has('absences')
+                ->has('goalMinutes')
+                ->has('h2h')
+                ->has('comments'));
+    }
+
+    public function test_matches_show_zenit_spartak_demo_detail(): void
+    {
+        $this->get('/matches/101?league=rpl')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Matches/Show')
+                ->where('match.id', 101)
+                ->where('match.home', 'Зенит')
+                ->where('match.away', 'Спартак')
+                ->where('match.league_short', 'РПЛ')
+                ->where('returnLeague', 'rpl')
+                ->has('events', 12)
+                ->has('preview')
+                ->where('userPickEventId', null));
     }
 
     public function test_leaderboard_renders(): void
