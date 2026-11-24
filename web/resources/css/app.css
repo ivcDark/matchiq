@@ -2718,12 +2718,16 @@
     }
 
     .miq-tt-formrow-chips {
-        @apply flex min-w-0 flex-1 items-center gap-[3px] overflow-x-auto py-0.5;
+        @apply flex min-w-0 items-center gap-[3px] overflow-x-auto py-0.5;
         scrollbar-width: none;
     }
 
     .miq-tt-formrow-chips .miq-form-chip {
         @apply h-[18px] w-[18px] shrink-0 text-[9px];
+    }
+
+    .miq-tt-formrow-played {
+        @apply num-display ml-1.5 w-6 shrink-0 text-[13px] leading-none text-miq-muted;
     }
 
     .miq-tt-round {

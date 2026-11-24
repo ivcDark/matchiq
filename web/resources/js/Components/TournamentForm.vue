@@ -15,6 +15,10 @@ function chipTitle(m) {
     return `Тур ${m.round} · ${NAMES[m.result]} ${m.score} · ${where} · ${m.opponent}`;
 }
 
+function playedOf(team) {
+    return team.played ?? team.matches.length;
+}
+
 function summary(team) {
     const count = (letter) => team.matches.filter((m) => m.result === letter).length;
 
@@ -48,6 +52,11 @@ function summary(team) {
                         :title="chipTitle(m)"
                     >{{ m.result }}</span>
                 </span>
+                <span
+                    class="miq-tt-formrow-played"
+                    :title="`Сыграно матчей: ${playedOf(team)}`"
+                    :aria-label="`Сыграно матчей: ${playedOf(team)}`"
+                >{{ playedOf(team) }}</span>
             </li>
         </ol>
     </section>
