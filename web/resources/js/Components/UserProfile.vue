@@ -79,6 +79,12 @@ function hitTone(accuracy) {
         <section class="miq-panel" aria-labelledby="up-rating">
             <div class="miq-panel-head">
                 <h2 id="up-rating" class="miq-panel-title">Рейтинг</h2>
+                <Link
+                    :href="`${route('leaderboard')}#how-it-works`"
+                    class="miq-up-rules-link"
+                >
+                    Как считаются очки
+                </Link>
             </div>
             <div class="miq-up-tiles">
                 <div

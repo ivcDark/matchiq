@@ -1,9 +1,10 @@
 <script setup>
 import PlayerAvatar from '@/Components/PlayerAvatar.vue';
+import RatingRules from '@/Components/RatingRules.vue';
 import SeasonNote from '@/Components/SeasonNote.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 
 const props = defineProps({
     period: { type: String, default: 'season' },
@@ -16,6 +17,16 @@ const props = defineProps({
 
 const page = usePage();
 const isGuest = computed(() => !page.props.auth?.user);
+
+const HOWTO_HASH = '#how-it-works';
+const rulesOpen = ref(false);
+
+onMounted(() => {
+    if (window.location.hash === HOWTO_HASH) {
+        rulesOpen.value = true;
+        nextTick(() => document.getElementById('how-it-works')?.scrollIntoView({ block: 'start' }));
+    }
+});
 
 const podium = computed(() => props.entries.slice(0, 3));
 const podiumOrder = ['is-first', 'is-second', 'is-third'];
@@ -70,9 +81,33 @@ function formatNumber(n) {
         <div class="miq-lb">
             <header class="miq-lb-head">
                 <div class="min-w-0">
-                    <h1 class="miq-display text-3xl font-bold text-miq-ink sm:text-4xl">
-                        Рейтинг
-                    </h1>
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <h1 class="miq-display text-3xl font-bold text-miq-ink sm:text-4xl">
+                            Рейтинг
+                        </h1>
+                        <button
+                            type="button"
+                            class="miq-rules-toggle"
+                            :class="{ 'is-open': rulesOpen }"
+                            :aria-expanded="rulesOpen"
+                            aria-controls="how-it-works"
+                            @click="rulesOpen = !rulesOpen"
+                        >
+                            Как работает рейтинг
+                            <svg
+                                class="miq-rules-chevron"
+                                viewBox="0 0 20 20"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.8"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path d="M5 7.5l5 5 5-5" />
+                            </svg>
+                        </button>
+                    </div>
                     <p class="mt-1 text-sm text-miq-muted">
                         Лучшие по очкам за прогнозы · {{ periodLabel }} ·
                         {{ formatNumber(totalPlayers) }}
@@ -101,6 +136,15 @@ function formatNumber(n) {
                     </button>
                 </div>
             </header>
+
+            <section
+                v-show="rulesOpen"
+                id="how-it-works"
+                class="miq-panel miq-rules-panel"
+                aria-label="Как работает рейтинг"
+            >
+                <RatingRules :season="season" />
+            </section>
 
             <SeasonNote v-if="period === 'season' && season" :season="season" />
 

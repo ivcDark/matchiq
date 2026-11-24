@@ -2513,6 +2513,78 @@
         @apply ml-1 normal-case tracking-normal;
     }
 
+    .miq-rules-toggle {
+        @apply inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold transition;
+        color: var(--miq-pitch-deep);
+        border-color: color-mix(in srgb, var(--miq-pitch) 28%, var(--miq-line));
+        background: color-mix(in srgb, white 70%, transparent);
+    }
+
+    .miq-rules-toggle:hover,
+    .miq-rules-toggle.is-open {
+        background: color-mix(in srgb, var(--miq-lime) 30%, white);
+    }
+
+    .miq-rules-toggle:focus-visible {
+        outline: 2px solid var(--miq-pitch);
+        outline-offset: 2px;
+    }
+
+    .miq-rules-chevron {
+        @apply h-3.5 w-3.5 transition-transform;
+    }
+
+    .miq-rules-toggle.is-open .miq-rules-chevron {
+        @apply rotate-180;
+    }
+
+    .miq-rules-panel {
+        @apply px-4 py-4 sm:px-5;
+    }
+
+    .miq-rules-lead {
+        @apply text-sm text-miq-ink;
+    }
+
+    .miq-rules-title {
+        @apply mb-1.5 mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-miq-muted;
+    }
+
+    .miq-rules-steps {
+        @apply space-y-1.5 text-sm text-miq-ink-soft;
+        counter-reset: miq-step;
+    }
+
+    .miq-rules-steps li {
+        @apply relative pl-7;
+        counter-increment: miq-step;
+    }
+
+    .miq-rules-steps li::before {
+        content: counter(miq-step);
+        @apply num-display absolute left-0 top-0 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] leading-none;
+        color: var(--miq-pitch-deep);
+        background: color-mix(in srgb, var(--miq-lime) 45%, white);
+    }
+
+    .miq-rules-steps strong {
+        @apply text-miq-ink;
+    }
+
+    .miq-rules-text {
+        @apply text-sm text-miq-ink-soft;
+    }
+
+    .miq-up-rules-link {
+        @apply text-xs font-semibold normal-case tracking-normal text-miq-pitch transition hover:text-miq-pitch-deep hover:underline;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .miq-rules-chevron {
+            transition: none;
+        }
+    }
+
     .miq-lb-cta {
         @apply rounded-md border border-dashed px-4 py-3 text-center text-sm text-miq-muted;
         border-color: color-mix(in srgb, var(--miq-line) 85%, transparent);

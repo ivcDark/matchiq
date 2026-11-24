@@ -353,6 +353,7 @@ class MvpRoutesTest extends TestCase
                 ->has('bestPick.odds')
                 ->has('bestPick.probability')
                 ->has('bestPick.points')
+                ->where('bestPick.points', fn ($points) => $points === 100 - $page->toArray()['props']['bestPick']['probability'])
                 ->has('frequentEvents', 5)
                 ->where('frequentEvents.0.label', 'Исходы')
                 ->where('frequentEvents.1.label', 'Тоталы')

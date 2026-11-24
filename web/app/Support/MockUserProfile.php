@@ -209,7 +209,7 @@ class MockUserProfile
             'date_label' => $date->copy()->locale('ru')->translatedFormat('j F Y'),
             'probability' => $probability,
             'odds' => round(100 / $probability, 2),
-            'points' => (int) round((100 - $probability) / 2),
+            'points' => RatingRules::points($probability),
         ];
     }
 
