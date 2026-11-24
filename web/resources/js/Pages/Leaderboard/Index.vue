@@ -17,6 +17,11 @@ const isGuest = computed(() => !page.props.auth?.user);
 
 const podium = computed(() => props.entries.slice(0, 3));
 const podiumOrder = ['is-first', 'is-second', 'is-third'];
+const MEDALS = { 1: 'gold', 2: 'silver', 3: 'bronze' };
+
+function medalOf(rank) {
+    return MEDALS[rank];
+}
 
 const periodLabel = computed(
     () => props.periods.find((p) => p.id === props.period)?.label ?? '',
@@ -115,9 +120,10 @@ function formatNumber(n) {
                         :key="entry.rank"
                         :href="route('users.show', entry.id)"
                         class="miq-lb-podium-card"
+                        :data-medal="medalOf(entry.rank)"
                         :class="[podiumOrder[index], { 'is-me': entry.is_me }]"
                     >
-                        <span class="miq-lb-medal num-display">{{ entry.rank }}</span>
+                        <span class="miq-lb-medal num-display" :data-medal="medalOf(entry.rank)">{{ entry.rank }}</span>
                         <PlayerAvatar :name="entry.name" :size="index === 0 ? 'lg' : 'md'" />
                         <div class="miq-lb-podium-name" :title="entry.name">
                             {{ entry.name }}
@@ -156,12 +162,13 @@ function formatNumber(n) {
                                     v-for="entry in entries"
                                     :key="entry.rank"
                                     class="miq-lb-row"
+                                    :data-medal="medalOf(entry.rank)"
                                     :class="{ 'is-me': entry.is_me }"
                                     :aria-current="entry.is_me ? 'true' : undefined"
                                     @click="openProfile($event, entry)"
                                 >
                                     <td class="is-rank">
-                                        <span class="miq-rank" :class="{ 'is-top': entry.rank <= 3 }">
+                                        <span class="miq-rank" :data-medal="medalOf(entry.rank)">
                                             {{ entry.rank }}
                                         </span>
                                     </td>

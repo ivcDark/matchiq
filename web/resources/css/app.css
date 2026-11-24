@@ -30,6 +30,16 @@
     --miq-team-home-ink: #5a7549;
     --miq-team-away: #d4926e;
     --miq-team-away-ink: #a86a4a;
+    /* Медали рейтинга: приглушённые золото / серебро / бронза (+ ink для текста, on — текст на плашке) */
+    --miq-medal-gold: #cfae52;
+    --miq-medal-gold-ink: #7a5c12;
+    --miq-medal-gold-on: #3b2d05;
+    --miq-medal-silver: #a9b3b9;
+    --miq-medal-silver-ink: #46535b;
+    --miq-medal-silver-on: #1f282d;
+    --miq-medal-bronze: #c58a5d;
+    --miq-medal-bronze-ink: #7a4a26;
+    --miq-medal-bronze-on: #2e1a0a;
 }
 
 @layer base {
@@ -2056,10 +2066,6 @@
 
     .miq-lb-podium-card.is-first {
         @apply sm:order-2 sm:pb-6 sm:pt-7;
-        border-color: color-mix(in srgb, var(--miq-cmp-lead) 70%, white);
-        background:
-            radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--miq-cmp-lead) 22%, transparent), transparent 70%),
-            color-mix(in srgb, white 76%, var(--miq-chalk));
     }
 
     .miq-lb-podium-card.is-second {
@@ -2068,9 +2074,30 @@
 
     .miq-lb-podium-card.is-third {
         @apply sm:order-3;
-        border-color: color-mix(in srgb, var(--miq-cmp-trail) 65%, white);
+    }
+
+    [data-medal='gold'] {
+        --lb-medal: var(--miq-medal-gold);
+        --lb-medal-ink: var(--miq-medal-gold-ink);
+        --lb-medal-on: var(--miq-medal-gold-on);
+    }
+
+    [data-medal='silver'] {
+        --lb-medal: var(--miq-medal-silver);
+        --lb-medal-ink: var(--miq-medal-silver-ink);
+        --lb-medal-on: var(--miq-medal-silver-on);
+    }
+
+    [data-medal='bronze'] {
+        --lb-medal: var(--miq-medal-bronze);
+        --lb-medal-ink: var(--miq-medal-bronze-ink);
+        --lb-medal-on: var(--miq-medal-bronze-on);
+    }
+
+    .miq-lb-podium-card[data-medal] {
+        border-color: color-mix(in srgb, var(--lb-medal) 65%, white);
         background:
-            radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--miq-cmp-trail) 18%, transparent), transparent 70%),
+            radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--lb-medal) 26%, transparent), transparent 70%),
             color-mix(in srgb, white 78%, var(--miq-chalk));
     }
 
@@ -2080,18 +2107,9 @@
 
     .miq-lb-medal {
         @apply absolute left-3 top-3 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs leading-none;
-        color: var(--miq-ink-soft);
-        background: color-mix(in srgb, var(--miq-mist-deep) 85%, white);
-    }
-
-    .is-first .miq-lb-medal {
-        color: white;
-        background: var(--miq-cmp-lead-ink);
-    }
-
-    .is-third .miq-lb-medal {
-        color: white;
-        background: var(--miq-cmp-trail-ink);
+        color: var(--lb-medal-on, var(--miq-ink-soft));
+        background: var(--lb-medal, color-mix(in srgb, var(--miq-mist-deep) 85%, white));
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lb-medal-ink, transparent) 35%, transparent);
     }
 
     .miq-lb-podium-name {
@@ -2102,13 +2120,12 @@
         @apply text-3xl leading-none text-miq-ink;
     }
 
-    .is-first .miq-lb-podium-points {
-        @apply text-4xl;
-        color: var(--miq-cmp-lead-ink);
+    .miq-lb-podium-points {
+        color: var(--lb-medal-ink, var(--miq-ink));
     }
 
-    .is-third .miq-lb-podium-points {
-        color: var(--miq-cmp-trail-ink);
+    .is-first .miq-lb-podium-points {
+        @apply text-4xl;
     }
 
     .miq-lb-podium-caption {
@@ -2202,6 +2219,36 @@
         color: var(--miq-pitch-deep);
     }
 
+    .miq-lb-table tbody tr[data-medal] {
+        background: color-mix(in srgb, var(--lb-medal) 15%, white);
+        box-shadow: inset 3px 0 0 var(--lb-medal);
+    }
+
+    .miq-lb-table tbody tr.miq-lb-row[data-medal]:hover,
+    .miq-lb-table tbody tr.miq-lb-row[data-medal]:focus-within {
+        background: color-mix(in srgb, var(--lb-medal) 27%, white);
+        box-shadow: inset 3px 0 0 var(--lb-medal);
+    }
+
+    .miq-lb-table tbody tr[data-medal].is-me,
+    .miq-lb-table tbody tr.miq-lb-row[data-medal].is-me:hover,
+    .miq-lb-table tbody tr.miq-lb-row[data-medal].is-me:focus-within {
+        box-shadow:
+            inset 3px 0 0 var(--lb-medal),
+            inset 0 0 0 1.5px color-mix(in srgb, var(--miq-pitch) 40%, transparent);
+    }
+
+    .miq-rank[data-medal] {
+        @apply h-6 w-6 text-xs;
+        color: var(--lb-medal-on);
+        background: var(--lb-medal);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lb-medal-ink) 35%, transparent);
+    }
+
+    .miq-lb-table tbody tr[data-medal] td.is-points {
+        color: var(--lb-medal-ink);
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .miq-lb-table tbody tr.miq-lb-row,
         .miq-lb-podium-card {
@@ -2234,7 +2281,13 @@
 
     .miq-lb-podium-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 18px color-mix(in srgb, var(--miq-ink) 10%, transparent);
+        box-shadow: 0 6px 18px color-mix(in srgb, var(--lb-medal, var(--miq-ink)) 22%, transparent);
+    }
+
+    .miq-lb-podium-card.is-me:hover {
+        box-shadow:
+            0 0 0 2px color-mix(in srgb, var(--miq-pitch) 45%, transparent),
+            0 6px 18px color-mix(in srgb, var(--lb-medal, var(--miq-ink)) 22%, transparent);
     }
 
     .miq-lb-podium-card:focus-visible,
