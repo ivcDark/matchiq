@@ -2177,6 +2177,38 @@
         box-shadow: inset 3px 0 0 var(--miq-pitch);
     }
 
+    .miq-lb-table tbody tr.miq-lb-row {
+        @apply cursor-pointer;
+        transition: background-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .miq-lb-table tbody tr.miq-lb-row:hover,
+    .miq-lb-table tbody tr.miq-lb-row:focus-within {
+        background: color-mix(in srgb, var(--miq-cmp-lead) 14%, white);
+    }
+
+    .miq-lb-table tbody tr.miq-lb-row:focus-within {
+        box-shadow: inset 3px 0 0 var(--miq-cmp-lead);
+    }
+
+    .miq-lb-table tbody tr.miq-lb-row.is-me:hover,
+    .miq-lb-table tbody tr.miq-lb-row.is-me:focus-within {
+        background: color-mix(in srgb, var(--miq-lime) 38%, white);
+        box-shadow: inset 3px 0 0 var(--miq-pitch);
+    }
+
+    .miq-lb-table tbody tr.miq-lb-row:hover .miq-lb-player-link span.truncate,
+    .miq-lb-table tbody tr.miq-lb-row:focus-within .miq-lb-player-link span.truncate {
+        color: var(--miq-pitch-deep);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .miq-lb-table tbody tr.miq-lb-row,
+        .miq-lb-podium-card {
+            transition: none;
+        }
+    }
+
     .miq-lb-table td.is-points {
         @apply text-base text-miq-ink;
     }

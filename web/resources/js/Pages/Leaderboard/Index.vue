@@ -31,6 +31,18 @@ function selectPeriod(id) {
     );
 }
 
+function openProfile(event, entry) {
+    // Ссылка в нике сама обрабатывает свой клик (в т.ч. Enter с клавиатуры).
+    if (event.target.closest('a')) return;
+
+    const url = route('users.show', entry.id);
+    if (event.ctrlKey || event.metaKey) {
+        window.open(url, '_blank', 'noopener');
+        return;
+    }
+    router.visit(url);
+}
+
 function pluralize(n, forms) {
     const mod10 = n % 10;
     const mod100 = n % 100;
@@ -143,8 +155,10 @@ function formatNumber(n) {
                                 <tr
                                     v-for="entry in entries"
                                     :key="entry.rank"
+                                    class="miq-lb-row"
                                     :class="{ 'is-me': entry.is_me }"
                                     :aria-current="entry.is_me ? 'true' : undefined"
+                                    @click="openProfile($event, entry)"
                                 >
                                     <td class="is-rank">
                                         <span class="miq-rank" :class="{ 'is-top': entry.rank <= 3 }">
