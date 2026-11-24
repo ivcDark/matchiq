@@ -205,7 +205,7 @@ const cards = computed(() => [
                 </div>
             </section>
 
-            <section class="miq-panel" aria-label="Турнирная таблица">
+            <section class="miq-panel miq-tt-standings" aria-label="Турнирная таблица">
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Турнирная таблица</h2>
                     <p class="text-xs text-miq-muted">после {{ tournament.round }} тура</p>
