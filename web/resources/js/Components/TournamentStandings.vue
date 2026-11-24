@@ -50,9 +50,10 @@ function signed(n) {
                         <th title="Победы">В</th>
                         <th title="Ничьи">Н</th>
                         <th title="Поражения">П</th>
-                        <th title="Забито — пропущено">З–П</th>
+                        <th title="Забитые голы">ЗГ</th>
+                        <th title="Пропущенные голы">ПГ</th>
                         <th title="Разница мячей">+/−</th>
-                        <th title="Очки">О</th>
+                        <th title="Очки">Очки</th>
                         <th class="is-form" title="Последние 5 матчей · слева старше, справа свежее">Форма</th>
                     </tr>
                 </thead>
@@ -66,7 +67,8 @@ function signed(n) {
                         <td>{{ row.wins }}</td>
                         <td>{{ row.draws }}</td>
                         <td>{{ row.losses }}</td>
-                        <td>{{ row.gf }}–{{ row.ga }}</td>
+                        <td>{{ row.gf }}</td>
+                        <td>{{ row.ga }}</td>
                         <td>{{ signed(row.gd) }}</td>
                         <td class="is-pts">{{ row.pts }}</td>
                         <td class="is-form">

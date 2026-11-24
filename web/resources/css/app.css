@@ -2411,7 +2411,7 @@
 
     .miq-tt-table {
         --tt-bg: color-mix(in srgb, white 78%, var(--miq-chalk));
-        @apply w-full min-w-[30rem] border-collapse text-[13px];
+        @apply w-full min-w-[33rem] border-collapse text-[13px];
     }
 
     .miq-tt-table thead tr {
@@ -2421,7 +2421,7 @@
 
     .miq-tt-table th,
     .miq-tt-table td {
-        @apply w-[1%] whitespace-nowrap px-1.5 py-1 text-right tabular-nums;
+        @apply w-[1%] whitespace-nowrap px-2.5 py-1 text-right tabular-nums;
     }
 
     .miq-tt-table th {
