@@ -278,6 +278,90 @@ class MvpRoutesTest extends TestCase
             });
     }
 
+    public function test_user_profile_renders_for_known_nick(): void
+    {
+        $this->get('/users/'.rawurlencode('Бомбардир_77'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Users/Show')
+                ->where('profile.nick', 'Бомбардир_77')
+                ->where('profile.is_me', false)
+                ->where('profile.rank', 1)
+                ->has('profile.registered_label')
+                ->has('ratings', 4)
+                ->where('ratings.0.id', 'week')
+                ->where('ratings.3.id', 'all_time')
+                ->where('ratings.3.rank', 1)
+                ->has('ratings.0.points')
+                ->has('championships')
+                ->where('championships.0.name', 'РПЛ')
+                ->has('bestPick.match')
+                ->has('bestPick.event')
+                ->has('bestPick.odds')
+                ->has('bestPick.probability')
+                ->has('bestPick.points')
+                ->has('frequentEvents', 5)
+                ->where('frequentEvents.0.label', 'Исходы')
+                ->where('frequentEvents.1.label', 'Тоталы')
+                ->where('frequentEvents.2.label', 'Фора')
+                ->where('frequentEvents.3.label', 'Угловые')
+                ->where('frequentEvents.4.label', 'ЖК')
+                ->has('frequentEvents.0.items.0.count')
+                ->has('frequentEvents.0.items.0.accuracy'));
+    }
+
+    public function test_user_profile_rank_matches_leaderboard(): void
+    {
+        $leaderboard = $this->get('/leaderboard?period=season')->viewData('page')['props']['entries'];
+        $second = $leaderboard[1];
+
+        $this->get('/users/'.rawurlencode($second['name']))
+            ->assertInertia(function ($page) use ($second) {
+                $season = collect($page->toArray()['props']['ratings'])->firstWhere('id', 'season');
+
+                $this->assertSame($second['rank'], $season['rank']);
+                $this->assertSame($second['points'], $season['points']);
+            });
+    }
+
+    public function test_user_profile_championship_and_event_totals_are_consistent(): void
+    {
+        $this->get('/users/'.rawurlencode('Футболоман'))
+            ->assertInertia(function ($page) {
+                $props = $page->toArray()['props'];
+                $allTimePicks = collect($props['ratings'])->firstWhere('id', 'all_time')['picks'];
+
+                $this->assertSame($allTimePicks, array_sum(array_column($props['championships'], 'picks')));
+                $this->assertSame($allTimePicks, array_sum(array_column($props['frequentEvents'], 'total')));
+            });
+    }
+
+    public function test_user_profile_is_available_for_registered_user(): void
+    {
+        $user = User::factory()->create(['name' => 'Новичок Вася']);
+
+        $this->actingAs($user)
+            ->get('/users/'.rawurlencode('Новичок Вася'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Users/Show')
+                ->where('profile.nick', 'Новичок Вася')
+                ->where('profile.is_me', true)
+                ->where('profile.registered_at', $user->created_at->toDateString()));
+
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        $this->get('/users/'.rawurlencode('Новичок Вася'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('profile.is_me', false));
+    }
+
+    public function test_user_profile_returns_404_for_unknown_nick(): void
+    {
+        $this->get('/users/'.rawurlencode('Несуществующий_игрок'))->assertNotFound();
+    }
+
     public function test_me_requires_auth(): void
     {
         $this->get('/me')->assertRedirect(route('login'));

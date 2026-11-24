@@ -18,6 +18,7 @@
 | Забыли пароль | `/forgot-password` | [forgot-password.md](forgot-password.md) | Запрос ссылки на сброс | да |
 | Новый пароль | `/reset-password/{token}` | [reset-password.md](reset-password.md) | Установка пароля по ссылке | да |
 | Профиль / мои выборы | `/me` | [profile.md](profile.md) | Ник, баллы, история picks | да |
+| Профиль игрока | `/users/{ник}` | [user-profile.md](user-profile.md) | Рейтинг по периодам, чемпионаты, лучший исход, частые события | да |
 | 404 | любое неизвестное | [not-found.md](not-found.md) | Понятный тупик с выходом на матчи | да |
 | Как это работает | `/how-it-works` | [how-it-works.md](how-it-works.md) | Короткий FAQ для новичков | **позже** |
 | Команда | `/teams/{id}` | [team.md](team.md) | Карточка клуба и матчи | **позже** |

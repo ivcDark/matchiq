@@ -98,9 +98,10 @@ function formatNumber(n) {
 
             <template v-else>
                 <section class="miq-lb-podium" aria-label="Топ-3">
-                    <article
+                    <Link
                         v-for="(entry, index) in podium"
                         :key="entry.rank"
+                        :href="route('users.show', entry.name)"
                         class="miq-lb-podium-card"
                         :class="[podiumOrder[index], { 'is-me': entry.is_me }]"
                     >
@@ -114,7 +115,7 @@ function formatNumber(n) {
                             {{ formatNumber(entry.points) }}
                         </div>
                         <div class="miq-lb-podium-caption">очков</div>
-                    </article>
+                    </Link>
                 </section>
 
                 <section class="miq-panel">
@@ -151,7 +152,10 @@ function formatNumber(n) {
                                         </span>
                                     </td>
                                     <td class="is-player">
-                                        <div class="flex min-w-0 items-center gap-2.5">
+                                        <Link
+                                            :href="route('users.show', entry.name)"
+                                            class="miq-lb-player-link"
+                                        >
                                             <PlayerAvatar :name="entry.name" size="sm" />
                                             <div class="min-w-0">
                                                 <div class="flex items-center gap-1.5">
@@ -164,7 +168,7 @@ function formatNumber(n) {
                                                     {{ entry.correct }} из {{ entry.picks }} · серия {{ entry.streak }}
                                                 </div>
                                             </div>
-                                        </div>
+                                        </Link>
                                     </td>
                                     <td class="num-display hidden sm:table-cell">{{ entry.picks }}</td>
                                     <td class="num-display hidden sm:table-cell">{{ entry.correct }}</td>

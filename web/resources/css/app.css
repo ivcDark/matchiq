@@ -2196,6 +2196,203 @@
         background: color-mix(in srgb, var(--miq-cmp-lead) 22%, white);
     }
 
+    .miq-lb-podium-card {
+        @apply transition;
+    }
+
+    .miq-lb-podium-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px color-mix(in srgb, var(--miq-ink) 10%, transparent);
+    }
+
+    .miq-lb-podium-card:focus-visible,
+    .miq-lb-player-link:focus-visible {
+        outline: 2px solid var(--miq-pitch);
+        outline-offset: 2px;
+    }
+
+    .miq-lb-player-link {
+        @apply flex min-w-0 items-center gap-2.5 rounded-md;
+    }
+
+    .miq-lb-player-link:hover span.truncate {
+        color: var(--miq-pitch-deep);
+        text-decoration: underline;
+    }
+
+    /* Профиль игрока */
+    .miq-up {
+        @apply space-y-4;
+    }
+
+    .miq-up-back {
+        @apply inline-flex text-sm font-semibold text-miq-pitch transition hover:text-miq-pitch-deep;
+    }
+
+    .miq-up-hero {
+        @apply flex flex-wrap items-center gap-x-4 gap-y-3 px-3.5 py-4 sm:px-5;
+        background:
+            radial-gradient(90% 80% at 0% 0%, color-mix(in srgb, var(--miq-cmp-lead) 18%, transparent), transparent 60%),
+            color-mix(in srgb, white 76%, var(--miq-chalk));
+    }
+
+    .miq-up-hero-stats {
+        @apply flex w-full gap-6 border-t pt-3 sm:w-auto sm:border-t-0 sm:pt-0;
+        border-color: color-mix(in srgb, var(--miq-line) 70%, transparent);
+    }
+
+    .miq-up-hero-stats dt,
+    .miq-up-best-stats dt {
+        @apply text-[10px] font-semibold uppercase tracking-wider text-miq-muted;
+    }
+
+    .miq-up-hero-stats dd {
+        @apply mt-0.5 text-3xl leading-none text-miq-ink;
+    }
+
+    .miq-up-hero-stats dd.is-points,
+    .miq-up-best-stats dd.is-points {
+        color: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-up-of {
+        @apply text-xs font-semibold text-miq-muted;
+    }
+
+    .miq-up-tiles {
+        @apply grid grid-cols-2 gap-2.5 p-3.5 lg:grid-cols-4;
+    }
+
+    .miq-up-tile {
+        @apply rounded-md px-3 py-3;
+        border: 1px solid color-mix(in srgb, var(--miq-line) 75%, transparent);
+        background: color-mix(in srgb, white 78%, var(--miq-mist));
+    }
+
+    .miq-up-tile-label {
+        @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-miq-muted;
+    }
+
+    .miq-up-tile-rank {
+        @apply mt-1.5 text-3xl leading-none text-miq-ink;
+    }
+
+    .miq-up-hash {
+        @apply mr-0.5 text-lg text-miq-muted;
+    }
+
+    .miq-up-tile-points {
+        @apply mt-1.5 text-base leading-none;
+        color: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-up-tile-points span {
+        @apply text-xs font-semibold text-miq-muted;
+    }
+
+    .miq-up-tile-meta {
+        @apply mt-1 text-[11px] text-miq-muted;
+    }
+
+    .miq-up-bars {
+        @apply space-y-3 px-3.5 py-3.5;
+    }
+
+    .miq-up-bar-row {
+        @apply mb-1 flex items-baseline justify-between gap-2 text-sm;
+    }
+
+    .miq-up-bar-value {
+        @apply shrink-0 text-sm text-miq-ink;
+    }
+
+    .miq-up-bar-value span {
+        @apply text-xs font-semibold text-miq-muted;
+    }
+
+    .miq-up-bar-track {
+        @apply h-2 overflow-hidden rounded-full;
+        background: color-mix(in srgb, var(--miq-mist-deep) 85%, white);
+    }
+
+    .miq-up-bar-track.is-thin {
+        @apply mt-1 h-1.5;
+    }
+
+    .miq-up-bar-fill {
+        @apply h-full rounded-full;
+        background: color-mix(in srgb, var(--miq-cmp-lead) 70%, white);
+    }
+
+    .miq-up-bar-fill.is-lead {
+        background: var(--miq-cmp-lead);
+    }
+
+    .miq-up-best {
+        @apply px-3.5 py-3.5;
+    }
+
+    .miq-up-best-stats {
+        @apply mt-3 grid grid-cols-3 gap-2 rounded-md px-3 py-2.5;
+        border: 1px solid color-mix(in srgb, var(--miq-line) 75%, transparent);
+        background: color-mix(in srgb, white 78%, var(--miq-mist));
+    }
+
+    .miq-up-best-stats dd {
+        @apply mt-0.5 text-xl leading-none text-miq-ink sm:text-2xl;
+    }
+
+    .miq-up-cat-tabs {
+        @apply mb-3 flex gap-1 overflow-x-auto rounded-md border p-0.5;
+        border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, white 60%, transparent);
+    }
+
+    .miq-up-events-head,
+    .miq-up-events li {
+        @apply grid grid-cols-[minmax(0,1fr)_4rem_4rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_6rem];
+    }
+
+    .miq-up-events-head {
+        @apply px-0.5 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-miq-muted;
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-up-events-head span:not(:first-child),
+    .miq-up-event-count,
+    .miq-up-event-hit {
+        @apply text-right;
+    }
+
+    .miq-up-events li {
+        @apply px-0.5 py-2 text-sm;
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-up-events li:last-child {
+        border-bottom: 0;
+    }
+
+    .miq-up-event-name {
+        @apply flex min-w-0 flex-col;
+    }
+
+    .miq-up-event-count {
+        @apply text-miq-ink-soft;
+    }
+
+    .miq-up-event-hit.is-good {
+        color: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-up-event-hit.is-mid {
+        @apply text-miq-ink-soft;
+    }
+
+    .miq-up-event-hit.is-bad {
+        color: var(--miq-cmp-trail-ink);
+    }
+
     .miq-lb-cta {
         @apply rounded-md border border-dashed px-4 py-3 text-center text-sm text-miq-muted;
         border-color: color-mix(in srgb, var(--miq-line) 85%, transparent);

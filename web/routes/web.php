@@ -4,11 +4,13 @@ use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\MeController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UserProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [MatchController::class, 'index'])->name('matches.index');
 Route::get('/matches/{match}', [MatchController::class, 'show'])->name('matches.show');
 Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
+Route::get('/users/{nick}', [UserProfileController::class, 'show'])->name('users.show');
 
 Route::middleware('auth')->group(function () {
     Route::get('/me', [MeController::class, 'show'])->name('me');
