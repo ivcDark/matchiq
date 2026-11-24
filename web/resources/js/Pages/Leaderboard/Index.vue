@@ -81,6 +81,23 @@ function formatNumber(n) {
                 </div>
             </header>
 
+            <p class="miq-lb-update" role="note">
+                <svg
+                    class="miq-lb-update-icon"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                >
+                    <circle cx="10" cy="10" r="7.5" />
+                    <path d="M10 5.5V10l3 2" />
+                </svg>
+                <span>Рейтинг обновляется раз в неделю по понедельникам в 06:00 МСК</span>
+            </p>
+
             <p class="miq-lb-rules">
                 Выберите одно событие на матч до старта. Если оно сыграло — чем ниже
                 вероятность модели, тем больше очков. Промах — 0.
