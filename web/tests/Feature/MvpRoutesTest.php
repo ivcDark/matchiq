@@ -231,16 +231,6 @@ class MvpRoutesTest extends TestCase
                 ->where('currentUserRank', null));
     }
 
-    public function test_leaderboard_page_contains_update_schedule_notice(): void
-    {
-        $source = file_get_contents(resource_path('js/Pages/Leaderboard/Index.vue'));
-
-        $this->assertStringContainsString(
-            'Рейтинг обновляется раз в неделю по понедельникам в 06:00 МСК',
-            $source,
-        );
-    }
-
     public function test_leaderboard_accepts_period_and_falls_back_on_unknown(): void
     {
         $this->get('/leaderboard?period=week')

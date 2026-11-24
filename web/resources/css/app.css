@@ -2040,17 +2040,6 @@
         background: color-mix(in srgb, white 60%, transparent);
     }
 
-    .miq-lb-update {
-        @apply flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold;
-        color: var(--miq-cmp-lead-ink);
-        border-color: color-mix(in srgb, var(--miq-cmp-lead) 55%, white);
-        background: color-mix(in srgb, var(--miq-cmp-lead) 14%, white);
-    }
-
-    .miq-lb-update-icon {
-        @apply h-4 w-4 shrink-0;
-    }
-
     .miq-lb-rules {
         @apply text-sm text-miq-ink-soft;
     }
