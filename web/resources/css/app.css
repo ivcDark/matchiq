@@ -2458,11 +2458,11 @@
     }
 
     .miq-tt-table .miq-form-chip {
-        @apply h-3.5 w-3.5 text-[8px];
+        @apply h-[18px] w-[18px] rounded text-[10px];
     }
 
     .miq-tt-table .miq-table-form {
-        @apply gap-px;
+        @apply gap-[3px];
     }
 
     .miq-tt-standings .miq-panel-head {
