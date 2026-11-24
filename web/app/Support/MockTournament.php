@@ -6,7 +6,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
 /**
- * Моковый турнир для страницы /tournaments/{id}: шапка, таблица, лучшие команды, вклад игроков и топ-списки.
+ * Моковый турнир для страницы /tournaments/{id}: шапка, матчи (таблица, форма, расписание, результаты), лучшие команды, вклад игроков и топ-списки.
  * Сейчас доступен один турнир — РПЛ (id = 1). Игроки в моках вымышленные.
  */
 class MockTournament
@@ -43,25 +43,150 @@ class MockTournament
         ['id' => 'relegation', 'label' => 'Вылет', 'from' => 15, 'to' => 16],
     ];
 
-    /** Команда, В, Н, П, забито, пропущено, форма (слева старше, справа свежее). */
-    private const TEAMS = [
-        ['Зенит', 10, 4, 1, 30, 10, ['В', 'В', 'Н', 'В', 'В']],
-        ['Краснодар', 9, 4, 2, 26, 12, ['В', 'Н', 'В', 'В', 'П']],
-        ['Спартак', 9, 3, 3, 27, 15, ['П', 'В', 'В', 'В', 'Н']],
-        ['ЦСКА', 8, 4, 3, 24, 14, ['В', 'Н', 'В', 'П', 'В']],
-        ['Динамо', 7, 5, 3, 21, 15, ['Н', 'В', 'П', 'В', 'В']],
-        ['Локомотив', 7, 4, 4, 20, 17, ['В', 'В', 'Н', 'Н', 'П']],
-        ['Ростов', 6, 5, 4, 19, 18, ['П', 'В', 'Н', 'В', 'Н']],
-        ['Рубин', 5, 6, 4, 17, 17, ['Н', 'П', 'В', 'Н', 'В']],
-        ['Крылья Советов', 5, 5, 5, 17, 19, ['Н', 'В', 'П', 'Н', 'П']],
-        ['Динамо Мх', 4, 6, 5, 16, 18, ['В', 'Н', 'П', 'В', 'Н']],
-        ['Акрон', 4, 5, 6, 15, 20, ['П', 'Н', 'П', 'В', 'Н']],
-        ['Оренбург', 3, 5, 7, 14, 21, ['Н', 'П', 'П', 'В', 'П']],
-        ['Ахмат', 3, 4, 8, 14, 19, ['П', 'Н', 'В', 'П', 'П']],
-        ['Пари НН', 2, 4, 9, 12, 22, ['П', 'П', 'Н', 'П', 'В']],
-        ['Торпедо', 2, 3, 10, 11, 26, ['П', 'П', 'Н', 'П', 'П']],
-        ['Сочи', 1, 3, 11, 9, 29, ['П', 'Н', 'П', 'П', 'П']],
+    /** Сколько туров уже сыграно: тур 15 из 30 (16 команд, два круга). */
+    public const ROUNDS_PLAYED = 15;
+
+    public const ROUNDS_TOTAL = 30;
+
+    /**
+     * Результаты первого круга (туры 1–15): тур, хозяева, гости, голы хозяев, голы гостей.
+     * Единственный источник турнирной таблицы, формы и результатов; второй круг (туры 16–30) —
+     * те же пары с обратным полем, ещё не сыгран.
+     */
+    private const MATCHES = [
+        [1, 'Зенит', 'Сочи', 3, 2],
+        [1, 'Торпедо', 'Краснодар', 0, 2],
+        [1, 'Спартак', 'Пари НН', 3, 1],
+        [1, 'Ахмат', 'ЦСКА', 0, 1],
+        [1, 'Динамо', 'Оренбург', 3, 3],
+        [1, 'Акрон', 'Локомотив', 3, 1],
+        [1, 'Ростов', 'Динамо Мх', 3, 1],
+        [1, 'Крылья Советов', 'Рубин', 2, 2],
+        [2, 'Торпедо', 'Зенит', 1, 4],
+        [2, 'Пари НН', 'Сочи', 0, 0],
+        [2, 'Ахмат', 'Краснодар', 1, 2],
+        [2, 'Спартак', 'Оренбург', 2, 0],
+        [2, 'Акрон', 'ЦСКА', 0, 1],
+        [2, 'Динамо', 'Динамо Мх', 3, 2],
+        [2, 'Крылья Советов', 'Локомотив', 3, 2],
+        [2, 'Ростов', 'Рубин', 0, 0],
+        [3, 'Зенит', 'Пари НН', 2, 0],
+        [3, 'Ахмат', 'Торпедо', 4, 1],
+        [3, 'Оренбург', 'Сочи', 3, 1],
+        [3, 'Акрон', 'Краснодар', 0, 1],
+        [3, 'Спартак', 'Динамо Мх', 3, 0],
+        [3, 'Крылья Советов', 'ЦСКА', 0, 3],
+        [3, 'Рубин', 'Динамо', 0, 0],
+        [3, 'Локомотив', 'Ростов', 0, 0],
+        [4, 'Ахмат', 'Зенит', 0, 1],
+        [4, 'Пари НН', 'Оренбург', 0, 0],
+        [4, 'Акрон', 'Торпедо', 2, 0],
+        [4, 'Сочи', 'Динамо Мх', 0, 0],
+        [4, 'Крылья Советов', 'Краснодар', 1, 1],
+        [4, 'Спартак', 'Рубин', 1, 3],
+        [4, 'Ростов', 'ЦСКА', 4, 1],
+        [4, 'Динамо', 'Локомотив', 0, 0],
+        [5, 'Зенит', 'Оренбург', 3, 0],
+        [5, 'Акрон', 'Ахмат', 0, 0],
+        [5, 'Пари НН', 'Динамо Мх', 1, 1],
+        [5, 'Крылья Советов', 'Торпедо', 3, 4],
+        [5, 'Сочи', 'Рубин', 3, 1],
+        [5, 'Краснодар', 'Ростов', 3, 0],
+        [5, 'Локомотив', 'Спартак', 4, 3],
+        [5, 'ЦСКА', 'Динамо', 2, 1],
+        [6, 'Акрон', 'Зенит', 1, 3],
+        [6, 'Оренбург', 'Динамо Мх', 1, 4],
+        [6, 'Крылья Советов', 'Ахмат', 1, 1],
+        [6, 'Пари НН', 'Рубин', 4, 2],
+        [6, 'Ростов', 'Торпедо', 0, 0],
+        [6, 'Сочи', 'Локомотив', 0, 4],
+        [6, 'Краснодар', 'Динамо', 0, 0],
+        [6, 'ЦСКА', 'Спартак', 1, 3],
+        [7, 'Зенит', 'Динамо Мх', 3, 0],
+        [7, 'Крылья Советов', 'Акрон', 1, 1],
+        [7, 'Оренбург', 'Рубин', 0, 1],
+        [7, 'Ростов', 'Ахмат', 2, 1],
+        [7, 'Локомотив', 'Пари НН', 1, 0],
+        [7, 'Торпедо', 'Динамо', 0, 1],
+        [7, 'ЦСКА', 'Сочи', 0, 0],
+        [7, 'Краснодар', 'Спартак', 0, 0],
+        [8, 'Крылья Советов', 'Зенит', 0, 1],
+        [8, 'Динамо Мх', 'Рубин', 0, 0],
+        [8, 'Ростов', 'Акрон', 2, 2],
+        [8, 'Оренбург', 'Локомотив', 0, 1],
+        [8, 'Динамо', 'Ахмат', 3, 1],
+        [8, 'ЦСКА', 'Пари НН', 3, 0],
+        [8, 'Торпедо', 'Спартак', 0, 0],
+        [8, 'Краснодар', 'Сочи', 4, 1],
+        [9, 'Зенит', 'Рубин', 0, 0],
+        [9, 'Ростов', 'Крылья Советов', 0, 2],
+        [9, 'Динамо Мх', 'Локомотив', 3, 0],
+        [9, 'Динамо', 'Акрон', 2, 1],
+        [9, 'ЦСКА', 'Оренбург', 2, 2],
+        [9, 'Ахмат', 'Спартак', 0, 0],
+        [9, 'Краснодар', 'Пари НН', 3, 0],
+        [9, 'Торпедо', 'Сочи', 2, 0],
+        [10, 'Ростов', 'Зенит', 1, 3],
+        [10, 'Рубин', 'Локомотив', 2, 1],
+        [10, 'Динамо', 'Крылья Советов', 2, 0],
+        [10, 'Динамо Мх', 'ЦСКА', 0, 2],
+        [10, 'Акрон', 'Спартак', 1, 0],
+        [10, 'Краснодар', 'Оренбург', 2, 0],
+        [10, 'Ахмат', 'Сочи', 4, 1],
+        [10, 'Торпедо', 'Пари НН', 0, 0],
+        [11, 'Зенит', 'Локомотив', 0, 0],
+        [11, 'Динамо', 'Ростов', 0, 2],
+        [11, 'Рубин', 'ЦСКА', 0, 2],
+        [11, 'Спартак', 'Крылья Советов', 2, 1],
+        [11, 'Динамо Мх', 'Краснодар', 0, 0],
+        [11, 'Сочи', 'Акрон', 0, 1],
+        [11, 'Торпедо', 'Оренбург', 0, 1],
+        [11, 'Ахмат', 'Пари НН', 1, 0],
+        [12, 'Динамо', 'Зенит', 1, 1],
+        [12, 'Локомотив', 'ЦСКА', 0, 0],
+        [12, 'Спартак', 'Ростов', 3, 0],
+        [12, 'Рубин', 'Краснодар', 1, 3],
+        [12, 'Сочи', 'Крылья Советов', 0, 1],
+        [12, 'Динамо Мх', 'Торпедо', 1, 0],
+        [12, 'Пари НН', 'Акрон', 4, 1],
+        [12, 'Оренбург', 'Ахмат', 0, 0],
+        [13, 'Зенит', 'ЦСКА', 0, 0],
+        [13, 'Спартак', 'Динамо', 2, 1],
+        [13, 'Локомотив', 'Краснодар', 1, 0],
+        [13, 'Сочи', 'Ростов', 0, 2],
+        [13, 'Рубин', 'Торпедо', 1, 0],
+        [13, 'Пари НН', 'Крылья Советов', 0, 1],
+        [13, 'Динамо Мх', 'Ахмат', 2, 0],
+        [13, 'Оренбург', 'Акрон', 3, 0],
+        [14, 'Спартак', 'Зенит', 3, 2],
+        [14, 'ЦСКА', 'Краснодар', 3, 4],
+        [14, 'Сочи', 'Динамо', 0, 2],
+        [14, 'Локомотив', 'Торпедо', 4, 3],
+        [14, 'Пари НН', 'Ростов', 1, 2],
+        [14, 'Рубин', 'Ахмат', 4, 1],
+        [14, 'Оренбург', 'Крылья Советов', 0, 1],
+        [14, 'Динамо Мх', 'Акрон', 2, 2],
+        [15, 'Краснодар', 'Зенит', 1, 4],
+        [15, 'Сочи', 'Спартак', 1, 2],
+        [15, 'ЦСКА', 'Торпедо', 3, 0],
+        [15, 'Пари НН', 'Динамо', 1, 2],
+        [15, 'Локомотив', 'Ахмат', 1, 0],
+        [15, 'Оренбург', 'Ростов', 1, 1],
+        [15, 'Рубин', 'Акрон', 0, 0],
+        [15, 'Динамо Мх', 'Крылья Советов', 0, 0],
     ];
+
+    /** Слоты матчей внутри тура: сдвиг в днях от субботы и время начала. */
+    private const SLOTS = [
+        [-1, '19:00'], [0, '12:30'], [0, '15:00'], [0, '17:30'],
+        [0, '20:00'], [1, '12:30'], [1, '15:00'], [1, '17:30'],
+    ];
+
+    /** Доля собственных показателей команды в прогнозе (остальное — среднее по лиге): сглаживает выборку из 15 матчей. */
+    private const RATE_WEIGHT = 0.55;
+
+    /** Подписи форм: результат с точки зрения команды. */
+    private const RESULT_LETTERS = ['win' => 'В', 'draw' => 'Н', 'loss' => 'П'];
 
     /** Фамилия И., команда, позиция, матчей, минут, голов, пенальти, передач, средняя оценка, сухих матчей. */
     private const PLAYERS = [
@@ -169,16 +294,29 @@ class MockTournament
             return null;
         }
 
+        $date ??= Carbon::now();
+        $startYear = self::startYear($date);
+        $matches = self::allMatches($startYear);
+        $played = array_values(array_filter($matches, static fn (array $m) => $m['home_goals'] !== null));
+
         $players = array_map(self::player(...), self::PLAYERS);
-        $standings = self::standings();
+        $byContext = [];
+        foreach (self::CONTEXTS as $context) {
+            $byContext[$context] = self::standings($played, $context);
+        }
+        $standings = $byContext['overall'];
 
         return [
-            'tournament' => self::header($date ?? Carbon::now()),
+            'tournament' => self::header($startYear),
             'zones' => array_map(
                 static fn (array $z) => ['id' => $z['id'], 'label' => $z['label'], 'range' => self::zoneRange($z)],
                 self::ZONES,
             ),
             'standings' => $standings,
+            'standingsByContext' => $byContext,
+            'teamForm' => self::teamForm($played, $standings),
+            'schedule' => self::schedule($matches, $standings),
+            'results' => self::results($played),
             'attackDefense' => self::attackDefense($standings),
             'leaders' => [
                 'scorers' => self::scorers($players),
@@ -189,7 +327,7 @@ class MockTournament
                 'ratings' => self::ratings($players),
             ],
             'teamStats' => self::teamStatsByContext(),
-            'contribution' => self::contributionByContext($players),
+            'contribution' => self::contributionByContext($players, $standings),
             'thresholds' => [
                 'minutes_scoring' => self::MIN_MINUTES_SCORING,
                 'minutes_goalkeeper' => self::MIN_MINUTES_GOALKEEPER,
@@ -203,20 +341,24 @@ class MockTournament
      *
      * @return array<string, mixed>
      */
-    private static function header(CarbonInterface $date): array
+    private static function header(int $startYear): array
     {
-        $startYear = $date->month >= 7 ? $date->year : $date->year - 1;
-
         return [
             'id' => self::RPL_ID,
             'name' => 'РПЛ',
             'full_name' => 'Российская Премьер-Лига',
             'country' => 'Россия',
             'season' => sprintf('%d/%02d', $startYear, ($startYear + 1) % 100),
-            'round' => 15,
-            'rounds_total' => 30,
+            'round' => self::ROUNDS_PLAYED,
+            'next_round' => self::ROUNDS_PLAYED + 1,
+            'rounds_total' => self::ROUNDS_TOTAL,
             'stage' => 'Регулярный чемпионат',
         ];
+    }
+
+    private static function startYear(CarbonInterface $date): int
+    {
+        return $date->month >= 7 ? $date->year : $date->year - 1;
     }
 
     /**
@@ -230,36 +372,333 @@ class MockTournament
     }
 
     /**
+     * Все 30 туров: сыгранные (первый круг, с голами) и предстоящие (второй круг, голы null),
+     * с датой и временем начала. Даты привязаны к сезону: зимний перерыв между 18 и 19 турами.
+     *
      * @return list<array<string, mixed>>
      */
-    private static function standings(): array
+    private static function allMatches(int $startYear): array
     {
-        $rows = array_map(static function (array $t): array {
-            [$team, $wins, $draws, $losses, $gf, $ga, $form] = $t;
-
-            return [
-                'team' => $team,
-                'played' => $wins + $draws + $losses,
-                'wins' => $wins,
-                'draws' => $draws,
-                'losses' => $losses,
-                'gf' => $gf,
-                'ga' => $ga,
-                'gd' => $gf - $ga,
-                'pts' => $wins * 3 + $draws,
-                'form' => $form,
+        $fixtures = [];
+        foreach (self::MATCHES as [$round, $home, $away, $homeGoals, $awayGoals]) {
+            $fixtures[] = [
+                'round' => $round,
+                'home' => $home,
+                'away' => $away,
+                'home_goals' => $homeGoals,
+                'away_goals' => $awayGoals,
             ];
-        }, self::TEAMS);
+        }
+        foreach (self::MATCHES as [$round, $home, $away]) {
+            $fixtures[] = [
+                'round' => $round + self::ROUNDS_PLAYED,
+                'home' => $away,
+                'away' => $home,
+                'home_goals' => null,
+                'away_goals' => null,
+            ];
+        }
 
-        usort($rows, static fn (array $a, array $b) => [$b['pts'], $b['gd'], $b['gf']] <=> [$a['pts'], $a['gd'], $a['gf']]);
+        $slots = [];
+        foreach ($fixtures as &$fixture) {
+            $slot = $slots[$fixture['round']] = ($slots[$fixture['round']] ?? -1) + 1;
+            [$offset, $time] = self::SLOTS[$slot % count(self::SLOTS)];
+            $fixture['date'] = self::saturday($startYear, $fixture['round'])->addDays($offset)->format('Y-m-d');
+            $fixture['time'] = $time;
+        }
+        unset($fixture);
+
+        return $fixtures;
+    }
+
+    private static function saturday(int $startYear, int $round): CarbonInterface
+    {
+        return $round <= 18
+            ? Carbon::create($startYear, 8, 14)->next(CarbonInterface::SATURDAY)->addWeeks($round - 1)
+            : Carbon::create($startYear + 1, 3, 5)->next(CarbonInterface::SATURDAY)->addWeeks($round - 19);
+    }
+
+    /**
+     * Турнирная таблица по сыгранным матчам: «overall» — все, «home» — только домашние, «away» — только гостевые.
+     * Форма — результаты последних 5 матчей в этом контексте (слева старше, справа свежее).
+     * Зоны (еврокубки, вылет) размечены только в общей таблице.
+     *
+     * @param  list<array<string, mixed>>  $played  в хронологическом порядке
+     * @return list<array<string, mixed>>
+     */
+    private static function standings(array $played, string $context = 'overall'): array
+    {
+        $stats = [];
+        foreach ($played as $m) {
+            foreach (['home' => 'away', 'away' => 'home'] as $side => $other) {
+                if ($context !== 'overall' && $context !== $side) {
+                    continue;
+                }
+                $gf = $m[$side.'_goals'];
+                $ga = $m[$other.'_goals'];
+                $s = &$stats[$m[$side]];
+                $s ??= ['wins' => 0, 'draws' => 0, 'losses' => 0, 'gf' => 0, 'ga' => 0, 'form' => []];
+                $s['gf'] += $gf;
+                $s['ga'] += $ga;
+                $result = self::resultOf($gf, $ga);
+                $s[['В' => 'wins', 'Н' => 'draws', 'П' => 'losses'][$result]]++;
+                $s['form'][] = $result;
+                unset($s);
+            }
+        }
+
+        $rows = [];
+        foreach ($stats as $team => $s) {
+            $rows[] = [
+                'team' => $team,
+                'played' => $s['wins'] + $s['draws'] + $s['losses'],
+                'wins' => $s['wins'],
+                'draws' => $s['draws'],
+                'losses' => $s['losses'],
+                'gf' => $s['gf'],
+                'ga' => $s['ga'],
+                'gd' => $s['gf'] - $s['ga'],
+                'pts' => $s['wins'] * 3 + $s['draws'],
+                'form' => array_slice($s['form'], -5),
+            ];
+        }
+
+        usort($rows, static fn (array $a, array $b) => [$b['pts'], $b['gd'], $b['gf'], $a['team']] <=> [$a['pts'], $a['gd'], $a['gf'], $b['team']]);
 
         foreach ($rows as $i => &$row) {
             $pos = $i + 1;
-            $row = ['pos' => $pos] + $row + ['zone' => self::zoneFor($pos)];
+            $row = ['pos' => $pos] + $row + ['zone' => $context === 'overall' ? self::zoneFor($pos) : null];
         }
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * Результат команды: В / Н / П по забитым и пропущенным.
+     */
+    private static function resultOf(int $gf, int $ga): string
+    {
+        return $gf > $ga ? self::RESULT_LETTERS['win'] : ($gf < $ga ? self::RESULT_LETTERS['loss'] : self::RESULT_LETTERS['draw']);
+    }
+
+    /**
+     * Форма всех команд по всем сыгранным матчам в хронологическом порядке; команды — как в турнирной таблице.
+     *
+     * @param  list<array<string, mixed>>  $played
+     * @param  list<array<string, mixed>>  $standings
+     * @return list<array<string, mixed>>
+     */
+    private static function teamForm(array $played, array $standings): array
+    {
+        $byTeam = [];
+        foreach ($played as $m) {
+            foreach (['home' => 'away', 'away' => 'home'] as $side => $other) {
+                $gf = $m[$side.'_goals'];
+                $ga = $m[$other.'_goals'];
+                $byTeam[$m[$side]][] = [
+                    'round' => $m['round'],
+                    'result' => self::resultOf($gf, $ga),
+                    'venue' => $side,
+                    'opponent' => $m[$other],
+                    'score' => $gf.':'.$ga,
+                    'date' => $m['date'],
+                ];
+            }
+        }
+
+        return array_map(static fn (array $row) => [
+            'pos' => $row['pos'],
+            'team' => $row['team'],
+            'matches' => $byTeam[$row['team']] ?? [],
+        ], $standings);
+    }
+
+    /**
+     * Сыгранные туры: от последнего к первому, матчи в хронологическом порядке внутри тура.
+     *
+     * @param  list<array<string, mixed>>  $played
+     * @return list<array<string, mixed>>
+     */
+    private static function results(array $played): array
+    {
+        $rounds = [];
+        foreach ($played as $m) {
+            $rounds[$m['round']][] = [
+                'home' => $m['home'],
+                'away' => $m['away'],
+                'home_goals' => $m['home_goals'],
+                'away_goals' => $m['away_goals'],
+                'date' => $m['date'],
+                'time' => $m['time'],
+            ];
+        }
+        krsort($rounds);
+
+        return self::roundBlocks($rounds);
+    }
+
+    /**
+     * Предстоящие туры по порядку. Только у ближайшего тура — вероятности П1 / Х / П2 и топ-рынок,
+     * как в списке матчей на главной; считаются по голам команд (модель Пуассона, преимущество поля).
+     *
+     * @param  list<array<string, mixed>>  $matches
+     * @param  list<array<string, mixed>>  $standings
+     * @return list<array<string, mixed>>
+     */
+    private static function schedule(array $matches, array $standings): array
+    {
+        $next = self::ROUNDS_PLAYED + 1;
+        $rates = self::goalRates($standings);
+
+        $rounds = [];
+        foreach ($matches as $m) {
+            if ($m['home_goals'] !== null) {
+                continue;
+            }
+            $row = [
+                'home' => $m['home'],
+                'away' => $m['away'],
+                'date' => $m['date'],
+                'time' => $m['time'],
+            ];
+            if ($m['round'] === $next) {
+                $row += self::forecast($rates[$m['home']], $rates[$m['away']], $rates['_avg']);
+            }
+            $rounds[$m['round']][] = $row;
+        }
+
+        $blocks = self::roundBlocks($rounds);
+        foreach ($blocks as &$block) {
+            $block['is_next'] = $block['round'] === $next;
+        }
+        unset($block);
+
+        return $blocks;
+    }
+
+    /**
+     * @param  array<int, list<array<string, mixed>>>  $rounds  тур → матчи
+     * @return list<array<string, mixed>>
+     */
+    private static function roundBlocks(array $rounds): array
+    {
+        $blocks = [];
+        foreach ($rounds as $round => $matches) {
+            usort($matches, static fn (array $a, array $b) => [$a['date'], $a['time']] <=> [$b['date'], $b['time']]);
+            $blocks[] = [
+                'round' => $round,
+                'date_from' => $matches[0]['date'],
+                'date_to' => $matches[array_key_last($matches)]['date'],
+                'matches' => $matches,
+            ];
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * Забито / пропущено за матч у каждой команды и среднее число голов команды за матч по лиге.
+     *
+     * @param  list<array<string, mixed>>  $standings
+     * @return array<string, mixed>
+     */
+    private static function goalRates(array $standings): array
+    {
+        $rates = [];
+        $goals = 0;
+        $games = 0;
+        foreach ($standings as $row) {
+            $rates[$row['team']] = ['gf' => $row['gf'] / $row['played'], 'ga' => $row['ga'] / $row['played']];
+            $goals += $row['gf'];
+            $games += $row['played'];
+        }
+        $avg = $goals / $games;
+        foreach ($rates as &$rate) {
+            $rate = [
+                'gf' => $avg + self::RATE_WEIGHT * ($rate['gf'] - $avg),
+                'ga' => $avg + self::RATE_WEIGHT * ($rate['ga'] - $avg),
+            ];
+        }
+        unset($rate);
+        $rates['_avg'] = $avg;
+
+        return $rates;
+    }
+
+    /**
+     * Вероятности 1X2 и рынка из ожидаемых голов: сила атаки × слабость защиты соперника × средний уровень лиги.
+     *
+     * @param  array{gf: float, ga: float}  $home
+     * @param  array{gf: float, ga: float}  $away
+     * @return array{prob_home: int, prob_draw: int, prob_away: int, top_market: array{label: string, prob: int}}
+     */
+    private static function forecast(array $home, array $away, float $avg): array
+    {
+        $homeAdvantage = 1.12;
+        $lambdaHome = $avg * ($home['gf'] / $avg) * ($away['ga'] / $avg) * $homeAdvantage;
+        $lambdaAway = $avg * ($away['gf'] / $avg) * ($home['ga'] / $avg) / $homeAdvantage;
+
+        $pmf = static function (float $lambda): array {
+            $p = [exp(-$lambda)];
+            for ($k = 1; $k <= 10; $k++) {
+                $p[$k] = $p[$k - 1] * $lambda / $k;
+            }
+
+            return $p;
+        };
+        $ph = $pmf($lambdaHome);
+        $pa = $pmf($lambdaAway);
+
+        $win = $draw = $loss = $over = $both = $total = 0.0;
+        foreach ($ph as $h => $x) {
+            foreach ($pa as $a => $y) {
+                $p = $x * $y;
+                $total += $p;
+                if ($h > $a) {
+                    $win += $p;
+                } elseif ($h < $a) {
+                    $loss += $p;
+                } else {
+                    $draw += $p;
+                }
+                if ($h + $a >= 3) {
+                    $over += $p;
+                }
+                if ($h > 0 && $a > 0) {
+                    $both += $p;
+                }
+            }
+        }
+
+        [$p1, $px, $p2] = self::percentages([$win / $total, $draw / $total, $loss / $total]);
+
+        $markets = [
+            ['label' => 'ТБ 2.5', 'prob' => (int) round($over / $total * 100)],
+            ['label' => 'ТМ 2.5', 'prob' => 100 - (int) round($over / $total * 100)],
+            ['label' => 'Обе забьют', 'prob' => (int) round($both / $total * 100)],
+        ];
+        usort($markets, static fn (array $a, array $b) => $b['prob'] <=> $a['prob']);
+
+        return ['prob_home' => $p1, 'prob_draw' => $px, 'prob_away' => $p2, 'top_market' => $markets[0]];
+    }
+
+    /**
+     * Доли → целые проценты ровно на 100 (метод наибольших остатков).
+     *
+     * @param  list<float>  $shares
+     * @return list<int>
+     */
+    private static function percentages(array $shares): array
+    {
+        $floors = array_map(static fn (float $s) => (int) floor($s * 100), $shares);
+        $order = array_keys($shares);
+        usort($order, static fn (int $a, int $b) => ($shares[$b] * 100 - $floors[$b]) <=> ($shares[$a] * 100 - $floors[$a]));
+        for ($i = 0, $left = 100 - array_sum($floors); $i < $left; $i++) {
+            $floors[$order[$i]]++;
+        }
+
+        return $floors;
     }
 
     private static function zoneFor(int $pos): ?string
@@ -566,14 +1005,12 @@ class MockTournament
      * Голы команды и игроков делятся на дома / в гостях одним коэффициентом команды; голы игрока не больше голов команды.
      *
      * @param  list<array<string, mixed>>  $players
+     * @param  list<array<string, mixed>>  $standings
      * @return array<string, list<array<string, mixed>>>
      */
-    private static function contributionByContext(array $players): array
+    private static function contributionByContext(array $players, array $standings): array
     {
-        $teamGoals = [];
-        foreach (self::TEAMS as $t) {
-            $teamGoals[$t[0]] = $t[4];
-        }
+        $teamGoals = array_column($standings, 'gf', 'team');
 
         $result = [];
         foreach (self::CONTEXTS as $context) {

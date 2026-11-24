@@ -1,23 +1,26 @@
 <script setup>
-defineProps({
+import { computed } from 'vue';
+
+const props = defineProps({
     modelValue: { type: String, required: true },
     label: { type: String, default: 'Просмотр' },
+    overallLabel: { type: String, default: 'В целом' },
 });
 
 defineEmits(['update:modelValue']);
 
-const OPTIONS = [
-    { id: 'overall', label: 'В целом' },
+const options = computed(() => [
+    { id: 'overall', label: props.overallLabel },
     { id: 'home', label: 'Хозяева' },
     { id: 'away', label: 'Гости' },
-];
+]);
 </script>
 
 <template>
     <div class="miq-tt-tabs" role="group" :aria-label="label">
         <span class="miq-tt-tabs-label">{{ label }}:</span>
         <button
-            v-for="option in OPTIONS"
+            v-for="option in options"
             :key="option.id"
             type="button"
             class="miq-tt-tab"

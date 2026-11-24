@@ -21,6 +21,21 @@ class TournamentPageTest extends TestCase
                 ->has('tournament.stage')
                 ->has('zones', 5)
                 ->has('standings', 16)
+                ->has('standingsByContext.overall', 16)
+                ->has('standingsByContext.home', 16)
+                ->has('standingsByContext.away', 16)
+                ->has('teamForm', 16)
+                ->has('teamForm.0.matches', 15)
+                ->has('schedule', 15)
+                ->where('schedule.0.round', 16)
+                ->where('schedule.0.is_next', true)
+                ->has('schedule.0.matches', 8)
+                ->has('schedule.0.matches.0.prob_home')
+                ->has('schedule.0.matches.0.top_market')
+                ->has('results', 15)
+                ->where('results.0.round', 15)
+                ->has('results.0.matches', 8)
+                ->where('tournament.next_round', 16)
                 ->has('leaders.scorers')
                 ->has('leaders.assists')
                 ->has('leaders.fastScorers')
@@ -304,5 +319,148 @@ class TournamentPageTest extends TestCase
         $this->assertSame('2026/27', MockTournament::find(1, now()->setDate(2026, 11, 24))['tournament']['season']);
         $this->assertSame('2026/27', MockTournament::find(1, now()->setDate(2027, 3, 1))['tournament']['season']);
         $this->assertSame('2027/28', MockTournament::find(1, now()->setDate(2027, 7, 1))['tournament']['season']);
+    }
+
+    public function test_standings_are_built_from_matches(): void
+    {
+        $zenit = collect(MockTournament::find(1)['standings'])->firstWhere('team', 'Зенит');
+
+        $this->assertSame(1, $zenit['pos']);
+        $this->assertSame([15, 10, 4, 1, 30, 10, 34], [
+            $zenit['played'], $zenit['wins'], $zenit['draws'], $zenit['losses'], $zenit['gf'], $zenit['ga'], $zenit['pts'],
+        ]);
+    }
+
+    public function test_home_and_away_tables_split_the_overall_table(): void
+    {
+        $tables = MockTournament::find(1)['standingsByContext'];
+        $sum = static fn (string $context, string $field) => collect($tables[$context])->pluck($field, 'team');
+
+        foreach (['played', 'wins', 'draws', 'losses', 'gf', 'ga', 'pts'] as $field) {
+            foreach ($sum('overall', $field) as $team => $total) {
+                $this->assertSame($total, $sum('home', $field)[$team] + $sum('away', $field)[$team], "$team/$field");
+            }
+        }
+
+        foreach (['home', 'away'] as $context) {
+            $rows = $tables[$context];
+            $this->assertSame(range(1, 16), array_column($rows, 'pos'));
+            $pts = array_column($rows, 'pts');
+            $sorted = $pts;
+            rsort($sorted);
+            $this->assertSame($sorted, $pts, "$context: по убыванию очков");
+            $this->assertContains(array_sum(array_column($rows, 'played')), [120]);
+            $this->assertSame([null], array_unique(array_column($rows, 'zone')), 'зоны только в общей таблице');
+            foreach ($rows as $row) {
+                $this->assertContains($row['played'], [7, 8]);
+                $this->assertLessThanOrEqual(5, count($row['form']));
+            }
+        }
+
+        $this->assertNotSame(
+            array_column($tables['home'], 'team'),
+            array_column($tables['away'], 'team'),
+            'таблицы хозяев и гостей различаются',
+        );
+        $this->assertSame(MockTournament::find(1)['standings'], $tables['overall']);
+    }
+
+    public function test_team_form_covers_every_played_match_in_order(): void
+    {
+        $data = MockTournament::find(1);
+        $standings = collect($data['standings'])->keyBy('team');
+
+        $this->assertSame(array_column($data['standings'], 'team'), array_column($data['teamForm'], 'team'));
+
+        foreach ($data['teamForm'] as $team) {
+            $row = $standings[$team['team']];
+            $this->assertCount($row['played'], $team['matches']);
+            $this->assertSame(range(1, 15), array_column($team['matches'], 'round'));
+
+            $letters = array_count_values(array_column($team['matches'], 'result'));
+            $this->assertSame($row['wins'], $letters['В'] ?? 0, $team['team']);
+            $this->assertSame($row['draws'], $letters['Н'] ?? 0, $team['team']);
+            $this->assertSame($row['losses'], $letters['П'] ?? 0, $team['team']);
+            $this->assertSame(array_slice(array_column($team['matches'], 'result'), -5), $row['form']);
+        }
+    }
+
+    public function test_every_round_has_each_team_once(): void
+    {
+        $data = MockTournament::find(1);
+
+        foreach ([...$data['schedule'], ...$data['results']] as $round) {
+            $teams = [];
+            foreach ($round['matches'] as $m) {
+                array_push($teams, $m['home'], $m['away']);
+            }
+            $this->assertCount(16, array_unique($teams), 'тур '.$round['round']);
+            $this->assertCount(8, $round['matches']);
+        }
+        $this->assertSame(range(16, 30), array_column($data['schedule'], 'round'));
+        $this->assertSame(range(15, 1), array_column($data['results'], 'round'));
+    }
+
+    public function test_results_are_played_and_before_schedule(): void
+    {
+        $data = MockTournament::find(1);
+
+        foreach ($data['results'] as $round) {
+            foreach ($round['matches'] as $m) {
+                $this->assertIsInt($m['home_goals']);
+                $this->assertIsInt($m['away_goals']);
+                $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', $m['date']);
+                $this->assertMatchesRegularExpression('/^\d{2}:\d{2}$/', $m['time']);
+            }
+        }
+
+        $lastResult = max(array_column($data['results'][0]['matches'], 'date'));
+        $firstFixture = min(array_column($data['schedule'][0]['matches'], 'date'));
+        $this->assertLessThan($firstFixture, $lastResult);
+    }
+
+    public function test_only_next_round_has_probabilities_summing_to_100(): void
+    {
+        $schedule = MockTournament::find(1)['schedule'];
+
+        foreach ($schedule[0]['matches'] as $m) {
+            $this->assertSame(100, $m['prob_home'] + $m['prob_draw'] + $m['prob_away']);
+            $this->assertGreaterThanOrEqual(0, $m['prob_draw']);
+            $this->assertNotEmpty($m['top_market']['label']);
+            $this->assertGreaterThan(0, $m['top_market']['prob']);
+            $this->assertLessThanOrEqual(100, $m['top_market']['prob']);
+            $this->assertArrayNotHasKey('home_goals', $m);
+        }
+
+        foreach (array_slice($schedule, 1) as $round) {
+            $this->assertFalse($round['is_next']);
+            foreach ($round['matches'] as $m) {
+                $this->assertArrayNotHasKey('prob_home', $m);
+            }
+        }
+    }
+
+    public function test_second_round_mirrors_first_with_swapped_venues(): void
+    {
+        $data = MockTournament::find(1);
+        $first = collect($data['results'])->flatMap(fn ($r) => $r['matches'])->map(fn ($m) => $m['home'].'|'.$m['away'])->sort()->values();
+        $second = collect($data['schedule'])->flatMap(fn ($r) => $r['matches'])->map(fn ($m) => $m['away'].'|'.$m['home'])->sort()->values();
+
+        $this->assertCount(120, $first);
+        $this->assertSame($first->all(), $second->all());
+    }
+
+    public function test_page_has_section_nav_with_stats_by_default(): void
+    {
+        $page = file_get_contents(resource_path('js/Pages/Tournaments/Show.vue'));
+
+        foreach (['Статистика', 'Турнирная таблица', 'Форма команд', 'Расписание', 'Результаты'] as $label) {
+            $this->assertStringContainsString("label: '$label'", $page);
+        }
+        $this->assertStringContainsString("DEFAULT_SECTION = SECTIONS[0].id", $page);
+        $this->assertStringContainsString("{ id: 'stats', label: 'Статистика' }", $page);
+
+        $standings = file_get_contents(resource_path('js/Components/TournamentStandings.vue'));
+        $this->assertStringContainsString('overall-label="Все"', $standings);
     }
 }

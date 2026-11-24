@@ -1,16 +1,25 @@
 <script setup>
 import TournamentAttackDefense from '@/Components/TournamentAttackDefense.vue';
 import TournamentContribution from '@/Components/TournamentContribution.vue';
+import TournamentForm from '@/Components/TournamentForm.vue';
+import TournamentResults from '@/Components/TournamentResults.vue';
+import TournamentSchedule from '@/Components/TournamentSchedule.vue';
+import TournamentSectionNav from '@/Components/TournamentSectionNav.vue';
 import TournamentSortTable from '@/Components/TournamentSortTable.vue';
+import TournamentStandings from '@/Components/TournamentStandings.vue';
 import TournamentTeamStats from '@/Components/TournamentTeamStats.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     tournament: { type: Object, required: true },
     zones: { type: Array, default: () => [] },
     standings: { type: Array, default: () => [] },
+    standingsByContext: { type: Object, default: () => ({}) },
+    teamForm: { type: Array, default: () => [] },
+    schedule: { type: Array, default: () => [] },
+    results: { type: Array, default: () => [] },
     leaders: { type: Object, default: () => ({}) },
     attackDefense: { type: Object, default: () => ({}) },
     teamStats: { type: Object, default: () => ({}) },
@@ -18,10 +27,30 @@ const props = defineProps({
     thresholds: { type: Object, default: () => ({}) },
 });
 
-const FORM_TITLES = { В: 'Победа', Н: 'Ничья', П: 'Поражение' };
-const FORM_CLASSES = { В: 'is-w', Н: 'is-d', П: 'is-l' };
+const SECTIONS = [
+    { id: 'stats', label: 'Статистика' },
+    { id: 'standings', label: 'Турнирная таблица' },
+    { id: 'form', label: 'Форма команд' },
+    { id: 'schedule', label: 'Расписание' },
+    { id: 'results', label: 'Результаты' },
+];
+const DEFAULT_SECTION = SECTIONS[0].id;
 
-const zoneLabels = computed(() => Object.fromEntries(props.zones.map((z) => [z.id, z.label])));
+function sectionFromHash() {
+    if (typeof window === 'undefined') {
+        return DEFAULT_SECTION;
+    }
+    const id = window.location.hash.replace('#', '');
+
+    return SECTIONS.some((s) => s.id === id) ? id : DEFAULT_SECTION;
+}
+
+const section = ref(sectionFromHash());
+
+watch(section, (id) => {
+    const hash = id === DEFAULT_SECTION ? '' : `#${id}`;
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${hash}`);
+});
 
 const progress = computed(() =>
     Math.round((props.tournament.round / props.tournament.rounds_total) * 100),
@@ -31,10 +60,6 @@ const nf = new Intl.NumberFormat('ru-RU');
 const num = (n) => nf.format(n);
 const dec = (n, digits = 2) =>
     new Intl.NumberFormat('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
-
-function signed(n) {
-    return n > 0 ? `+${n}` : String(n).replace('-', '−');
-}
 
 const cards = computed(() => [
     {
@@ -205,105 +230,86 @@ const cards = computed(() => [
                 </div>
             </section>
 
-            <section class="miq-panel miq-tt-standings" aria-label="Турнирная таблица">
-                <div class="miq-panel-head">
-                    <h2 class="miq-panel-title">Турнирная таблица</h2>
-                    <p class="text-xs text-miq-muted">после {{ tournament.round }} тура</p>
-                </div>
+            <TournamentSectionNav v-model="section" :sections="SECTIONS" id-prefix="tt" />
 
-                <div class="overflow-x-auto">
-                    <table class="miq-tt-table">
-                        <thead>
-                            <tr>
-                                <th class="is-rank" title="Место">#</th>
-                                <th class="is-team">Команда</th>
-                                <th title="Игры">И</th>
-                                <th title="Победы">В</th>
-                                <th title="Ничьи">Н</th>
-                                <th title="Поражения">П</th>
-                                <th title="Забито — пропущено">З–П</th>
-                                <th title="Разница мячей">+/−</th>
-                                <th title="Очки">О</th>
-                                <th class="is-form" title="Последние 5 матчей · слева старше, справа свежее">
-                                    Форма
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr
-                                v-for="row in standings"
-                                :key="row.team"
-                                :data-zone="row.zone || undefined"
-                            >
-                                <td
-                                    class="is-rank"
-                                    :title="row.zone ? zoneLabels[row.zone] : undefined"
-                                >
-                                    {{ row.pos }}
-                                </td>
-                                <td class="is-team">
-                                    <span class="block truncate">{{ row.team }}</span>
-                                </td>
-                                <td>{{ row.played }}</td>
-                                <td>{{ row.wins }}</td>
-                                <td>{{ row.draws }}</td>
-                                <td>{{ row.losses }}</td>
-                                <td>{{ row.gf }}–{{ row.ga }}</td>
-                                <td>{{ signed(row.gd) }}</td>
-                                <td class="is-pts">{{ row.pts }}</td>
-                                <td class="is-form">
-                                    <span class="miq-table-form" role="img" :aria-label="`Форма: ${row.form.join(' ')}`">
-                                        <span
-                                            v-for="(letter, i) in row.form"
-                                            :key="i"
-                                            class="miq-form-chip"
-                                            :class="FORM_CLASSES[letter]"
-                                            :title="FORM_TITLES[letter]"
-                                        >{{ letter }}</span>
-                                    </span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <ul class="miq-tt-legend" aria-label="Легенда зон">
-                    <li v-for="zone in zones" :key="zone.id" :data-zone="zone.id">
-                        <span class="miq-tt-legend-dot" aria-hidden="true" />
-                        {{ zone.label }}
-                        <span class="text-miq-muted">· {{ zone.range }}</span>
-                    </li>
-                </ul>
-            </section>
-
-            <TournamentTeamStats
-                title="Лучшие команды"
-                :hint="`${tournament.name} · топ-5 по каждому показателю`"
-                :stats="teamStats"
-            />
-
-            <TournamentAttackDefense
-                title="Атака и защита"
-                :hint="`${tournament.name} · голы после ${tournament.round} тура`"
-                :data="attackDefense"
-            />
-
-            <TournamentContribution
-                title="Лучшие игроки"
-                :hint="`${tournament.name} · вклад в голы команды`"
-                :contribution="contribution"
-            />
-
-            <div class="miq-tt-grid">
-                <TournamentSortTable
-                    v-for="card in cards"
-                    :key="card.key"
-                    :title="card.title"
-                    :hint="card.hint"
-                    :rows="card.rows"
-                    :columns="card.columns"
-                    :default-sort="card.defaultSort"
+            <div
+                v-if="section === 'stats'"
+                id="tt-panel-stats"
+                class="space-y-4"
+                role="tabpanel"
+                aria-labelledby="tt-tab-stats"
+            >
+                <TournamentStandings
+                    :round="tournament.round"
+                    :zones="zones"
+                    :tables="{ overall: standings }"
                 />
+
+                <TournamentTeamStats
+                    title="Лучшие команды"
+                    :hint="`${tournament.name} · топ-5 по каждому показателю`"
+                    :stats="teamStats"
+                />
+
+                <TournamentAttackDefense
+                    title="Атака и защита"
+                    :hint="`${tournament.name} · голы после ${tournament.round} тура`"
+                    :data="attackDefense"
+                />
+
+                <TournamentContribution
+                    title="Лучшие игроки"
+                    :hint="`${tournament.name} · вклад в голы команды`"
+                    :contribution="contribution"
+                />
+
+                <div class="miq-tt-grid">
+                    <TournamentSortTable
+                        v-for="card in cards"
+                        :key="card.key"
+                        :title="card.title"
+                        :hint="card.hint"
+                        :rows="card.rows"
+                        :columns="card.columns"
+                        :default-sort="card.defaultSort"
+                    />
+                </div>
+            </div>
+
+            <div
+                v-else-if="section === 'standings'"
+                id="tt-panel-standings"
+                role="tabpanel"
+                aria-labelledby="tt-tab-standings"
+            >
+                <TournamentStandings
+                    :round="tournament.round"
+                    :zones="zones"
+                    :tables="standingsByContext"
+                    switchable
+                />
+            </div>
+
+            <div v-else-if="section === 'form'" id="tt-panel-form" role="tabpanel" aria-labelledby="tt-tab-form">
+                <TournamentForm :round="tournament.round" :teams="teamForm" />
+            </div>
+
+            <div
+                v-else-if="section === 'schedule'"
+                id="tt-panel-schedule"
+                role="tabpanel"
+                aria-labelledby="tt-tab-schedule"
+            >
+                <TournamentSchedule :rounds="schedule" />
+            </div>
+
+            <div
+                v-else-if="section === 'results'"
+                id="tt-panel-results"
+                role="tabpanel"
+                aria-labelledby="tt-tab-results"
+            >
+                <TournamentResults :rounds="results" />
             </div>
         </div>
     </AppLayout>

@@ -2659,6 +2659,172 @@
         @apply grid grid-cols-1 gap-4 lg:grid-cols-2;
     }
 
+    .miq-tt-nav {
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+    }
+
+    .miq-tt-nav-list {
+        @apply -mb-px flex gap-0.5 overflow-x-auto;
+        scrollbar-width: none;
+    }
+
+    .miq-tt-nav-list::-webkit-scrollbar {
+        display: none;
+    }
+
+    .miq-tt-nav-item {
+        @apply shrink-0 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm font-semibold text-miq-muted transition-colors sm:px-3.5;
+        transition-duration: 160ms;
+    }
+
+    .miq-tt-nav-item:hover {
+        @apply text-miq-ink;
+    }
+
+    .miq-tt-nav-item:focus-visible {
+        outline: 2px solid var(--miq-pitch);
+        outline-offset: -2px;
+        border-radius: 4px;
+    }
+
+    .miq-tt-nav-item.is-active {
+        @apply text-miq-ink;
+        border-bottom-color: var(--miq-pitch);
+    }
+
+    .miq-tt-formlist {
+        @apply m-0 list-none p-0;
+    }
+
+    .miq-tt-formrow {
+        @apply flex items-center gap-2 px-3 py-1 text-[13px];
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-tt-formrow:last-child {
+        border-bottom: 0;
+    }
+
+    .miq-tt-formrow:nth-child(even) {
+        background: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-tt-formrow-pos {
+        @apply w-5 shrink-0 text-xs tabular-nums text-miq-muted;
+    }
+
+    .miq-tt-formrow-team {
+        @apply w-28 shrink-0 truncate font-semibold text-miq-ink sm:w-36;
+    }
+
+    .miq-tt-formrow-chips {
+        @apply flex min-w-0 flex-1 items-center gap-[3px] overflow-x-auto py-0.5;
+        scrollbar-width: none;
+    }
+
+    .miq-tt-formrow-chips .miq-form-chip {
+        @apply h-[18px] w-[18px] shrink-0 text-[9px];
+    }
+
+    .miq-tt-round {
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 55%, transparent);
+    }
+
+    .miq-tt-round:last-child {
+        border-bottom: 0;
+    }
+
+    .miq-tt-round-head {
+        @apply flex cursor-pointer list-none items-center gap-2 px-3 py-1.5 text-xs;
+        background: color-mix(in srgb, var(--miq-mist-deep) 45%, white);
+    }
+
+    .miq-tt-round-head::-webkit-details-marker {
+        display: none;
+    }
+
+    .miq-tt-round-head:hover {
+        background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
+    }
+
+    .miq-tt-round-head:focus-visible {
+        outline: 2px solid var(--miq-pitch);
+        outline-offset: -2px;
+    }
+
+    .miq-tt-round-chevron {
+        @apply h-3 w-3 shrink-0 text-miq-muted transition-transform;
+        transition-duration: 160ms;
+    }
+
+    .miq-tt-round[open] > .miq-tt-round-head .miq-tt-round-chevron {
+        @apply rotate-90;
+    }
+
+    .miq-tt-round-title {
+        @apply font-semibold uppercase tracking-wider text-miq-ink;
+    }
+
+    .miq-tt-round-dates {
+        @apply text-miq-muted;
+    }
+
+    .miq-tt-round-badge {
+        @apply ml-auto rounded-full px-2 py-px text-[10px] font-semibold uppercase tracking-wide;
+        color: var(--miq-cmp-lead-ink);
+        background: color-mix(in srgb, var(--miq-cmp-lead) 22%, white);
+    }
+
+    .miq-tt-round-list {
+        @apply m-0 list-none p-0;
+    }
+
+    .miq-tt-match {
+        @apply flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1 text-[13px];
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-tt-match:nth-child(even) {
+        background: color-mix(in srgb, var(--miq-mist-deep) 30%, white);
+    }
+
+    .miq-tt-match-when {
+        @apply flex w-[7.25rem] shrink-0 items-baseline gap-1.5 text-xs tabular-nums text-miq-muted;
+    }
+
+    .miq-tt-match-time {
+        @apply font-semibold text-miq-ink-soft;
+    }
+
+    .miq-tt-match-pair {
+        @apply grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-2 sm:min-w-[16rem] sm:max-w-md;
+    }
+
+    .miq-tt-match-team {
+        @apply truncate text-miq-ink-soft;
+    }
+
+    .miq-tt-match-team.is-home {
+        @apply text-right;
+    }
+
+    .miq-tt-match-team.is-winner {
+        @apply font-semibold text-miq-ink;
+    }
+
+    .miq-tt-match-vs {
+        @apply px-1 text-miq-muted;
+    }
+
+    .miq-tt-match-score {
+        @apply min-w-[2.75rem] rounded px-1.5 py-px text-center text-[13px] font-bold tabular-nums text-miq-ink;
+        background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
+    }
+
+    .miq-tt-match-bets {
+        @apply flex flex-wrap items-center gap-1.5 sm:ml-auto;
+    }
+
     .miq-tt-tabs {
         @apply flex flex-wrap items-center gap-1.5 px-3 py-2;
         background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
