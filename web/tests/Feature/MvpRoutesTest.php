@@ -278,12 +278,13 @@ class MvpRoutesTest extends TestCase
             });
     }
 
-    public function test_user_profile_renders_for_known_nick(): void
+    public function test_user_profile_renders_for_mock_player(): void
     {
-        $this->get('/users/'.rawurlencode('Бомбардир_77'))
+        $this->get('/users/1000000')
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Users/Show')
+                ->where('profile.id', 1000000)
                 ->where('profile.nick', 'Бомбардир_77')
                 ->where('profile.is_me', false)
                 ->where('profile.rank', 1)
@@ -315,7 +316,7 @@ class MvpRoutesTest extends TestCase
         $leaderboard = $this->get('/leaderboard?period=season')->viewData('page')['props']['entries'];
         $second = $leaderboard[1];
 
-        $this->get('/users/'.rawurlencode($second['name']))
+        $this->get('/users/'.$second['id'])
             ->assertInertia(function ($page) use ($second) {
                 $season = collect($page->toArray()['props']['ratings'])->firstWhere('id', 'season');
 
@@ -326,7 +327,7 @@ class MvpRoutesTest extends TestCase
 
     public function test_user_profile_championship_and_event_totals_are_consistent(): void
     {
-        $this->get('/users/'.rawurlencode('Футболоман'))
+        $this->get('/users/1000002')
             ->assertInertia(function ($page) {
                 $props = $page->toArray()['props'];
                 $allTimePicks = collect($props['ratings'])->firstWhere('id', 'all_time')['picks'];
@@ -341,10 +342,11 @@ class MvpRoutesTest extends TestCase
         $user = User::factory()->create(['name' => 'Новичок Вася']);
 
         $this->actingAs($user)
-            ->get('/users/'.rawurlencode('Новичок Вася'))
+            ->get('/users/'.$user->id)
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Users/Show')
+                ->where('profile.id', $user->id)
                 ->where('profile.nick', 'Новичок Вася')
                 ->where('profile.is_me', true)
                 ->where('profile.registered_at', $user->created_at->toDateString()));
@@ -352,14 +354,31 @@ class MvpRoutesTest extends TestCase
         $this->flushSession();
         $this->app['auth']->forgetGuards();
 
-        $this->get('/users/'.rawurlencode('Новичок Вася'))
+        $this->get('/users/'.$user->id)
             ->assertOk()
             ->assertInertia(fn ($page) => $page->where('profile.is_me', false));
     }
 
-    public function test_user_profile_returns_404_for_unknown_nick(): void
+    public function test_user_profile_returns_404_for_unknown_id(): void
     {
-        $this->get('/users/'.rawurlencode('Несуществующий_игрок'))->assertNotFound();
+        $this->get('/users/999')->assertNotFound();
+        $this->get('/users/1000012')->assertNotFound();
+        $this->get('/users/'.rawurlencode('Бомбардир_77'))->assertNotFound();
+    }
+
+    public function test_leaderboard_entries_have_ids_for_profile_links(): void
+    {
+        $user = User::factory()->create(['name' => 'Новичок Вася']);
+
+        $this->actingAs($user)
+            ->get('/leaderboard')
+            ->assertInertia(function ($page) use ($user) {
+                $entries = collect($page->toArray()['props']['entries']);
+
+                $this->assertCount(12, $entries->pluck('id')->unique());
+                $this->assertSame($user->id, $entries->firstWhere('is_me', true)['id']);
+                $this->assertSame(1000000, $entries->firstWhere('name', 'Бомбардир_77')['id']);
+            });
     }
 
     public function test_me_requires_auth(): void

@@ -18,6 +18,12 @@ class MockLeaderboard
 
     public const TOTAL_PLAYERS = 1284;
 
+    /**
+     * Моковые игроки получают id = MOCK_ID_BASE + порядковый номер в PLAYERS.
+     * Диапазон заведомо выше users.id, чтобы id не пересекались.
+     */
+    public const MOCK_ID_BASE = 1_000_000;
+
     /** Доля «всех прогнозов» в выбранном периоде. */
     private const PERIOD_SCALE = [
         'week' => 0.04,
@@ -56,15 +62,21 @@ class MockLeaderboard
         return is_string($value) && in_array($value, $ids, true) ? $value : self::DEFAULT_PERIOD;
     }
 
-    public static function isKnownNick(string $nick): bool
+    public static function isMockId(int $id): bool
     {
-        return in_array($nick, array_column(self::PLAYERS, 0), true);
+        return $id >= self::MOCK_ID_BASE && isset(self::PLAYERS[$id - self::MOCK_ID_BASE]);
+    }
+
+    public static function nickById(int $id): ?string
+    {
+        return self::isMockId($id) ? self::PLAYERS[$id - self::MOCK_ID_BASE][0] : null;
     }
 
     /**
+     * @param  array{id: int, name: string}|null  $me  зарегистрированный пользователь, который подставляется в моки
      * @return list<array<string, mixed>>
      */
-    public static function entries(string $period, ?string $meName = null): array
+    public static function entries(string $period, ?array $me = null): array
     {
         $scale = self::PERIOD_SCALE[$period];
         $periodIndex = array_search($period, array_column(self::PERIODS, 'id'), true);
@@ -76,10 +88,11 @@ class MockLeaderboard
             $scaledPicks = max(3, (int) round($picks * $scale));
             $scaledCorrect = min($scaledPicks, max(1, (int) round($correct * $scale * $jitter)));
 
-            $isMe = $meName !== null && $i === self::ME_SLOT;
+            $isMe = $me !== null && $i === self::ME_SLOT;
 
             $rows[] = [
-                'name' => $isMe ? $meName : $nick,
+                'id' => $isMe ? $me['id'] : self::MOCK_ID_BASE + $i,
+                'name' => $isMe ? $me['name'] : $nick,
                 'picks' => $scaledPicks,
                 'correct' => $scaledCorrect,
                 'accuracy' => (int) round($scaledCorrect / $scaledPicks * 100),

@@ -87,6 +87,7 @@ class MockUserProfile
      * @return array<string, mixed>
      */
     public static function build(
+        int $id,
         string $nick,
         ?CarbonInterface $registeredAt,
         bool $isMe,
@@ -94,7 +95,7 @@ class MockUserProfile
         $ratings = [];
         $allTime = null;
         foreach (MockLeaderboard::PERIODS as $period) {
-            $entry = self::findEntry($period['id'], $nick);
+            $entry = self::findEntry($period['id'], $id, $nick);
             $ratings[] = [
                 'id' => $period['id'],
                 'label' => $period['label'],
@@ -109,11 +110,12 @@ class MockUserProfile
             }
         }
 
-        $rand = self::rng($nick);
+        $rand = self::rng((string) $id);
         $registeredAt ??= Carbon::create(2025, 8, 1)->addDays($rand(0, 420));
 
         return [
             'profile' => [
+                'id' => $id,
                 'nick' => $nick,
                 'registered_at' => $registeredAt->toDateString(),
                 'registered_label' => $registeredAt->copy()->locale('ru')->translatedFormat('j F Y'),
@@ -132,12 +134,12 @@ class MockUserProfile
     /**
      * @return array<string, mixed>
      */
-    private static function findEntry(string $period, string $nick): array
+    private static function findEntry(string $period, int $id, string $nick): array
     {
-        $meName = MockLeaderboard::isKnownNick($nick) ? null : $nick;
+        $me = MockLeaderboard::isMockId($id) ? null : ['id' => $id, 'name' => $nick];
 
-        foreach (MockLeaderboard::entries($period, $meName) as $entry) {
-            if ($entry['name'] === $nick) {
+        foreach (MockLeaderboard::entries($period, $me) as $entry) {
+            if ($entry['id'] === $id) {
                 return $entry;
             }
         }
@@ -146,11 +148,11 @@ class MockUserProfile
     }
 
     /**
-     * Детерминированный генератор от ника: один ник — одни и те же цифры.
+     * Детерминированный генератор от id: один игрок — одни и те же цифры.
      */
-    private static function rng(string $nick): \Closure
+    private static function rng(string $seed): \Closure
     {
-        $state = crc32($nick) ?: 1;
+        $state = crc32($seed) ?: 1;
 
         return function (int $min, int $max) use (&$state): int {
             $state = ($state * 1103515245 + 12345) % 2147483648;

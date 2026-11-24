@@ -101,7 +101,7 @@ function formatNumber(n) {
                     <Link
                         v-for="(entry, index) in podium"
                         :key="entry.rank"
-                        :href="route('users.show', entry.name)"
+                        :href="route('users.show', entry.id)"
                         class="miq-lb-podium-card"
                         :class="[podiumOrder[index], { 'is-me': entry.is_me }]"
                     >
@@ -153,7 +153,7 @@ function formatNumber(n) {
                                     </td>
                                     <td class="is-player">
                                         <Link
-                                            :href="route('users.show', entry.name)"
+                                            :href="route('users.show', entry.id)"
                                             class="miq-lb-player-link"
                                         >
                                             <PlayerAvatar :name="entry.name" size="sm" />

@@ -15,7 +15,11 @@ class LeaderboardController extends Controller
     public function index(Request $request): Response
     {
         $period = MockLeaderboard::resolvePeriod($request->query('period'));
-        $entries = MockLeaderboard::entries($period, $request->user()?->name);
+        $user = $request->user();
+        $entries = MockLeaderboard::entries(
+            $period,
+            $user ? ['id' => $user->id, 'name' => $user->name] : null,
+        );
 
         return Inertia::render('Leaderboard/Index', [
             'period' => $period,
