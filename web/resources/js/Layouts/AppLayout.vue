@@ -27,12 +27,6 @@ const user = computed(() => page.props.auth?.user);
                         style="animation-delay: 120ms"
                     >
                         <Link
-                            :href="route('tournaments.show', 1)"
-                            class="transition hover:text-miq-pitch"
-                        >
-                            Турниры
-                        </Link>
-                        <Link
                             :href="route('leaderboard')"
                             class="transition hover:text-miq-pitch"
                         >

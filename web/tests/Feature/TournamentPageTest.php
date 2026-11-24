@@ -43,6 +43,32 @@ class TournamentPageTest extends TestCase
             ->assertInertia(fn ($page) => $page->where('match.tournament_id', 1));
     }
 
+    public function test_home_links_only_to_leagues_with_tournament_page(): void
+    {
+        $this->get('/?league=rpl')
+            ->assertOk()
+            ->assertInertia(function ($page) {
+                $props = $page->toArray()['props'];
+                $leagues = collect($props['leagues'])->pluck('tournament_id', 'id');
+
+                $this->assertSame(1, $leagues['rpl']);
+                $this->assertNull($leagues['fnl']);
+                $this->assertNull($leagues['ucl']);
+                $this->assertSame(1, $props['widgets']['league']['tournament_id']);
+            });
+
+        $this->get('/?league=fnl')
+            ->assertInertia(fn ($page) => $page->where('widgets.league.tournament_id', null));
+    }
+
+    public function test_site_header_has_no_tournaments_link(): void
+    {
+        $layout = file_get_contents(resource_path('js/Layouts/AppLayout.vue'));
+
+        $this->assertStringNotContainsString('Турниры', $layout);
+        $this->assertStringNotContainsString('tournaments.show', $layout);
+    }
+
     public function test_standings_are_consistent_and_sorted(): void
     {
         $rows = MockTournament::find(1)['standings'];

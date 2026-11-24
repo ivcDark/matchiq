@@ -1709,6 +1709,17 @@ class MatchController extends Controller
      */
     private function demoLeagues(): array
     {
+        return array_map(
+            static fn (array $league) => $league + ['tournament_id' => MockTournament::idForLeague($league['id'])],
+            $this->demoLeaguesRaw(),
+        );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function demoLeaguesRaw(): array
+    {
         // sort_order — демо-поле порядка групп на главной (позже из админки).
         return [
             ['id' => 'rpl', 'country' => 'Россия', 'name' => 'РПЛ', 'short' => 'РПЛ', 'status' => 'live', 'sort_order' => 10],
@@ -1987,6 +1998,7 @@ class MatchController extends Controller
                 'id' => $league['id'],
                 'label' => $league['country'].' · '.$league['name'],
                 'short' => $league['short'] ?? $league['name'],
+                'tournament_id' => MockTournament::idForLeague($league['id']),
             ],
             'standings' => [
                 ['pos' => 1, 'team' => 'Зенит', 'played' => 14, 'gd' => 18, 'pts' => 34],

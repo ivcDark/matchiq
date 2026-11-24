@@ -2305,6 +2305,58 @@
         text-decoration: underline;
     }
 
+    .miq-league-head {
+        @apply flex items-center justify-between gap-2 border-b px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-miq-ink-soft;
+        border-color: color-mix(in srgb, var(--miq-line) 60%, transparent);
+        background: color-mix(in srgb, var(--miq-lime) 22%, white);
+    }
+
+    a.miq-league-head {
+        @apply transition-colors;
+        transition-duration: 160ms;
+    }
+
+    a.miq-league-head:hover,
+    a.miq-league-head:focus-visible {
+        color: var(--miq-pitch-deep);
+        background: color-mix(in srgb, var(--miq-lime) 38%, white);
+        outline: none;
+    }
+
+    a.miq-league-head:focus-visible {
+        box-shadow: inset 3px 0 0 var(--miq-pitch);
+    }
+
+    .miq-link-chevron {
+        @apply h-3.5 w-3.5 shrink-0 opacity-60 transition;
+        transition-duration: 160ms;
+    }
+
+    a:hover > .miq-link-chevron,
+    a:focus-visible > .miq-link-chevron {
+        @apply translate-x-0.5 opacity-100;
+    }
+
+    .miq-panel-link {
+        @apply inline-flex min-w-0 items-center gap-0.5 rounded px-1 py-0.5 text-xs font-medium text-miq-ink-soft transition-colors;
+        transition-duration: 160ms;
+    }
+
+    .miq-panel-link:hover,
+    .miq-panel-link:focus-visible {
+        color: var(--miq-pitch-deep);
+        background: color-mix(in srgb, var(--miq-lime) 30%, white);
+        outline: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .miq-link-chevron,
+        a.miq-league-head,
+        .miq-panel-link {
+            transition: none;
+        }
+    }
+
     /* Страница турнира */
     [data-zone='ucl'] {
         --tt-zone: #5b8fb9;

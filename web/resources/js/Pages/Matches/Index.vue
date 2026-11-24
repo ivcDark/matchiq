@@ -298,6 +298,7 @@ const matchesByLeague = computed(() => {
             map.set(leagueId, {
                 key: leagueId,
                 label: league?.name || league?.short || leagueId,
+                tournamentId: league?.tournament_id ?? null,
                 sortOrder: typeof league?.sort_order === 'number' ? league.sort_order : Number.MAX_SAFE_INTEGER,
                 matches: [],
             });
@@ -917,9 +918,27 @@ const listKey = computed(
                                     v-for="group in matchesByLeague"
                                     :key="group.key"
                                 >
-                                    <p
-                                        class="border-b border-miq-line/60 bg-[color-mix(in_srgb,var(--miq-lime)_22%,white)] px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-miq-ink-soft"
+                                    <Link
+                                        v-if="group.tournamentId"
+                                        :href="route('tournaments.show', group.tournamentId)"
+                                        class="miq-league-head miq-league-head-link"
+                                        :title="`${group.label} — страница турнира`"
                                     >
+                                        <span>{{ group.label }}</span>
+                                        <svg
+                                            class="miq-link-chevron"
+                                            viewBox="0 0 20 20"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            aria-hidden="true"
+                                        >
+                                            <path d="M7.5 5l5 5-5 5" />
+                                        </svg>
+                                    </Link>
+                                    <p v-else class="miq-league-head">
                                         {{ group.label }}
                                     </p>
                                     <ul>
@@ -1104,7 +1123,27 @@ const listKey = computed(
                     >
                         <div class="miq-panel-head">
                             <h2 class="miq-panel-title">Таблица</h2>
-                            <p class="truncate text-xs font-medium text-miq-ink-soft">
+                            <Link
+                                v-if="widgets?.league?.tournament_id"
+                                :href="route('tournaments.show', widgets.league.tournament_id)"
+                                class="miq-panel-link"
+                                :title="`${widgetLeagueLabel} — страница турнира`"
+                            >
+                                <span class="truncate">{{ widgetLeagueLabel }}</span>
+                                <svg
+                                    class="miq-link-chevron"
+                                    viewBox="0 0 20 20"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M7.5 5l5 5-5 5" />
+                                </svg>
+                            </Link>
+                            <p v-else class="truncate text-xs font-medium text-miq-ink-soft">
                                 {{ widgetLeagueLabel }}
                             </p>
                         </div>
