@@ -213,7 +213,69 @@ class MvpRoutesTest extends TestCase
     {
         $this->get('/leaderboard')
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Leaderboard/Index'));
+            ->assertInertia(fn ($page) => $page
+                ->component('Leaderboard/Index')
+                ->where('period', 'season')
+                ->has('periods', 4)
+                ->where('periods.0.label', 'Неделя')
+                ->where('periods.3.id', 'all_time')
+                ->has('entries', 12)
+                ->where('entries.0.rank', 1)
+                ->has('entries.0.name')
+                ->has('entries.0.picks')
+                ->has('entries.0.correct')
+                ->has('entries.0.accuracy')
+                ->has('entries.0.points')
+                ->has('entries.0.streak')
+                ->where('entries.0.is_me', false)
+                ->where('currentUserRank', null));
+    }
+
+    public function test_leaderboard_accepts_period_and_falls_back_on_unknown(): void
+    {
+        $this->get('/leaderboard?period=week')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Leaderboard/Index')
+                ->where('period', 'week'));
+
+        $this->get('/leaderboard?period=bogus')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('period', 'season'));
+    }
+
+    public function test_leaderboard_entries_are_sorted_by_points(): void
+    {
+        foreach (['week', 'month', 'season', 'all_time'] as $period) {
+            $this->get('/leaderboard?period='.$period)
+                ->assertInertia(function ($page) {
+                    $points = array_column($page->toArray()['props']['entries'], 'points');
+                    $sorted = $points;
+                    rsort($sorted);
+
+                    $this->assertSame($sorted, $points);
+                });
+        }
+    }
+
+    public function test_leaderboard_highlights_current_user(): void
+    {
+        $user = User::factory()->create(['name' => 'Тестовый Игрок']);
+
+        $this->actingAs($user)
+            ->get('/leaderboard')
+            ->assertOk()
+            ->assertInertia(function ($page) {
+                $entries = collect($page->toArray()['props']['entries']);
+                $me = $entries->where('is_me', true);
+
+                $this->assertCount(1, $me);
+                $this->assertSame('Тестовый Игрок', $me->first()['name']);
+                $this->assertSame(
+                    $me->first()['rank'],
+                    $page->toArray()['props']['currentUserRank'],
+                );
+            });
     }
 
     public function test_me_requires_auth(): void

@@ -2024,6 +2024,182 @@
         background: #dc2626;
         color: #991b1b;
     }
+
+    /* Рейтинг */
+    .miq-lb {
+        @apply space-y-4;
+    }
+
+    .miq-lb-head {
+        @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
+    }
+
+    .miq-lb-tabs {
+        @apply flex w-full gap-1 rounded-md border p-0.5 sm:w-auto sm:min-w-[22rem];
+        border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, white 60%, transparent);
+    }
+
+    .miq-lb-rules {
+        @apply text-sm text-miq-ink-soft;
+    }
+
+    .miq-lb-podium {
+        @apply grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end;
+    }
+
+    .miq-lb-podium-card {
+        @apply relative flex flex-col items-center gap-1.5 rounded-lg border px-4 pb-4 pt-5 text-center;
+        border-color: color-mix(in srgb, var(--miq-line) 85%, transparent);
+        background: color-mix(in srgb, white 78%, var(--miq-chalk));
+    }
+
+    .miq-lb-podium-card.is-first {
+        @apply sm:order-2 sm:pb-6 sm:pt-7;
+        border-color: color-mix(in srgb, var(--miq-cmp-lead) 70%, white);
+        background:
+            radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--miq-cmp-lead) 22%, transparent), transparent 70%),
+            color-mix(in srgb, white 76%, var(--miq-chalk));
+    }
+
+    .miq-lb-podium-card.is-second {
+        @apply sm:order-1;
+    }
+
+    .miq-lb-podium-card.is-third {
+        @apply sm:order-3;
+        border-color: color-mix(in srgb, var(--miq-cmp-trail) 65%, white);
+        background:
+            radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--miq-cmp-trail) 18%, transparent), transparent 70%),
+            color-mix(in srgb, white 78%, var(--miq-chalk));
+    }
+
+    .miq-lb-podium-card.is-me {
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--miq-pitch) 45%, transparent);
+    }
+
+    .miq-lb-medal {
+        @apply absolute left-3 top-3 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs leading-none;
+        color: var(--miq-ink-soft);
+        background: color-mix(in srgb, var(--miq-mist-deep) 85%, white);
+    }
+
+    .is-first .miq-lb-medal {
+        color: white;
+        background: var(--miq-cmp-lead-ink);
+    }
+
+    .is-third .miq-lb-medal {
+        color: white;
+        background: var(--miq-cmp-trail-ink);
+    }
+
+    .miq-lb-podium-name {
+        @apply flex max-w-full items-center justify-center gap-1.5 truncate text-sm font-semibold text-miq-ink;
+    }
+
+    .miq-lb-podium-points {
+        @apply text-3xl leading-none text-miq-ink;
+    }
+
+    .is-first .miq-lb-podium-points {
+        @apply text-4xl;
+        color: var(--miq-cmp-lead-ink);
+    }
+
+    .is-third .miq-lb-podium-points {
+        color: var(--miq-cmp-trail-ink);
+    }
+
+    .miq-lb-podium-caption {
+        @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-miq-muted;
+    }
+
+    .miq-lb-me-tag {
+        @apply inline-flex shrink-0 items-center rounded px-1.5 py-px text-[10px] font-bold uppercase tracking-wide;
+        color: var(--miq-pitch-deep);
+        background: color-mix(in srgb, var(--miq-lime) 45%, white);
+    }
+
+    .miq-lb-table {
+        @apply w-full min-w-[19rem] border-collapse text-left text-sm;
+    }
+
+    .miq-lb-table thead tr {
+        @apply text-[10px] font-semibold uppercase tracking-wider text-miq-muted;
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-lb-table th {
+        @apply px-2 py-2 text-right font-semibold;
+    }
+
+    .miq-lb-table th.is-rank,
+    .miq-lb-table th.is-player {
+        @apply text-left;
+    }
+
+    .miq-lb-table th.is-rank {
+        @apply pl-3.5;
+    }
+
+    .miq-lb-table td {
+        @apply px-2 py-2.5 text-right text-miq-ink-soft;
+    }
+
+    .miq-lb-table td.is-rank {
+        @apply pl-3.5 text-left;
+    }
+
+    .miq-lb-table td.is-player {
+        @apply max-w-[11rem] text-left sm:max-w-none;
+    }
+
+    .miq-lb-table td:last-child,
+    .miq-lb-table th:last-child {
+        @apply pr-3.5;
+    }
+
+    .miq-lb-table tbody tr {
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-lb-table tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .miq-lb-table tbody tr:nth-child(even) {
+        background: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-lb-table tbody tr.is-me {
+        background: color-mix(in srgb, var(--miq-lime) 24%, white);
+        box-shadow: inset 3px 0 0 var(--miq-pitch);
+    }
+
+    .miq-lb-table td.is-points {
+        @apply text-base text-miq-ink;
+    }
+
+    .miq-lb-subline {
+        @apply mt-0.5 truncate text-[11px] text-miq-muted;
+    }
+
+    .miq-lb-streak {
+        @apply inline-flex min-w-[1.75rem] items-center justify-center rounded-md px-1.5 py-0.5 text-[13px] leading-none;
+        color: var(--miq-ink-soft);
+        background: color-mix(in srgb, var(--miq-mist-deep) 80%, white);
+    }
+
+    .miq-lb-streak.is-hot {
+        color: var(--miq-cmp-lead-ink);
+        background: color-mix(in srgb, var(--miq-cmp-lead) 22%, white);
+    }
+
+    .miq-lb-cta {
+        @apply rounded-md border border-dashed px-4 py-3 text-center text-sm text-miq-muted;
+        border-color: color-mix(in srgb, var(--miq-line) 85%, transparent);
+    }
 }
 
 @layer utilities {
