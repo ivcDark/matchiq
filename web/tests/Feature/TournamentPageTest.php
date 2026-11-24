@@ -246,6 +246,23 @@ class TournamentPageTest extends TestCase
         }
     }
 
+    public function test_player_tables_carry_position(): void
+    {
+        $leaders = MockTournament::find(1)['leaders'];
+
+        foreach ($leaders as $key => $rows) {
+            foreach ($rows as $row) {
+                $this->assertArrayHasKey($row['position'], MockTournament::POSITIONS, $key);
+            }
+        }
+        foreach ($leaders['goalkeepers'] as $row) {
+            $this->assertSame('GK', $row['position']);
+        }
+        $positions = array_unique(array_column($leaders['ratings'], 'position'));
+        sort($positions);
+        $this->assertSame(['DF', 'FW', 'GK', 'MF'], $positions);
+    }
+
     public function test_championship_season_label_follows_date(): void
     {
         $this->assertSame('2026/27', MockTournament::find(1, now()->setDate(2026, 11, 24))['tournament']['season']);

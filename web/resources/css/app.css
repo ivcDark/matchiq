@@ -2559,6 +2559,15 @@
         @apply text-[9px];
     }
 
+    .miq-tt-pos {
+        @apply ml-1 inline-block rounded-sm px-1 align-[1px] text-[9px] font-bold leading-[14px] tracking-wide text-miq-ink-soft;
+        background: color-mix(in srgb, var(--miq-cmp-lead) 24%, white);
+    }
+
+    .miq-tt-pos[data-pos='GK'] {
+        background: color-mix(in srgb, var(--miq-cmp-trail) 40%, white);
+    }
+
     .miq-tt-team {
         @apply ml-1 text-[11px] font-medium text-miq-muted;
     }

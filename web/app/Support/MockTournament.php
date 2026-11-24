@@ -25,6 +25,9 @@ class MockTournament
     /** «Лучшие по рейтингу»: минимум сыгранных матчей. */
     public const MIN_MATCHES_RATING = 8;
 
+    /** Позиции игроков в моках: код → краткая подпись и полное название (подписи дублируются на фронте). */
+    public const POSITIONS = ['GK' => 'ВР', 'DF' => 'ЗЩ', 'MF' => 'ПЗ', 'FW' => 'НАП'];
+
     /** Лига (id на странице матча) → id турнира. */
     private const LEAGUE_TOURNAMENTS = ['rpl' => self::RPL_ID];
 
@@ -317,7 +320,7 @@ class MockTournament
         return self::top(
             $eligible,
             static fn (array $a, array $b) => [$b['ga'], $b['goals'], $a['minutes']] <=> [$a['ga'], $a['goals'], $b['minutes']],
-            ['name', 'team', 'matches', 'goals', 'pens', 'assists', 'ga'],
+            ['name', 'team', 'position', 'matches', 'goals', 'pens', 'assists', 'ga'],
             null,
         );
     }
@@ -332,7 +335,7 @@ class MockTournament
         return self::top(
             $eligible,
             static fn (array $a, array $b) => [$b['assists'], $a['minutes']] <=> [$a['assists'], $b['minutes']],
-            ['name', 'team', 'matches', 'assists'],
+            ['name', 'team', 'position', 'matches', 'assists'],
             null,
         );
     }
@@ -356,7 +359,7 @@ class MockTournament
         return self::top(
             $rows,
             static fn (array $a, array $b) => [$a['minutes'] / $a['goals'], $b['goals']] <=> [$b['minutes'] / $b['goals'], $a['goals']],
-            ['name', 'team', 'goals', 'minutes', 'minutes_per_goal', 'goals_per_90'],
+            ['name', 'team', 'position', 'goals', 'minutes', 'minutes_per_goal', 'goals_per_90'],
             null,
         );
     }
@@ -382,7 +385,7 @@ class MockTournament
         return self::top(
             $rows,
             static fn (array $a, array $b) => [$a['minutes'] / $a['clean_sheets'], $b['clean_sheets'], $b['minutes']] <=> [$b['minutes'] / $b['clean_sheets'], $a['clean_sheets'], $a['minutes']],
-            ['name', 'team', 'clean_sheets', 'minutes', 'minutes_per_clean_sheet', 'clean_sheets_per_90'],
+            ['name', 'team', 'position', 'clean_sheets', 'minutes', 'minutes_per_clean_sheet', 'clean_sheets_per_90'],
             null,
         );
     }
@@ -395,7 +398,7 @@ class MockTournament
         return self::top(
             $players,
             static fn (array $a, array $b) => [$b['minutes'], $b['matches']] <=> [$a['minutes'], $a['matches']],
-            ['name', 'team', 'matches', 'minutes'],
+            ['name', 'team', 'position', 'matches', 'minutes'],
             null,
         );
     }
@@ -413,7 +416,7 @@ class MockTournament
         return self::top(
             $eligible,
             static fn (array $a, array $b) => [$b['rating'], $b['matches']] <=> [$a['rating'], $a['matches']],
-            ['name', 'team', 'matches', 'rating'],
+            ['name', 'team', 'position', 'matches', 'rating'],
             null,
         );
     }

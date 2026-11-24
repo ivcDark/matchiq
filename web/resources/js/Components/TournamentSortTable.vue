@@ -2,6 +2,13 @@
 import PlayerAvatar from '@/Components/PlayerAvatar.vue';
 import { computed, ref } from 'vue';
 
+const POSITIONS = {
+    GK: { short: 'ВР', full: 'Вратарь' },
+    DF: { short: 'ЗЩ', full: 'Защитник' },
+    MF: { short: 'ПЗ', full: 'Полузащитник' },
+    FW: { short: 'НАП', full: 'Нападающий' },
+};
+
 const MEDALS = { 1: 'gold', 2: 'silver', 3: 'bronze' };
 
 const props = defineProps({
@@ -133,6 +140,12 @@ function cell(column, row) {
                                 <PlayerAvatar :name="row.name" size="sm" />
                                 <p class="min-w-0 truncate text-[13px] font-semibold leading-tight text-miq-ink">
                                     {{ row.name }}
+                                    <span
+                                        v-if="POSITIONS[row.position]"
+                                        class="miq-tt-pos"
+                                        :data-pos="row.position"
+                                        :title="POSITIONS[row.position].full"
+                                    >{{ POSITIONS[row.position].short }}</span>
                                     <span class="miq-tt-team">{{ row.team }}</span>
                                 </p>
                             </div>
