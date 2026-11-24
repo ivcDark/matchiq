@@ -1,5 +1,7 @@
 <script setup>
+import TournamentContribution from '@/Components/TournamentContribution.vue';
 import TournamentSortTable from '@/Components/TournamentSortTable.vue';
+import TournamentTeamStats from '@/Components/TournamentTeamStats.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -9,6 +11,8 @@ const props = defineProps({
     zones: { type: Array, default: () => [] },
     standings: { type: Array, default: () => [] },
     leaders: { type: Object, default: () => ({}) },
+    teamStats: { type: Object, default: () => ({}) },
+    contribution: { type: Object, default: () => ({}) },
     thresholds: { type: Object, default: () => ({}) },
 });
 
@@ -269,6 +273,18 @@ const cards = computed(() => [
                     </li>
                 </ul>
             </section>
+
+            <TournamentTeamStats
+                title="Лучшие команды"
+                :hint="`${tournament.name} · топ-5 по каждому показателю`"
+                :stats="teamStats"
+            />
+
+            <TournamentContribution
+                title="Лучшие игроки"
+                :hint="`${tournament.name} · вклад в голы команды`"
+                :contribution="contribution"
+            />
 
             <div class="miq-tt-grid">
                 <TournamentSortTable

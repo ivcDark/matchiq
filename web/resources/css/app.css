@@ -31,6 +31,8 @@
     --miq-team-away: #d4926e;
     --miq-team-away-ink: #a86a4a;
     /* Медали рейтинга: приглушённые золото / серебро / бронза (+ ink для текста, on — текст на плашке) */
+    --miq-card-yellow: #e6b93a;
+    --miq-card-red: #c4473a;
     --miq-medal-gold: #cfae52;
     --miq-medal-gold-ink: #7a5c12;
     --miq-medal-gold-on: #3b2d05;
@@ -2630,6 +2632,141 @@
 
     .miq-tt-grid {
         @apply grid grid-cols-1 gap-4 lg:grid-cols-2;
+    }
+
+    .miq-tt-tabs {
+        @apply flex flex-wrap items-center gap-1.5 px-3 py-2;
+        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+    }
+
+    .miq-tt-tabs-label {
+        @apply mr-1 text-[11px] font-semibold uppercase tracking-wider text-miq-muted;
+    }
+
+    .miq-tt-tab {
+        @apply rounded-full border px-3 py-0.5 text-xs font-semibold text-miq-ink-soft transition-colors;
+        border-color: var(--miq-line);
+        background: white;
+        transition-duration: 160ms;
+    }
+
+    .miq-tt-tab:hover {
+        border-color: var(--miq-cmp-lead);
+    }
+
+    .miq-tt-tab:focus-visible {
+        outline: 2px solid var(--miq-pitch);
+        outline-offset: 2px;
+    }
+
+    .miq-tt-tab.is-active {
+        color: var(--miq-ink);
+        border-color: var(--miq-pitch);
+        background: color-mix(in srgb, var(--miq-lime) 28%, white);
+    }
+
+    .miq-tt-mini-grid {
+        @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+    }
+
+    .miq-tt-mini {
+        @apply w-full border-collapse text-[13px];
+    }
+
+    .miq-tt-mini thead th {
+        @apply px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-white;
+        background: var(--miq-ink);
+    }
+
+    .miq-tt-mini td {
+        @apply px-3 py-1 align-middle;
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-tt-mini tbody tr:nth-child(even) td {
+        background: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-tt-mini tbody tr:hover td {
+        background: color-mix(in srgb, var(--miq-lime) 18%, white);
+    }
+
+    .miq-tt-mini td.is-team {
+        @apply max-w-0 font-medium text-miq-ink;
+    }
+
+    .miq-tt-mini td.is-bar,
+    .miq-tt-mini td.is-cards {
+        @apply w-[6.5rem] whitespace-nowrap text-right;
+    }
+
+    .miq-tt-card-chip {
+        @apply ml-1 inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-sm px-1 text-xs font-bold leading-none tabular-nums;
+    }
+
+    .miq-tt-card-chip.is-yellow {
+        color: var(--miq-ink);
+        background: var(--miq-card-yellow);
+    }
+
+    .miq-tt-card-chip.is-red {
+        color: white;
+        background: var(--miq-card-red);
+    }
+
+    .miq-tt-ptable th.is-dbar,
+    .miq-tt-ptable td.is-dbar {
+        @apply w-full min-w-[5rem];
+    }
+
+    .miq-tt-ptable th.is-dbar {
+        @apply whitespace-normal leading-tight;
+    }
+
+    .miq-tt-ptable th.is-team-col,
+    .miq-tt-ptable td.is-team-col {
+        @apply max-w-[7rem] text-left;
+    }
+
+    .miq-tt-ptable td.is-team-col {
+        @apply text-xs text-miq-muted;
+    }
+
+    .miq-tt-ptable td.is-share {
+        @apply pr-3 font-bold text-miq-ink;
+    }
+
+    @media (max-width: 639px) {
+        .miq-tt-ptable td.is-dbar .miq-tt-dbar-num {
+            @apply px-1;
+        }
+
+        .miq-tt-ptable td.is-player:has(+ .is-dbar) {
+            @apply max-w-[7rem];
+        }
+    }
+
+    .miq-tt-dbar {
+        @apply relative h-5 w-full;
+    }
+
+    .miq-tt-dbar-track {
+        @apply relative flex h-full min-w-[3rem] items-center justify-between overflow-hidden rounded-sm;
+        background: color-mix(in srgb, var(--miq-cmp-lead) 22%, white);
+    }
+
+    .miq-tt-dbar-fill {
+        @apply absolute inset-y-0 left-0 min-w-[1.6rem] rounded-sm;
+        background: var(--miq-cmp-lead);
+    }
+
+    .miq-tt-dbar-num {
+        @apply relative px-1.5 text-xs font-bold leading-none;
+        color: var(--miq-ink);
+    }
+
+    .miq-tt-dbar-num.is-team {
+        @apply font-semibold text-miq-muted;
     }
 
     .miq-tt-rank {

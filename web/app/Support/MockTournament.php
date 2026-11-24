@@ -6,7 +6,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
 /**
- * Моковый турнир для страницы /tournaments/{id}: шапка, таблица и топ-списки игроков.
+ * Моковый турнир для страницы /tournaments/{id}: шапка, таблица, лучшие команды, вклад игроков и топ-списки.
  * Сейчас доступен один турнир — РПЛ (id = 1). Игроки в моках вымышленные.
  */
 class MockTournament
@@ -119,6 +119,39 @@ class MockTournament
         ['Волков Д.', 'Сочи', 'GK', 15, 1350, 0, 0, 0, 6.30, 1],
     ];
 
+    /** Контексты статистики «Лучшие команды» и «Лучшие игроки»: все матчи, дома, в гостях. */
+    public const CONTEXTS = ['overall', 'home', 'away'];
+
+    /** Строк в каждой мини-таблице «Лучшие команды». */
+    public const TEAM_TOP_LIMIT = 5;
+
+    /** Строк в таблице «Лучшие игроки» (вклад в голы команды). */
+    public const CONTRIBUTION_LIMIT = 10;
+
+    /**
+     * Командная статистика за все матчи: владение %, жёлтые, красные, борьба в воздухе %,
+     * удары за игру, точность передач %, средняя оценка команды.
+     * Хозяева / гости получаются детерминированным сдвигом (см. teamValue).
+     */
+    private const TEAM_STATS = [
+        'Зенит' => [57.3, 34, 1, 51.8, 15.5, 84.8, 6.74],
+        'Краснодар' => [54.9, 37, 1, 52.0, 15.3, 79.2, 6.75],
+        'Спартак' => [57.9, 39, 2, 48.4, 16.2, 82.0, 6.77],
+        'ЦСКА' => [52.2, 31, 1, 53.7, 16.9, 79.8, 6.71],
+        'Динамо' => [56.7, 42, 1, 56.0, 15.4, 80.3, 6.68],
+        'Локомотив' => [50.8, 36, 2, 50.2, 13.9, 77.4, 6.60],
+        'Ростов' => [47.9, 41, 3, 55.4, 12.8, 75.1, 6.70],
+        'Рубин' => [48.6, 44, 2, 53.7, 12.1, 74.6, 6.52],
+        'Крылья Советов' => [49.3, 33, 1, 49.5, 13.2, 76.9, 6.48],
+        'Динамо Мх' => [46.1, 50, 5, 54.2, 11.8, 73.2, 6.40],
+        'Акрон' => [51.4, 42, 1, 47.6, 14.1, 79.2, 6.45],
+        'Оренбург' => [44.7, 37, 2, 52.0, 11.3, 71.8, 6.38],
+        'Ахмат' => [45.5, 42, 1, 46.9, 12.5, 72.6, 6.42],
+        'Пари НН' => [53.1, 29, 0, 45.3, 14.6, 81.5, 6.36],
+        'Торпедо' => [43.9, 35, 3, 50.6, 10.9, 70.3, 6.30],
+        'Сочи' => [42.8, 38, 2, 44.1, 10.4, 69.5, 6.22],
+    ];
+
     public static function idForLeague(?string $leagueId): ?int
     {
         return $leagueId !== null ? (self::LEAGUE_TOURNAMENTS[$leagueId] ?? null) : null;
@@ -150,6 +183,8 @@ class MockTournament
                 'minutes' => self::minutes($players),
                 'ratings' => self::ratings($players),
             ],
+            'teamStats' => self::teamStatsByContext(),
+            'contribution' => self::contributionByContext($players),
             'thresholds' => [
                 'minutes_scoring' => self::MIN_MINUTES_SCORING,
                 'minutes_goalkeeper' => self::MIN_MINUTES_GOALKEEPER,
@@ -381,5 +416,167 @@ class MockTournament
             ['name', 'team', 'matches', 'rating'],
             null,
         );
+    }
+
+    /**
+     * Сдвиг «дом/гость» от 0 до 1, одинаковый при каждом запросе.
+     */
+    private static function spread(string $team, string $metric): float
+    {
+        return (crc32($team.'|'.$metric) % 1000) / 1000;
+    }
+
+    /**
+     * Значение командной метрики в контексте: дома выше среднего, в гостях ниже.
+     * Карточки делятся так, что дома + в гостях = всего.
+     */
+    private static function teamValue(string $team, string $metric, float|int $base, string $context): float|int
+    {
+        $d = self::spread($team, $metric);
+
+        if (in_array($metric, ['yellow', 'red'], true)) {
+            if ($context === 'overall') {
+                return $base;
+            }
+            // Дома карточек чуть меньше: 38–50% от общего числа.
+            $home = (int) round($base * (0.38 + 0.12 * $d));
+
+            return $context === 'home' ? $home : $base - $home;
+        }
+
+        $shift = match ($metric) {
+            'shots' => 0.4 + 1.2 * $d,
+            'rating' => 0.03 + 0.12 * $d,
+            default => 0.6 + 2.4 * $d,
+        };
+        $signed = match ($context) {
+            'home' => $shift,
+            'away' => -$shift,
+            default => 0.0,
+        };
+        $digits = $metric === 'rating' ? 2 : 1;
+        $value = round($base + $signed, $digits);
+
+        return in_array($metric, ['possession', 'aerial', 'passing'], true) ? min($value, 99.0) : $value;
+    }
+
+    /**
+     * @return array<string, array<string, list<array<string, mixed>>>>
+     */
+    private static function teamStatsByContext(): array
+    {
+        $result = [];
+        foreach (self::CONTEXTS as $context) {
+            $teams = [];
+            foreach (self::TEAM_STATS as $team => [$possession, $yellow, $red, $aerial, $shots, $passing, $rating]) {
+                $teams[] = [
+                    'team' => $team,
+                    'possession' => self::teamValue($team, 'possession', $possession, $context),
+                    'yellow' => self::teamValue($team, 'yellow', $yellow, $context),
+                    'red' => self::teamValue($team, 'red', $red, $context),
+                    'aerial' => self::teamValue($team, 'aerial', $aerial, $context),
+                    'shots' => self::teamValue($team, 'shots', $shots, $context),
+                    'passing' => self::teamValue($team, 'passing', $passing, $context),
+                    'rating' => self::teamValue($team, 'rating', $rating, $context),
+                ];
+            }
+
+            $result[$context] = [
+                'possession' => self::teamTop($teams, ['possession'], ['team', 'possession']),
+                'aggression' => self::teamTop($teams, ['yellow', 'red'], ['team', 'yellow', 'red']),
+                'aerial' => self::teamTop($teams, ['aerial'], ['team', 'aerial']),
+                'shots' => self::teamTop($teams, ['shots'], ['team', 'shots']),
+                'passing' => self::teamTop($teams, ['passing'], ['team', 'passing']),
+                'rating' => self::teamTop($teams, ['rating'], ['team', 'rating']),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $teams
+     * @param  list<string>  $sortBy  поля сортировки по убыванию
+     * @param  list<string>  $keys
+     * @return list<array<string, mixed>>
+     */
+    private static function teamTop(array $teams, array $sortBy, array $keys): array
+    {
+        usort($teams, static function (array $a, array $b) use ($sortBy): int {
+            foreach ($sortBy as $field) {
+                if ($a[$field] != $b[$field]) {
+                    return $b[$field] <=> $a[$field];
+                }
+            }
+
+            return 0;
+        });
+
+        $rows = [];
+        foreach (array_slice($teams, 0, self::TEAM_TOP_LIMIT) as $i => $t) {
+            $rows[] = ['rank' => $i + 1] + array_intersect_key($t, array_flip($keys));
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Вклад в голы команды: голы игрока / голы команды (без передач), топ по голам в контексте.
+     * Голы команды и игроков делятся на дома / в гостях одним коэффициентом команды; голы игрока не больше голов команды.
+     *
+     * @param  list<array<string, mixed>>  $players
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function contributionByContext(array $players): array
+    {
+        $teamGoals = [];
+        foreach (self::TEAMS as $t) {
+            $teamGoals[$t[0]] = $t[4];
+        }
+
+        $result = [];
+        foreach (self::CONTEXTS as $context) {
+            $rows = [];
+            foreach ($players as $p) {
+                $total = $teamGoals[$p['team']];
+                $share = 0.5 + 0.14 * self::spread($p['team'], 'home_goals');
+                $teamHome = (int) ceil($total * $share);
+                $teamCtx = match ($context) {
+                    'home' => $teamHome,
+                    'away' => $total - $teamHome,
+                    default => $total,
+                };
+                $playerHome = (int) floor($p['goals'] * $share);
+                $playerCtx = match ($context) {
+                    'home' => $playerHome,
+                    'away' => $p['goals'] - $playerHome,
+                    default => $p['goals'],
+                };
+                $playerCtx = min($playerCtx, $teamCtx);
+
+                if ($playerCtx < 1) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'name' => $p['name'],
+                    'team' => $p['team'],
+                    'goals' => $playerCtx,
+                    'team_goals' => $teamCtx,
+                    'share' => (int) round($playerCtx / $teamCtx * 100),
+                    'minutes' => $p['minutes'],
+                ];
+            }
+
+            usort($rows, static fn (array $a, array $b) => [$b['goals'], $b['share'], $a['minutes']] <=> [$a['goals'], $a['share'], $b['minutes']]);
+
+            $result[$context] = [];
+            foreach (array_slice($rows, 0, self::CONTRIBUTION_LIMIT) as $i => $r) {
+                unset($r['minutes']);
+                $result[$context][] = ['rank' => $i + 1] + $r;
+            }
+        }
+
+        return $result;
     }
 }

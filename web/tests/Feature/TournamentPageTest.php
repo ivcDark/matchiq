@@ -27,6 +27,12 @@ class TournamentPageTest extends TestCase
                 ->has('leaders.goalkeepers')
                 ->has('leaders.minutes')
                 ->has('leaders.ratings')
+                ->has('teamStats.overall.possession', 5)
+                ->has('teamStats.home.aggression', 5)
+                ->has('teamStats.away.rating', 5)
+                ->has('contribution.overall', 10)
+                ->has('contribution.home', 10)
+                ->has('contribution.away', 10)
                 ->has('thresholds'));
     }
 
@@ -158,6 +164,85 @@ class TournamentPageTest extends TestCase
         $this->assertSame($sortedRatings, $ratings);
         foreach ($leaders['ratings'] as $p) {
             $this->assertGreaterThanOrEqual(MockTournament::MIN_MATCHES_RATING, $p['matches']);
+        }
+    }
+
+    public function test_team_stats_cover_three_contexts_and_are_sorted(): void
+    {
+        $stats = MockTournament::find(1)['teamStats'];
+        $this->assertSame(['overall', 'home', 'away'], array_keys($stats));
+
+        $tables = ['possession', 'aggression', 'aerial', 'shots', 'passing', 'rating'];
+        $fields = ['possession' => 'possession', 'aerial' => 'aerial', 'shots' => 'shots', 'passing' => 'passing', 'rating' => 'rating'];
+
+        foreach ($stats as $context => $byTable) {
+            $this->assertSame($tables, array_keys($byTable), $context);
+            foreach ($byTable as $key => $rows) {
+                $this->assertSame(range(1, 5), array_column($rows, 'rank'), "$context/$key");
+                $this->assertCount(5, array_unique(array_column($rows, 'team')));
+            }
+            foreach ($fields as $key => $field) {
+                $values = array_column($byTable[$key], $field);
+                $sorted = $values;
+                rsort($sorted);
+                $this->assertSame($sorted, $values, "$context/$key отсортирован по убыванию");
+            }
+            $yellow = array_column($byTable['aggression'], 'yellow');
+            $sortedYellow = $yellow;
+            rsort($sortedYellow);
+            $this->assertSame($sortedYellow, $yellow);
+        }
+
+        foreach (['possession', 'aerial', 'passing'] as $key) {
+            foreach ($stats as $byTable) {
+                foreach ($byTable[$key] as $row) {
+                    $this->assertLessThanOrEqual(100, $row[$key]);
+                }
+            }
+        }
+    }
+
+    public function test_team_cards_split_into_home_and_away(): void
+    {
+        $stats = MockTournament::find(1)['teamStats'];
+        $sum = static function (string $context) use ($stats): array {
+            return collect($stats[$context]['aggression'])->mapWithKeys(fn ($r) => [$r['team'] => $r['yellow'] + $r['red']])->all();
+        };
+
+        foreach ($sum('home') as $team => $cards) {
+            if (isset($sum('overall')[$team], $sum('away')[$team])) {
+                $this->assertSame($sum('overall')[$team], $cards + $sum('away')[$team]);
+            }
+        }
+    }
+
+    public function test_contribution_rows_are_consistent_per_context(): void
+    {
+        $contribution = MockTournament::find(1)['contribution'];
+        $teamGoals = collect(MockTournament::find(1)['standings'])->pluck('gf', 'team');
+
+        foreach ($contribution as $context => $rows) {
+            $this->assertSame(range(1, 10), array_column($rows, 'rank'), $context);
+            $goals = array_column($rows, 'goals');
+            $sorted = $goals;
+            rsort($sorted);
+            $this->assertSame($sorted, $goals, "$context: по убыванию голов");
+
+            foreach ($rows as $row) {
+                $this->assertGreaterThan(0, $row['goals']);
+                $this->assertLessThanOrEqual($row['team_goals'], $row['goals']);
+                $this->assertSame((int) round($row['goals'] / $row['team_goals'] * 100), $row['share']);
+                if ($context === 'overall') {
+                    $this->assertSame($teamGoals[$row['team']], $row['team_goals']);
+                }
+            }
+        }
+
+        $overall = collect($contribution['overall'])->keyBy('name');
+        foreach (['home', 'away'] as $context) {
+            foreach ($contribution[$context] as $row) {
+                $this->assertLessThanOrEqual($overall[$row['name']]['goals'] ?? PHP_INT_MAX, $row['goals']);
+            }
         }
     }
 
