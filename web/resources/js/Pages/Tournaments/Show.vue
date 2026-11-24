@@ -2,6 +2,7 @@
 import TournamentAttackDefense from '@/Components/TournamentAttackDefense.vue';
 import TournamentContribution from '@/Components/TournamentContribution.vue';
 import TournamentForm from '@/Components/TournamentForm.vue';
+import TournamentHeader from '@/Components/TournamentHeader.vue';
 import TournamentResults from '@/Components/TournamentResults.vue';
 import TournamentSchedule from '@/Components/TournamentSchedule.vue';
 import TournamentSectionNav from '@/Components/TournamentSectionNav.vue';
@@ -14,6 +15,8 @@ import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     tournament: { type: Object, required: true },
+    seasonKey: { type: String, default: '' },
+    seasons: { type: Array, default: () => [] },
     zones: { type: Array, default: () => [] },
     standings: { type: Array, default: () => [] },
     standingsByContext: { type: Object, default: () => ({}) },
@@ -51,10 +54,6 @@ watch(section, (id) => {
     const hash = id === DEFAULT_SECTION ? '' : `#${id}`;
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}${hash}`);
 });
-
-const progress = computed(() =>
-    Math.round((props.tournament.round / props.tournament.rounds_total) * 100),
-);
 
 const nf = new Intl.NumberFormat('ru-RU');
 const num = (n) => nf.format(n);
@@ -198,37 +197,7 @@ const cards = computed(() => [
         <div class="miq-tt space-y-4">
             <Link :href="route('matches.index')" class="miq-up-back">← Матчи</Link>
 
-            <section class="miq-panel miq-tt-hero" aria-label="О турнире">
-                <div class="min-w-0">
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-miq-muted">
-                        {{ tournament.country }} · Сезон {{ tournament.season }}
-                    </p>
-                    <h1 class="miq-display mt-1 text-3xl font-bold text-miq-ink sm:text-4xl">
-                        {{ tournament.name }}
-                    </h1>
-                    <p class="mt-0.5 text-sm text-miq-muted">{{ tournament.full_name }}</p>
-                </div>
-
-                <div class="miq-tt-stage">
-                    <p class="text-xs font-semibold uppercase tracking-[0.12em] text-miq-muted">
-                        {{ tournament.stage }}
-                    </p>
-                    <p class="mt-1 flex items-baseline gap-1.5 text-miq-ink">
-                        <span class="num-display text-3xl leading-none">{{ tournament.round }}</span>
-                        <span class="text-sm text-miq-muted">тур из {{ tournament.rounds_total }}</span>
-                    </p>
-                    <div
-                        class="miq-tt-progress"
-                        role="progressbar"
-                        :aria-valuenow="tournament.round"
-                        aria-valuemin="0"
-                        :aria-valuemax="tournament.rounds_total"
-                        :aria-label="`Сыграно ${tournament.round} туров из ${tournament.rounds_total}`"
-                    >
-                        <span :style="{ width: `${progress}%` }" />
-                    </div>
-                </div>
-            </section>
+            <TournamentHeader :tournament="tournament" :seasons="seasons" :season-key="seasonKey" />
 
             <TournamentSectionNav v-model="section" :sections="SECTIONS" id-prefix="tt" />
 

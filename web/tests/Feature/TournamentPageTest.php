@@ -19,6 +19,15 @@ class TournamentPageTest extends TestCase
                 ->has('tournament.round')
                 ->has('tournament.rounds_total')
                 ->has('tournament.stage')
+                ->where('seasonKey', '2026-27')
+                ->where('tournament.season_key', '2026-27')
+                ->has('seasons', 3)
+                ->where('seasons.0.key', '2026-27')
+                ->where('seasons.0.label', '2026/27')
+                ->where('seasons.0.current', true)
+                ->has('seasons.0.summary.goals')
+                ->has('seasons.1.summary.leader.team')
+                ->has('tournament.summary.gap')
                 ->has('zones', 5)
                 ->has('standings', 16)
                 ->has('standingsByContext.overall', 16)
@@ -462,5 +471,95 @@ class TournamentPageTest extends TestCase
 
         $standings = file_get_contents(resource_path('js/Components/TournamentStandings.vue'));
         $this->assertStringContainsString('overall-label="Все"', $standings);
+    }
+
+    public function test_seasons_are_listed_with_distinct_summaries(): void
+    {
+        $seasons = MockTournament::find(1, now()->setDate(2026, 11, 24))['seasons'];
+
+        $this->assertSame(['2026-27', '2025-26', '2024-25'], array_column($seasons, 'key'));
+        $this->assertSame(['2026/27', '2025/26', '2024/25'], array_column($seasons, 'label'));
+        $this->assertSame([true, false, false], array_column($seasons, 'current'));
+        $this->assertSame([15, 12, 9], array_column($seasons, 'round'));
+        $this->assertCount(3, array_unique(array_column(array_column($seasons, 'summary'), 'goals')));
+
+        foreach ($seasons as $season) {
+            $summary = $season['summary'];
+            $this->assertSame(16, $summary['teams']);
+            $this->assertSame($season['round'] * 8, $summary['matches']);
+            $this->assertEqualsWithDelta($summary['goals'] / $summary['matches'], $summary['goals_per_match'], 0.006);
+            $this->assertGreaterThanOrEqual(0, $summary['gap']);
+        }
+    }
+
+    public function test_current_season_summary_matches_standings(): void
+    {
+        $data = MockTournament::find(1);
+        $summary = $data['tournament']['summary'];
+
+        $this->assertSame($data['standings'][0]['team'], $summary['leader']['team']);
+        $this->assertSame($data['standings'][0]['pts'], $summary['leader']['pts']);
+        $this->assertSame($data['standings'][0]['pts'] - $data['standings'][1]['pts'], $summary['gap']);
+        $this->assertSame(array_sum(array_column($data['standings'], 'gf')), $summary['goals']);
+        $this->assertSame($data['seasons'][0]['summary'], $summary);
+    }
+
+    public function test_season_query_switches_displayed_data(): void
+    {
+        $current = MockTournament::find(1);
+        $earlier = MockTournament::find(1, null, '2025-26');
+
+        $this->assertSame('2025-26', $earlier['seasonKey']);
+        $this->assertSame('2025/26', $earlier['tournament']['season']);
+        $this->assertSame(12, $earlier['tournament']['round']);
+        $this->assertSame(13, $earlier['tournament']['next_round']);
+        $this->assertCount(12, $earlier['results']);
+        $this->assertSame(13, $earlier['schedule'][0]['round']);
+        $this->assertCount(18, $earlier['schedule']);
+        $this->assertSame(96, array_sum(array_column($earlier['standings'], 'played')) / 2);
+        $this->assertNotSame($current['standings'], $earlier['standings']);
+        $this->assertSame($earlier['seasons'][1]['summary'], $earlier['tournament']['summary']);
+
+        foreach ($earlier['standings'] as $row) {
+            $this->assertSame(12, $row['played']);
+        }
+        foreach (['scorers', 'assists', 'fastScorers', 'goalkeepers', 'minutes', 'ratings'] as $key) {
+            $this->assertNotEmpty($earlier['leaders'][$key], $key);
+        }
+    }
+
+    public function test_season_query_is_applied_by_controller(): void
+    {
+        $this->get('/tournaments/1?season=2024-25')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('seasonKey', '2024-25')
+                ->where('tournament.season', '2024/25')
+                ->where('tournament.round', 9)
+                ->has('results', 9)
+                ->has('seasons', 3));
+
+        $this->get('/tournaments/1?season=1999-00')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('seasonKey', '2026-27')->where('tournament.round', 15));
+
+        $this->get('/tournaments/1?season[]=x')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('seasonKey', '2026-27'));
+    }
+
+    public function test_header_component_has_season_select_and_metrics(): void
+    {
+        $header = file_get_contents(resource_path('js/Components/TournamentHeader.vue'));
+
+        $this->assertStringContainsString('<select', $header);
+        $this->assertStringContainsString('v-for="season in seasons"', $header);
+        $this->assertStringContainsString('router.get', $header);
+        foreach (['Тур', 'Голов', 'Лидер', 'Отрыв от 2-го'] as $label) {
+            $this->assertStringContainsString("<dt>$label</dt>", $header);
+        }
+
+        $page = file_get_contents(resource_path('js/Pages/Tournaments/Show.vue'));
+        $this->assertStringContainsString('<TournamentHeader', $page);
     }
 }

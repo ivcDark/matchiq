@@ -48,6 +48,15 @@ class MockTournament
 
     public const ROUNDS_TOTAL = 30;
 
+    /** Туров в первом круге: ровно столько результатов лежит в MATCHES. */
+    public const CIRCLE_ROUNDS = 15;
+
+    /**
+     * Сезоны для выбора на странице: сдвиг назад от текущего сезона чемпионата → сколько туров сыграно в моке.
+     * Прошлые сезоны — демо-срезы той же таблицы на более раннем туре (полных архивов в моках нет).
+     */
+    private const SEASON_ROUNDS = [0 => self::ROUNDS_PLAYED, 1 => 12, 2 => 9];
+
     /**
      * Результаты первого круга (туры 1–15): тур, хозяева, гости, голы хозяев, голы гостей.
      * Единственный источник турнирной таблицы, формы и результатов; второй круг (туры 16–30) —
@@ -288,18 +297,27 @@ class MockTournament
     /**
      * @return array<string, mixed>|null null — турнира с таким id нет
      */
-    public static function find(int $id, ?CarbonInterface $date = null): ?array
+    public static function find(int $id, ?CarbonInterface $date = null, ?string $season = null): ?array
     {
         if ($id !== self::RPL_ID) {
             return null;
         }
 
         $date ??= Carbon::now();
-        $startYear = self::startYear($date);
-        $matches = self::allMatches($startYear);
+        $seasons = self::seasons(self::startYear($date));
+        $active = collect($seasons)->firstWhere('key', $season) ?? $seasons[0];
+        $startYear = $active['start_year'];
+        $round = $active['round'];
+        $matches = self::allMatches($startYear, $round);
         $played = array_values(array_filter($matches, static fn (array $m) => $m['home_goals'] !== null));
 
-        $players = array_map(self::player(...), self::PLAYERS);
+        $factor = $round / self::CIRCLE_ROUNDS;
+        $thresholds = [
+            'minutes_scoring' => (int) round(self::MIN_MINUTES_SCORING * $factor),
+            'minutes_goalkeeper' => (int) round(self::MIN_MINUTES_GOALKEEPER * $factor),
+            'matches_rating' => (int) ceil(self::MIN_MATCHES_RATING * $factor),
+        ];
+        $players = array_map(static fn (array $p) => self::player($p, $factor), self::PLAYERS);
         $byContext = [];
         foreach (self::CONTEXTS as $context) {
             $byContext[$context] = self::standings($played, $context);
@@ -307,7 +325,16 @@ class MockTournament
         $standings = $byContext['overall'];
 
         return [
-            'tournament' => self::header($startYear),
+            'tournament' => self::header($active, self::summary($standings, $played)),
+            'seasonKey' => $active['key'],
+            'seasons' => array_map(static fn (array $s) => [
+                'key' => $s['key'],
+                'label' => $s['label'],
+                'current' => $s['current'],
+                'round' => $s['round'],
+                'rounds_total' => self::ROUNDS_TOTAL,
+                'summary' => self::summary(self::standings(self::firstCircle($s['round'])), self::firstCircle($s['round'])),
+            ], $seasons),
             'zones' => array_map(
                 static fn (array $z) => ['id' => $z['id'], 'label' => $z['label'], 'range' => self::zoneRange($z)],
                 self::ZONES,
@@ -315,44 +342,104 @@ class MockTournament
             'standings' => $standings,
             'standingsByContext' => $byContext,
             'teamForm' => self::teamForm($played, $standings),
-            'schedule' => self::schedule($matches, $standings),
+            'schedule' => self::schedule($matches, $standings, $round),
             'results' => self::results($played),
             'attackDefense' => self::attackDefense($standings),
             'leaders' => [
                 'scorers' => self::scorers($players),
                 'assists' => self::assists($players),
-                'fastScorers' => self::fastScorers($players),
-                'goalkeepers' => self::goalkeepers($players),
+                'fastScorers' => self::fastScorers($players, $thresholds['minutes_scoring']),
+                'goalkeepers' => self::goalkeepers($players, $thresholds['minutes_goalkeeper']),
                 'minutes' => self::minutes($players),
-                'ratings' => self::ratings($players),
+                'ratings' => self::ratings($players, $thresholds['matches_rating']),
             ],
-            'teamStats' => self::teamStatsByContext(),
+            'teamStats' => self::teamStatsByContext($factor),
             'contribution' => self::contributionByContext($players, $standings),
-            'thresholds' => [
-                'minutes_scoring' => self::MIN_MINUTES_SCORING,
-                'minutes_goalkeeper' => self::MIN_MINUTES_GOALKEEPER,
-                'matches_rating' => self::MIN_MATCHES_RATING,
-            ],
+            'thresholds' => $thresholds,
+        ];
+    }
+
+    /**
+     * Сезоны для выбора: от текущего к прошлым. Ключ — `2026-27` (для URL), подпись — `2026/27`.
+     *
+     * @return list<array{key: string, label: string, start_year: int, round: int, current: bool}>
+     */
+    private static function seasons(int $currentStartYear): array
+    {
+        $seasons = [];
+        foreach (self::SEASON_ROUNDS as $back => $round) {
+            $year = $currentStartYear - $back;
+            $seasons[] = [
+                'key' => sprintf('%d-%02d', $year, ($year + 1) % 100),
+                'label' => sprintf('%d/%02d', $year, ($year + 1) % 100),
+                'start_year' => $year,
+                'round' => $round,
+                'current' => $back === 0,
+            ];
+        }
+
+        return $seasons;
+    }
+
+    /**
+     * Сыгранные матчи первого круга до указанного тура включительно (без дат), в хронологическом порядке.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function firstCircle(int $round): array
+    {
+        $played = [];
+        foreach (self::MATCHES as [$r, $home, $away, $homeGoals, $awayGoals]) {
+            if ($r <= $round) {
+                $played[] = ['round' => $r, 'home' => $home, 'away' => $away, 'home_goals' => $homeGoals, 'away_goals' => $awayGoals];
+            }
+        }
+
+        return $played;
+    }
+
+    /**
+     * Короткие цифры для шапки: голы за турнир, голов за матч, лидер и отрыв от второго места.
+     *
+     * @param  list<array<string, mixed>>  $standings
+     * @param  list<array<string, mixed>>  $played
+     * @return array{teams: int, matches: int, goals: int, goals_per_match: float, leader: array{team: string, pts: int}, gap: int}
+     */
+    private static function summary(array $standings, array $played): array
+    {
+        $goals = array_sum(array_map(static fn (array $m) => $m['home_goals'] + $m['away_goals'], $played));
+
+        return [
+            'teams' => count($standings),
+            'matches' => count($played),
+            'goals' => $goals,
+            'goals_per_match' => round($goals / count($played), 2),
+            'leader' => ['team' => $standings[0]['team'], 'pts' => $standings[0]['pts']],
+            'gap' => $standings[0]['pts'] - $standings[1]['pts'],
         ];
     }
 
     /**
      * Сезон чемпионата РПЛ идёт с июля по май; не путать с сезоном рейтинга (1 авг — 31 июл).
      *
+     * @param  array{key: string, label: string, round: int}  $season
+     * @param  array<string, mixed>  $summary
      * @return array<string, mixed>
      */
-    private static function header(int $startYear): array
+    private static function header(array $season, array $summary): array
     {
         return [
             'id' => self::RPL_ID,
             'name' => 'РПЛ',
             'full_name' => 'Российская Премьер-Лига',
             'country' => 'Россия',
-            'season' => sprintf('%d/%02d', $startYear, ($startYear + 1) % 100),
-            'round' => self::ROUNDS_PLAYED,
-            'next_round' => self::ROUNDS_PLAYED + 1,
+            'season' => $season['label'],
+            'season_key' => $season['key'],
+            'round' => $season['round'],
+            'next_round' => $season['round'] + 1,
             'rounds_total' => self::ROUNDS_TOTAL,
             'stage' => 'Регулярный чемпионат',
+            'summary' => $summary,
         ];
     }
 
@@ -372,26 +459,27 @@ class MockTournament
     }
 
     /**
-     * Все 30 туров: сыгранные (первый круг, с голами) и предстоящие (второй круг, голы null),
+     * Все 30 туров: сыгранные (первый круг до `$playedRounds`, с голами) и предстоящие (голы null),
      * с датой и временем начала. Даты привязаны к сезону: зимний перерыв между 18 и 19 турами.
      *
      * @return list<array<string, mixed>>
      */
-    private static function allMatches(int $startYear): array
+    private static function allMatches(int $startYear, int $playedRounds): array
     {
         $fixtures = [];
         foreach (self::MATCHES as [$round, $home, $away, $homeGoals, $awayGoals]) {
+            $isPlayed = $round <= $playedRounds;
             $fixtures[] = [
                 'round' => $round,
                 'home' => $home,
                 'away' => $away,
-                'home_goals' => $homeGoals,
-                'away_goals' => $awayGoals,
+                'home_goals' => $isPlayed ? $homeGoals : null,
+                'away_goals' => $isPlayed ? $awayGoals : null,
             ];
         }
         foreach (self::MATCHES as [$round, $home, $away]) {
             $fixtures[] = [
-                'round' => $round + self::ROUNDS_PLAYED,
+                'round' => $round + self::CIRCLE_ROUNDS,
                 'home' => $away,
                 'away' => $home,
                 'home_goals' => null,
@@ -544,11 +632,12 @@ class MockTournament
      *
      * @param  list<array<string, mixed>>  $matches
      * @param  list<array<string, mixed>>  $standings
+     * @param  int  $round  сколько туров сыграно
      * @return list<array<string, mixed>>
      */
-    private static function schedule(array $matches, array $standings): array
+    private static function schedule(array $matches, array $standings, int $round): array
     {
-        $next = self::ROUNDS_PLAYED + 1;
+        $next = $round + 1;
         $rates = self::goalRates($standings);
 
         $rounds = [];
@@ -714,22 +803,27 @@ class MockTournament
 
     /**
      * @param  array<int, mixed>  $p
+     * @param  float  $factor  доля сыгранных туров от первого круга: статистика игроков масштабируется срезом сезона
      * @return array<string, mixed>
      */
-    private static function player(array $p): array
+    private static function player(array $p, float $factor = 1.0): array
     {
+        $scale = static fn (int $value): int => $factor === 1.0 ? $value : (int) round($value * $factor);
+        $goals = $scale($p[5]);
+        $assists = $scale($p[7]);
+
         return [
             'name' => $p[0],
             'team' => $p[1],
             'position' => $p[2],
-            'matches' => $p[3],
-            'minutes' => $p[4],
-            'goals' => $p[5],
-            'pens' => $p[6],
-            'assists' => $p[7],
-            'ga' => $p[5] + $p[7],
+            'matches' => $scale($p[3]),
+            'minutes' => $scale($p[4]),
+            'goals' => $goals,
+            'pens' => min($goals, $scale($p[6])),
+            'assists' => $assists,
+            'ga' => $goals + $assists,
             'rating' => $p[8],
-            'clean_sheets' => $p[9],
+            'clean_sheets' => $scale($p[9]),
         ];
     }
 
@@ -785,11 +879,11 @@ class MockTournament
      * Скорострельные: голов на 90 минут ↓ (то же, что минут на 1 гол ↑);
      * в список — от MIN_MINUTES_SCORING минут и минимум 1 гол. Отдаём весь список для сортировки на странице.
      */
-    private static function fastScorers(array $players): array
+    private static function fastScorers(array $players, int $minMinutes): array
     {
         $eligible = array_values(array_filter(
             $players,
-            static fn (array $p) => $p['goals'] > 0 && $p['minutes'] >= self::MIN_MINUTES_SCORING,
+            static fn (array $p) => $p['goals'] > 0 && $p['minutes'] >= $minMinutes,
         ));
 
         $rows = array_map(static fn (array $p) => $p + [
@@ -809,13 +903,13 @@ class MockTournament
      * Вратари: сухих на 90 минут ↓ (то же, что минут на 1 сухой ↑);
      * в список — от MIN_MINUTES_GOALKEEPER минут и минимум 1 сухой матч. Весь список — для сортировки на странице.
      */
-    private static function goalkeepers(array $players): array
+    private static function goalkeepers(array $players, int $minMinutes): array
     {
         $eligible = array_values(array_filter(
             $players,
             static fn (array $p) => $p['position'] === 'GK'
                 && $p['clean_sheets'] > 0
-                && $p['minutes'] >= self::MIN_MINUTES_GOALKEEPER,
+                && $p['minutes'] >= $minMinutes,
         ));
 
         $rows = array_map(static fn (array $p) => $p + [
@@ -847,11 +941,11 @@ class MockTournament
     /**
      * Лучшие по рейтингу: средняя оценка ↓; в список — от MIN_MATCHES_RATING матчей.
      */
-    private static function ratings(array $players): array
+    private static function ratings(array $players, int $minMatches): array
     {
         $eligible = array_values(array_filter(
             $players,
-            static fn (array $p) => $p['matches'] >= self::MIN_MATCHES_RATING,
+            static fn (array $p) => $p['matches'] >= $minMatches,
         ));
 
         return self::top(
@@ -943,12 +1037,16 @@ class MockTournament
     /**
      * @return array<string, array<string, list<array<string, mixed>>>>
      */
-    private static function teamStatsByContext(): array
+    private static function teamStatsByContext(float $factor = 1.0): array
     {
         $result = [];
         foreach (self::CONTEXTS as $context) {
             $teams = [];
             foreach (self::TEAM_STATS as $team => [$possession, $yellow, $red, $aerial, $shots, $passing, $rating]) {
+                if ($factor !== 1.0) {
+                    $yellow = (int) round($yellow * $factor);
+                    $red = (int) round($red * $factor);
+                }
                 $teams[] = [
                     'team' => $team,
                     'possession' => self::teamValue($team, 'possession', $possession, $context),

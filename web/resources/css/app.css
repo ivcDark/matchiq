@@ -2388,19 +2388,82 @@
         background: color-mix(in srgb, var(--miq-lime) 62%, white);
     }
 
-    .miq-tt-hero {
-        @apply flex flex-wrap items-end justify-between gap-x-6 gap-y-4 px-3.5 py-4 sm:px-5 sm:py-5;
-        background:
-            radial-gradient(90% 80% at 0% 0%, color-mix(in srgb, var(--miq-cmp-lead) 18%, transparent), transparent 60%),
-            color-mix(in srgb, white 76%, var(--miq-chalk));
+    .miq-tt-head-top {
+        @apply flex flex-wrap items-end justify-between gap-x-4 gap-y-2 px-3.5 py-2.5 sm:px-4;
+    }
+
+    .miq-tt-kicker {
+        @apply truncate text-[11px] font-semibold uppercase tracking-[0.1em] text-miq-muted;
     }
 
     .miq-tt-stage {
-        @apply w-full sm:w-56;
+        @apply ml-1.5 align-middle text-[11px] font-semibold uppercase tracking-[0.1em] text-miq-muted;
+    }
+
+    .miq-tt-season {
+        @apply flex shrink-0 items-center gap-2;
+    }
+
+    .miq-tt-season-label {
+        @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-miq-muted;
+    }
+
+    .miq-tt-season-note {
+        @apply hidden text-[11px] text-miq-muted sm:inline;
+    }
+
+    .miq-tt-season-select {
+        @apply cursor-pointer appearance-none rounded-md border py-1 pl-2.5 pr-7 text-sm font-semibold text-miq-ink outline-none transition disabled:cursor-wait disabled:opacity-60;
+        border-color: color-mix(in srgb, var(--miq-line) 90%, transparent);
+        background-color: color-mix(in srgb, white 88%, var(--miq-mist));
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%235c7367' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.5rem center;
+        background-size: 0.75rem;
+    }
+
+    .miq-tt-season-select:hover {
+        border-color: color-mix(in srgb, var(--miq-pitch) 45%, var(--miq-line));
+    }
+
+    .miq-tt-season-select:focus-visible {
+        border-color: color-mix(in srgb, var(--miq-pitch) 55%, var(--miq-line));
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--miq-pitch) 16%, transparent);
+    }
+
+    .miq-tt-stats {
+        @apply grid grid-cols-2 gap-px border-t sm:grid-cols-4;
+        border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, var(--miq-line) 80%, transparent);
+    }
+
+    .miq-tt-stat {
+        @apply min-w-0 px-3.5 py-2 sm:px-4;
+        background: color-mix(in srgb, white 78%, var(--miq-chalk));
+    }
+
+    .miq-tt-stat dt {
+        @apply text-[10px] font-semibold uppercase tracking-[0.1em] text-miq-muted;
+    }
+
+    .miq-tt-stat dd {
+        @apply mt-0.5 flex items-baseline gap-1.5;
+    }
+
+    .miq-tt-stat-num {
+        @apply num-display text-lg leading-none text-miq-ink;
+    }
+
+    .miq-tt-stat-name {
+        @apply truncate text-[15px] font-bold leading-none text-miq-ink;
+    }
+
+    .miq-tt-stat-sub {
+        @apply shrink-0 text-[11px] text-miq-muted;
     }
 
     .miq-tt-progress {
-        @apply mt-2 h-1.5 overflow-hidden rounded-full;
+        @apply mt-1.5 h-1 overflow-hidden rounded-full;
         background: color-mix(in srgb, var(--miq-line) 60%, white);
     }
 
