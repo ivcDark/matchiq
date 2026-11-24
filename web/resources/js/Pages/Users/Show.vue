@@ -5,6 +5,7 @@ import { Head } from '@inertiajs/vue3';
 
 defineProps({
     profile: { type: Object, required: true },
+    season: { type: Object, default: null },
     ratings: { type: Array, default: () => [] },
     championships: { type: Array, default: () => [] },
     bestPick: { type: Object, default: null },
@@ -18,6 +19,7 @@ defineProps({
     <AppLayout>
         <UserProfile
             :profile="profile"
+            :season="season"
             :ratings="ratings"
             :championships="championships"
             :best-pick="bestPick"

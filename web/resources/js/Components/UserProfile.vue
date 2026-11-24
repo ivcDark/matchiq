@@ -1,5 +1,6 @@
 <script setup>
 import PlayerAvatar from '@/Components/PlayerAvatar.vue';
+import SeasonNote from '@/Components/SeasonNote.vue';
 import { Link } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -9,6 +10,7 @@ import { computed, ref } from 'vue';
  */
 const props = defineProps({
     profile: { type: Object, required: true },
+    season: { type: Object, default: null },
     ratings: { type: Array, default: () => [] },
     championships: { type: Array, default: () => [] },
     bestPick: { type: Object, default: null },
@@ -79,8 +81,16 @@ function hitTone(accuracy) {
                 <h2 id="up-rating" class="miq-panel-title">Рейтинг</h2>
             </div>
             <div class="miq-up-tiles">
-                <div v-for="r in ratings" :key="r.id" class="miq-up-tile">
-                    <div class="miq-up-tile-label">{{ r.label }}</div>
+                <div
+                    v-for="r in ratings"
+                    :key="r.id"
+                    class="miq-up-tile"
+                    :title="r.id === 'season' ? season?.hint : undefined"
+                >
+                    <div class="miq-up-tile-label">
+                        {{ r.label }}
+                        <span v-if="r.caption" class="miq-up-tile-caption">{{ r.caption }}</span>
+                    </div>
                     <div class="num-display miq-up-tile-rank">
                         <span class="miq-up-hash">№</span>{{ r.rank }}
                     </div>
@@ -92,6 +102,7 @@ function hitTone(accuracy) {
                     </div>
                 </div>
             </div>
+            <SeasonNote v-if="season" :season="season" class="miq-up-season" />
         </section>
 
         <div class="grid gap-4 lg:grid-cols-2">

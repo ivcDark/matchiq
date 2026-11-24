@@ -14,6 +14,27 @@ class MockLeaderboard
         ['id' => 'all_time', 'label' => 'Всё время'],
     ];
 
+    /**
+     * Периоды для UI: у «Сезона» — подпись и границы текущего сезона рейтинга.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function periods(?RatingSeason $season = null): array
+    {
+        $season ??= RatingSeason::forDate();
+
+        return array_map(
+            fn (array $period) => $period['id'] === 'season'
+                ? $period + [
+                    'caption' => $season->label(),
+                    'range' => $season->range(),
+                    'hint' => RatingSeason::HINT,
+                ]
+                : $period,
+            self::PERIODS,
+        );
+    }
+
     public const DEFAULT_PERIOD = 'season';
 
     public const TOTAL_PLAYERS = 1284;

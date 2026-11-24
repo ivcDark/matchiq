@@ -1,5 +1,6 @@
 <script setup>
 import PlayerAvatar from '@/Components/PlayerAvatar.vue';
+import SeasonNote from '@/Components/SeasonNote.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -7,6 +8,7 @@ import { computed } from 'vue';
 const props = defineProps({
     period: { type: String, default: 'season' },
     periods: { type: Array, default: () => [] },
+    season: { type: Object, default: null },
     entries: { type: Array, default: () => [] },
     totalPlayers: { type: Number, default: 0 },
     currentUserRank: { type: Number, default: null },
@@ -91,12 +93,16 @@ function formatNumber(n) {
                         class="miq-widget-tab"
                         :class="{ 'is-active': period === tab.id }"
                         :aria-selected="period === tab.id"
+                        :title="tab.hint"
                         @click="selectPeriod(tab.id)"
                     >
                         {{ tab.label }}
+                        <span v-if="tab.caption" class="miq-lb-tab-caption">{{ tab.caption }}</span>
                     </button>
                 </div>
             </header>
+
+            <SeasonNote v-if="period === 'season' && season" :season="season" />
 
             <p class="miq-lb-rules">
                 Выберите одно событие на матч до старта. Если оно сыграло — чем ниже

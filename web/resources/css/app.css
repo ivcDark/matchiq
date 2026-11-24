@@ -2478,6 +2478,41 @@
         color: var(--miq-cmp-trail-ink);
     }
 
+    .miq-lb-tab-caption {
+        @apply ml-1 text-[10px] font-semibold text-miq-muted;
+    }
+
+    .miq-season-note {
+        @apply rounded-md border px-3 py-2;
+        border-color: color-mix(in srgb, var(--miq-cmp-lead) 50%, white);
+        background: color-mix(in srgb, var(--miq-cmp-lead) 10%, white);
+    }
+
+    .miq-season-note-main {
+        @apply flex items-start gap-2 text-sm text-miq-ink;
+    }
+
+    .miq-season-note-icon {
+        @apply mt-0.5 h-4 w-4 shrink-0;
+        color: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-season-note-range {
+        @apply text-miq-ink-soft;
+    }
+
+    .miq-season-note-hint {
+        @apply mt-0.5 pl-6 text-xs text-miq-muted;
+    }
+
+    .miq-up-season {
+        @apply mx-3.5 mb-3.5;
+    }
+
+    .miq-up-tile-caption {
+        @apply ml-1 normal-case tracking-normal;
+    }
+
     .miq-lb-cta {
         @apply rounded-md border border-dashed px-4 py-3 text-center text-sm text-miq-muted;
         border-color: color-mix(in srgb, var(--miq-line) 85%, transparent);

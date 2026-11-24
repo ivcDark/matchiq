@@ -3,12 +3,21 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\RatingSeason;
+use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class MvpRoutesTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
 
     public function test_matches_index_renders(): void
     {
@@ -229,6 +238,49 @@ class MvpRoutesTest extends TestCase
                 ->has('entries.0.streak')
                 ->where('entries.0.is_me', false)
                 ->where('currentUserRank', null));
+    }
+
+    public function test_leaderboard_exposes_current_rating_season(): void
+    {
+        Carbon::setTestNow('2026-11-24 12:00:00');
+
+        $this->get('/leaderboard')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('season.label', '2026/27')
+                ->where('season.title', 'Сезон 2026/27')
+                ->where('season.range', '1 авг 2026 — 31 июл 2027')
+                ->where('season.hint', RatingSeason::HINT)
+                ->where('periods.2.id', 'season')
+                ->where('periods.2.caption', '2026/27')
+                ->where('periods.2.range', '1 авг 2026 — 31 июл 2027')
+                ->where('periods.2.hint', RatingSeason::HINT)
+                ->missing('periods.0.caption'));
+    }
+
+    public function test_leaderboard_season_switches_on_august_first(): void
+    {
+        Carbon::setTestNow('2027-07-31 23:30:00');
+        $this->get('/leaderboard')->assertInertia(fn ($page) => $page->where('season.label', '2026/27'));
+
+        Carbon::setTestNow('2027-08-01 00:30:00');
+        $this->get('/leaderboard')->assertInertia(fn ($page) => $page
+            ->where('season.label', '2027/28')
+            ->where('season.range', '1 авг 2027 — 31 июл 2028'));
+    }
+
+    public function test_user_profile_exposes_rating_season(): void
+    {
+        Carbon::setTestNow('2026-07-31 12:00:00');
+
+        $this->get('/users/1000000')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('season.title', 'Сезон 2025/26')
+                ->where('season.range', '1 авг 2025 — 31 июл 2026')
+                ->where('ratings.2.id', 'season')
+                ->where('ratings.2.caption', '2025/26')
+                ->where('ratings.0.caption', null));
     }
 
     public function test_leaderboard_accepts_period_and_falls_back_on_unknown(): void

@@ -92,13 +92,15 @@ class MockUserProfile
         ?CarbonInterface $registeredAt,
         bool $isMe,
     ): array {
+        $season = RatingSeason::forDate();
         $ratings = [];
         $allTime = null;
-        foreach (MockLeaderboard::PERIODS as $period) {
+        foreach (MockLeaderboard::periods($season) as $period) {
             $entry = self::findEntry($period['id'], $id, $nick);
             $ratings[] = [
                 'id' => $period['id'],
                 'label' => $period['label'],
+                'caption' => $period['caption'] ?? null,
                 'rank' => $entry['rank'],
                 'points' => $entry['points'],
                 'picks' => $entry['picks'],
@@ -124,6 +126,7 @@ class MockUserProfile
                 'points' => $allTime['points'],
                 'total_players' => MockLeaderboard::TOTAL_PLAYERS,
             ],
+            'season' => $season->toArray(),
             'ratings' => $ratings,
             'championships' => self::championships($allTime['picks'], $rand),
             'bestPick' => self::bestPick($rand),
