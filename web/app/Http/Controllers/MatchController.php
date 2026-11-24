@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\MockTournament;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -232,6 +233,7 @@ class MatchController extends Controller
             'league' => ($league['country'] ?? '').' · '.($league['name'] ?? ''),
             'league_short' => $league['short'] ?? $league['name'] ?? 'Лига',
             'league_country' => $league['country'] ?? '',
+            'tournament_id' => MockTournament::idForLeague($league['id'] ?? null),
             'venue' => $meta['venue'],
             'referee' => $meta['referee'],
             'round' => $meta['round'],

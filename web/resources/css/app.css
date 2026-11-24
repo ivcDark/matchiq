@@ -2305,6 +2305,165 @@
         text-decoration: underline;
     }
 
+    /* Страница турнира */
+    [data-zone='ucl'] {
+        --tt-zone: #5b8fb9;
+    }
+
+    [data-zone='europa'] {
+        --tt-zone: #d6a84a;
+    }
+
+    [data-zone='conference'] {
+        --tt-zone: var(--miq-cmp-lead);
+    }
+
+    [data-zone='playoff'] {
+        --tt-zone: #b08968;
+    }
+
+    [data-zone='relegation'] {
+        --tt-zone: var(--miq-cmp-trail);
+    }
+
+    .miq-league-badge-link {
+        @apply transition;
+    }
+
+    .miq-league-badge-link:hover {
+        background: color-mix(in srgb, var(--miq-lime) 62%, white);
+    }
+
+    .miq-tt-hero {
+        @apply flex flex-wrap items-end justify-between gap-x-6 gap-y-4 px-3.5 py-4 sm:px-5 sm:py-5;
+        background:
+            radial-gradient(90% 80% at 0% 0%, color-mix(in srgb, var(--miq-cmp-lead) 18%, transparent), transparent 60%),
+            color-mix(in srgb, white 76%, var(--miq-chalk));
+    }
+
+    .miq-tt-stage {
+        @apply w-full sm:w-56;
+    }
+
+    .miq-tt-progress {
+        @apply mt-2 h-1.5 overflow-hidden rounded-full;
+        background: color-mix(in srgb, var(--miq-line) 60%, white);
+    }
+
+    .miq-tt-progress span {
+        @apply block h-full rounded-full;
+        background: var(--miq-cmp-lead);
+    }
+
+    .miq-tt-table {
+        --tt-bg: color-mix(in srgb, white 78%, var(--miq-chalk));
+        @apply w-full min-w-[36rem] border-collapse text-sm;
+    }
+
+    .miq-tt-table thead tr {
+        @apply text-[10px] font-semibold uppercase tracking-wider text-miq-muted;
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-tt-table th,
+    .miq-tt-table td {
+        @apply px-2 py-2 text-right tabular-nums;
+    }
+
+    .miq-tt-table td {
+        @apply text-miq-ink-soft;
+    }
+
+    .miq-tt-table th.is-rank,
+    .miq-tt-table td.is-rank {
+        @apply sticky left-0 z-[1] w-10 min-w-[2.5rem] pl-3.5 text-left;
+        background: var(--tt-bg);
+    }
+
+    .miq-tt-table th.is-team,
+    .miq-tt-table td.is-team {
+        @apply sticky left-10 z-[1] w-36 min-w-[8.5rem] max-w-[8.5rem] text-left;
+        background: var(--tt-bg);
+    }
+
+    .miq-tt-table td.is-team {
+        @apply font-semibold text-miq-ink;
+    }
+
+    .miq-tt-table td.is-pts {
+        @apply font-bold text-miq-ink;
+    }
+
+    .miq-tt-table th.is-form,
+    .miq-tt-table td.is-form {
+        @apply pr-3.5;
+    }
+
+    .miq-tt-table tbody tr {
+        background: var(--tt-bg);
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-tt-table tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .miq-tt-table tbody tr:nth-child(even) {
+        --tt-bg: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-tt-table tbody tr[data-zone] td.is-rank {
+        box-shadow: inset 4px 0 0 var(--tt-zone);
+    }
+
+    .miq-tt-legend {
+        @apply flex flex-wrap gap-x-4 gap-y-1.5 border-t px-3.5 py-2.5 text-xs text-miq-ink-soft;
+        border-color: color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-tt-legend li {
+        @apply inline-flex items-center gap-1.5;
+    }
+
+    .miq-tt-legend-dot {
+        @apply inline-block h-3 w-1 rounded-sm;
+        background: var(--tt-zone);
+    }
+
+    .miq-tt-grid {
+        @apply grid grid-cols-1 gap-4 lg:grid-cols-2;
+    }
+
+    .miq-tt-item {
+        @apply flex items-center gap-2.5 px-3.5 py-2;
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-tt-item:first-child {
+        border-top: 0;
+    }
+
+    .miq-tt-rank {
+        @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold leading-none tabular-nums text-miq-muted;
+    }
+
+    .miq-tt-rank[data-medal] {
+        color: var(--lb-medal-on);
+        background: var(--lb-medal);
+    }
+
+    .miq-tt-main {
+        @apply flex shrink-0 flex-col items-end text-miq-ink;
+    }
+
+    .miq-tt-main .num-display {
+        @apply text-xl leading-none;
+    }
+
+    .miq-tt-unit {
+        @apply mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted;
+    }
+
     /* Профиль игрока */
     .miq-up {
         @apply space-y-4;

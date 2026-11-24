@@ -746,8 +746,16 @@ function loginHref() {
                     <span aria-hidden="true">←</span>
                     Матчи
                 </Link>
+                <Link
+                    v-if="match.league_short && match.tournament_id"
+                    :href="route('tournaments.show', match.tournament_id)"
+                    class="miq-league-badge miq-league-badge-link"
+                    :title="`${match.league} — страница турнира`"
+                >
+                    {{ match.league_short }}
+                </Link>
                 <span
-                    v-if="match.league_short"
+                    v-else-if="match.league_short"
                     class="miq-league-badge"
                     :title="match.league"
                 >
@@ -763,7 +771,12 @@ function loginHref() {
             >
                 <div class="miq-match-hero">
                     <div class="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-miq-muted">
-                        <span>{{ match.league }}</span>
+                        <Link
+                            v-if="match.tournament_id"
+                            :href="route('tournaments.show', match.tournament_id)"
+                            class="transition hover:text-miq-pitch hover:underline"
+                        >{{ match.league }}</Link>
+                        <span v-else>{{ match.league }}</span>
                         <span v-if="match.round" class="text-miq-line" aria-hidden="true">·</span>
                         <span v-if="match.round">{{ match.round }}</span>
                         <span
