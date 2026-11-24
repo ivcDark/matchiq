@@ -21,10 +21,10 @@ class TournamentPageTest extends TestCase
                 ->has('tournament.stage')
                 ->has('zones', 5)
                 ->has('standings', 16)
-                ->has('leaders.scorers', 10)
+                ->has('leaders.scorers')
                 ->has('leaders.assists', 10)
-                ->has('leaders.fastScorers', 10)
-                ->has('leaders.goalkeepers', 10)
+                ->has('leaders.fastScorers')
+                ->has('leaders.goalkeepers')
                 ->has('leaders.minutes', 10)
                 ->has('leaders.ratings', 10)
                 ->has('thresholds'));
@@ -103,16 +103,29 @@ class TournamentPageTest extends TestCase
         $data = MockTournament::find(1);
         $leaders = $data['leaders'];
 
-        $this->assertSame(range(1, 10), array_column($leaders['scorers'], 'rank'));
-        $this->assertSame(
-            array_column($leaders['scorers'], 'goals'),
-            collect($leaders['scorers'])->pluck('goals')->sortDesc()->values()->all(),
-        );
+        // Таблицы бомбардиров / скорострельных / вратарей получают весь список (сортировка на клиенте, показ топ-10).
+        $this->assertGreaterThanOrEqual(10, count($leaders['scorers']));
+        $this->assertGreaterThanOrEqual(10, count($leaders['fastScorers']));
+        $this->assertGreaterThanOrEqual(10, count($leaders['goalkeepers']));
 
-        $perGoal = array_column($leaders['fastScorers'], 'minutes_per_goal');
-        $sorted = $perGoal;
-        sort($sorted);
-        $this->assertSame($sorted, $perGoal);
+        foreach ($leaders['scorers'] as $p) {
+            $this->assertArrayHasKey('goals', $p);
+            $this->assertArrayHasKey('pens', $p);
+            $this->assertArrayHasKey('assists', $p);
+            $this->assertSame($p['goals'] + $p['assists'], $p['ga']);
+            $this->assertLessThanOrEqual($p['goals'], $p['pens']);
+        }
+        $ga = array_column($leaders['scorers'], 'ga');
+        $sortedGa = $ga;
+        rsort($sortedGa);
+        $this->assertSame($sortedGa, $ga, 'по умолчанию бомбардиры отсортированы по Г+П');
+
+        $this->assertSame(range(1, 10), array_column($leaders['assists'], 'rank'));
+
+        $goals90 = array_column($leaders['fastScorers'], 'goals_per_90');
+        $sorted90 = $goals90;
+        rsort($sorted90);
+        $this->assertSame($sorted90, $goals90, 'скорострельные по умолчанию — по голам на 90 минут');
 
         foreach ($leaders['fastScorers'] as $p) {
             $this->assertGreaterThanOrEqual(MockTournament::MIN_MINUTES_SCORING, $p['minutes']);
@@ -125,7 +138,12 @@ class TournamentPageTest extends TestCase
             $this->assertGreaterThanOrEqual(MockTournament::MIN_MINUTES_GOALKEEPER, $p['minutes']);
             $this->assertGreaterThan(0, $p['clean_sheets']);
             $this->assertSame((int) round($p['minutes'] / $p['clean_sheets']), $p['minutes_per_clean_sheet']);
+            $this->assertEqualsWithDelta($p['clean_sheets'] * 90 / $p['minutes'], $p['clean_sheets_per_90'], 0.006);
         }
+        $per90 = array_column($leaders['goalkeepers'], 'clean_sheets_per_90');
+        $sortedPer90 = $per90;
+        rsort($sortedPer90);
+        $this->assertSame($sortedPer90, $per90, 'вратари по умолчанию — по сухим на 90 минут');
         $this->assertNotContains('Зорин А.', array_column($leaders['goalkeepers'], 'name'));
 
         $ratings = array_column($leaders['ratings'], 'rating');

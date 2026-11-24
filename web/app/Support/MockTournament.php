@@ -246,8 +246,9 @@ class MockTournament
             'matches' => $p[3],
             'minutes' => $p[4],
             'goals' => $p[5],
-            'penalties' => $p[6],
+            'pens' => $p[6],
             'assists' => $p[7],
+            'ga' => $p[5] + $p[7],
             'rating' => $p[8],
             'clean_sheets' => $p[9],
         ];
@@ -258,12 +259,12 @@ class MockTournament
      * @param  list<string>  $keys
      * @return list<array<string, mixed>>
      */
-    private static function top(array $players, callable $compare, array $keys): array
+    private static function top(array $players, callable $compare, array $keys, ?int $limit = self::TOP_LIMIT): array
     {
         usort($players, $compare);
 
         $rows = [];
-        foreach (array_slice($players, 0, self::TOP_LIMIT) as $i => $p) {
+        foreach ($limit === null ? $players : array_slice($players, 0, $limit) as $i => $p) {
             $rows[] = ['rank' => $i + 1] + array_intersect_key($p, array_flip($keys));
         }
 
@@ -271,16 +272,18 @@ class MockTournament
     }
 
     /**
-     * Бомбардиры: голы ↓, пенальти ↑ (меньше пенальти — выше), минуты ↑.
+     * Бомбардиры: все с голом или передачей; по умолчанию Г+П ↓, голы ↓, минуты ↑.
+     * Отдаём весь список — таблица на странице сортируется по колонкам, показывает топ-10 текущей сортировки.
      */
     private static function scorers(array $players): array
     {
-        $eligible = array_values(array_filter($players, static fn (array $p) => $p['goals'] > 0));
+        $eligible = array_values(array_filter($players, static fn (array $p) => $p['ga'] > 0));
 
         return self::top(
             $eligible,
-            static fn (array $a, array $b) => [$b['goals'], $a['penalties'], $a['minutes']] <=> [$a['goals'], $b['penalties'], $b['minutes']],
-            ['name', 'team', 'matches', 'goals', 'penalties'],
+            static fn (array $a, array $b) => [$b['ga'], $b['goals'], $a['minutes']] <=> [$a['ga'], $a['goals'], $b['minutes']],
+            ['name', 'team', 'matches', 'goals', 'pens', 'assists', 'ga'],
+            null,
         );
     }
 
@@ -299,7 +302,8 @@ class MockTournament
     }
 
     /**
-     * Скорострельные: минут на 1 гол ↑; в список — от MIN_MINUTES_SCORING минут и минимум 1 гол.
+     * Скорострельные: голов на 90 минут ↓ (то же, что минут на 1 гол ↑);
+     * в список — от MIN_MINUTES_SCORING минут и минимум 1 гол. Отдаём весь список для сортировки на странице.
      */
     private static function fastScorers(array $players): array
     {
@@ -317,11 +321,13 @@ class MockTournament
             $rows,
             static fn (array $a, array $b) => [$a['minutes'] / $a['goals'], $b['goals']] <=> [$b['minutes'] / $b['goals'], $a['goals']],
             ['name', 'team', 'goals', 'minutes', 'minutes_per_goal', 'goals_per_90'],
+            null,
         );
     }
 
     /**
-     * Вратари: минут на 1 сухой матч ↑; в список — от MIN_MINUTES_GOALKEEPER минут и минимум 1 сухой матч.
+     * Вратари: сухих на 90 минут ↓ (то же, что минут на 1 сухой ↑);
+     * в список — от MIN_MINUTES_GOALKEEPER минут и минимум 1 сухой матч. Весь список — для сортировки на странице.
      */
     private static function goalkeepers(array $players): array
     {
@@ -334,12 +340,14 @@ class MockTournament
 
         $rows = array_map(static fn (array $p) => $p + [
             'minutes_per_clean_sheet' => (int) round($p['minutes'] / $p['clean_sheets']),
+            'clean_sheets_per_90' => round($p['clean_sheets'] * 90 / $p['minutes'], 2),
         ], $eligible);
 
         return self::top(
             $rows,
             static fn (array $a, array $b) => [$a['minutes'] / $a['clean_sheets'], $b['clean_sheets'], $b['minutes']] <=> [$b['minutes'] / $b['clean_sheets'], $a['clean_sheets'], $a['minutes']],
-            ['name', 'team', 'clean_sheets', 'minutes', 'minutes_per_clean_sheet'],
+            ['name', 'team', 'clean_sheets', 'minutes', 'minutes_per_clean_sheet', 'clean_sheets_per_90'],
+            null,
         );
     }
 

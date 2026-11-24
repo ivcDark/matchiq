@@ -1,4 +1,5 @@
 <script setup>
+import TournamentSortTable from '@/Components/TournamentSortTable.vue';
 import TournamentTopCard from '@/Components/TournamentTopCard.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
@@ -34,13 +35,19 @@ const cards = computed(() => [
     {
         key: 'scorers',
         title: 'Лучшие бомбардиры',
-        hint: 'голы · пенальти',
+        hint: 'голы (с пенальти) · пас · Г+П',
         rows: props.leaders.scorers,
-        format: (r) => ({
-            main: num(r.goals),
-            unit: 'голов',
-            meta: `${r.matches} матч. · ${r.penalties} пен.`,
-        }),
+        defaultSort: { key: 'ga', dir: 'desc' },
+        columns: [
+            {
+                key: 'goals',
+                label: 'Гол',
+                title: 'Голы (в скобках — с пенальти)',
+                format: (r) => (r.pens > 0 ? `${r.goals} (${r.pens})` : String(r.goals)),
+            },
+            { key: 'assists', label: 'Пас', title: 'Голевые передачи' },
+            { key: 'ga', label: 'Г+П', title: 'Голы + голевые передачи' },
+        ],
     },
     {
         key: 'assists',
@@ -58,22 +65,60 @@ const cards = computed(() => [
         title: 'Самые скорострельные',
         hint: `от ${num(props.thresholds.minutes_scoring)} мин на поле`,
         rows: props.leaders.fastScorers,
-        format: (r) => ({
-            main: num(r.minutes_per_goal),
-            unit: 'мин на 1 гол',
-            meta: `${r.goals} гол. за ${num(r.minutes)} мин · ${dec(r.goals_per_90)} гол/90`,
-        }),
+        defaultSort: { key: 'goals_per_90', dir: 'desc' },
+        columns: [
+            {
+                key: 'minutes',
+                label: 'Минут',
+                title: 'Сыграно минут',
+                format: (r) => num(r.minutes),
+            },
+            { key: 'goals', label: 'Голов', title: 'Забито голов' },
+            {
+                key: 'goals_per_90',
+                label: 'Гол/90',
+                title: 'Голов на 90 минут на поле (на полный матч)',
+                format: (r) => dec(r.goals_per_90),
+            },
+            {
+                key: 'minutes_per_goal',
+                label: 'Мин/гол',
+                title: 'Минут на 1 гол',
+                firstDir: 'asc',
+                hideMobile: true,
+                format: (r) => num(r.minutes_per_goal),
+            },
+        ],
     },
     {
         key: 'goalkeepers',
         title: 'Лучшие вратари',
         hint: `сухие матчи · от ${num(props.thresholds.minutes_goalkeeper)} мин`,
         rows: props.leaders.goalkeepers,
-        format: (r) => ({
-            main: num(r.minutes_per_clean_sheet),
-            unit: 'мин на 1 сухой',
-            meta: `${r.clean_sheets} сух. за ${num(r.minutes)} мин`,
-        }),
+        defaultSort: { key: 'clean_sheets_per_90', dir: 'desc' },
+        columns: [
+            {
+                key: 'minutes',
+                label: 'Минут',
+                title: 'Сыграно минут',
+                format: (r) => num(r.minutes),
+            },
+            { key: 'clean_sheets', label: 'Сухих', title: 'Сухие матчи' },
+            {
+                key: 'clean_sheets_per_90',
+                label: 'Сух/90',
+                title: 'Сухих матчей на 90 минут на поле (на полный матч)',
+                format: (r) => dec(r.clean_sheets_per_90),
+            },
+            {
+                key: 'minutes_per_clean_sheet',
+                label: 'Мин/сух',
+                title: 'Минут на 1 сухой матч',
+                firstDir: 'asc',
+                hideMobile: true,
+                format: (r) => num(r.minutes_per_clean_sheet),
+            },
+        ],
     },
     {
         key: 'minutes',
@@ -211,14 +256,23 @@ const cards = computed(() => [
             </section>
 
             <div class="miq-tt-grid">
-                <TournamentTopCard
-                    v-for="card in cards"
-                    :key="card.key"
-                    :title="card.title"
-                    :hint="card.hint"
-                    :rows="card.rows"
-                    :format="card.format"
-                />
+                <template v-for="card in cards" :key="card.key">
+                    <TournamentSortTable
+                        v-if="card.columns"
+                        :title="card.title"
+                        :hint="card.hint"
+                        :rows="card.rows"
+                        :columns="card.columns"
+                        :default-sort="card.defaultSort"
+                    />
+                    <TournamentTopCard
+                        v-else
+                        :title="card.title"
+                        :hint="card.hint"
+                        :rows="card.rows"
+                        :format="card.format"
+                    />
+                </template>
             </div>
         </div>
     </AppLayout>

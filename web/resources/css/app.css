@@ -2482,6 +2482,97 @@
         background: var(--tt-zone);
     }
 
+    .miq-tt-ptable {
+        --tt-bg: color-mix(in srgb, white 78%, var(--miq-chalk));
+        @apply w-full min-w-[19rem] border-collapse text-sm;
+    }
+
+    .miq-tt-ptable thead tr {
+        @apply text-[10px] font-semibold uppercase tracking-wider text-miq-muted;
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-tt-ptable th,
+    .miq-tt-ptable td {
+        @apply px-2 py-2 text-right tabular-nums;
+    }
+
+    .miq-tt-ptable td {
+        @apply text-miq-ink-soft;
+    }
+
+    .miq-tt-ptable th.is-rank,
+    .miq-tt-ptable td.is-rank {
+        @apply w-10 pl-3.5 text-left;
+    }
+
+    .miq-tt-ptable th.is-player,
+    .miq-tt-ptable td.is-player {
+        @apply max-w-[11rem] text-left;
+    }
+
+    .miq-tt-ptable th:last-child,
+    .miq-tt-ptable td:last-child {
+        @apply pr-3.5;
+    }
+
+    .miq-tt-ptable td.is-sorted {
+        @apply font-bold text-miq-ink;
+    }
+
+    .miq-tt-ptable tbody tr {
+        background: var(--tt-bg);
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-tt-ptable tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .miq-tt-ptable tbody tr:nth-child(even) {
+        --tt-bg: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-tt-sort-btn {
+        @apply inline-flex items-center gap-0.5 rounded px-1 py-0.5 font-semibold uppercase tracking-wider transition-colors;
+        transition-duration: 160ms;
+    }
+
+    .miq-tt-sort-btn:hover,
+    .miq-tt-sort-btn:focus-visible {
+        color: var(--miq-ink);
+        background: color-mix(in srgb, var(--miq-lime) 30%, white);
+        outline: none;
+    }
+
+    .miq-tt-ptable th.is-sorted .miq-tt-sort-btn {
+        color: var(--miq-ink);
+    }
+
+    .miq-tt-sort-icon {
+        @apply h-3 w-3 opacity-0 transition;
+        transition-duration: 160ms;
+    }
+
+    .miq-tt-sort-btn:hover .miq-tt-sort-icon {
+        @apply opacity-40;
+    }
+
+    .miq-tt-sort-icon.is-active {
+        @apply opacity-100;
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-tt-sort-icon.is-asc {
+        @apply rotate-180;
+    }
+
+    @media (max-width: 639px) {
+        .miq-tt-ptable .is-mobile-hidden {
+            display: none;
+        }
+    }
+
     .miq-tt-grid {
         @apply grid grid-cols-1 gap-4 lg:grid-cols-2;
     }
