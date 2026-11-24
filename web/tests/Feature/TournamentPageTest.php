@@ -22,11 +22,11 @@ class TournamentPageTest extends TestCase
                 ->has('zones', 5)
                 ->has('standings', 16)
                 ->has('leaders.scorers')
-                ->has('leaders.assists', 10)
+                ->has('leaders.assists')
                 ->has('leaders.fastScorers')
                 ->has('leaders.goalkeepers')
-                ->has('leaders.minutes', 10)
-                ->has('leaders.ratings', 10)
+                ->has('leaders.minutes')
+                ->has('leaders.ratings')
                 ->has('thresholds'));
     }
 
@@ -120,7 +120,13 @@ class TournamentPageTest extends TestCase
         rsort($sortedGa);
         $this->assertSame($sortedGa, $ga, 'по умолчанию бомбардиры отсортированы по Г+П');
 
-        $this->assertSame(range(1, 10), array_column($leaders['assists'], 'rank'));
+        foreach (['assists', 'minutes', 'ratings'] as $key) {
+            $this->assertGreaterThanOrEqual(10, count($leaders[$key]), $key);
+        }
+        $assists = array_column($leaders['assists'], 'assists');
+        $sortedAssists = $assists;
+        rsort($sortedAssists);
+        $this->assertSame($sortedAssists, $assists);
 
         $goals90 = array_column($leaders['fastScorers'], 'goals_per_90');
         $sorted90 = $goals90;

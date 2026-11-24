@@ -1,6 +1,5 @@
 <script setup>
 import TournamentSortTable from '@/Components/TournamentSortTable.vue';
-import TournamentTopCard from '@/Components/TournamentTopCard.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -46,19 +45,19 @@ const cards = computed(() => [
                 format: (r) => (r.pens > 0 ? `${r.goals} (${r.pens})` : String(r.goals)),
             },
             { key: 'assists', label: 'Пас', title: 'Голевые передачи' },
-            { key: 'ga', label: 'Г+П', title: 'Голы + голевые передачи' },
+            { key: 'ga', label: 'Г+П', title: 'Голы + голевые передачи', bar: true },
         ],
     },
     {
         key: 'assists',
         title: 'Лучшие ассистенты',
-        hint: 'передачи',
+        hint: 'голевые передачи',
         rows: props.leaders.assists,
-        format: (r) => ({
-            main: num(r.assists),
-            unit: 'передач',
-            meta: `${r.matches} матч.`,
-        }),
+        defaultSort: { key: 'assists', dir: 'desc' },
+        columns: [
+            { key: 'matches', label: 'Матчи', title: 'Сыграно матчей', hideMobile: true },
+            { key: 'assists', label: 'Пас', title: 'Голевые передачи', bar: true },
+        ],
     },
     {
         key: 'fastScorers',
@@ -78,6 +77,7 @@ const cards = computed(() => [
                 key: 'goals_per_90',
                 label: 'Гол/90',
                 title: 'Голов на 90 минут на поле (на полный матч)',
+                bar: true,
                 format: (r) => dec(r.goals_per_90),
             },
             {
@@ -108,6 +108,8 @@ const cards = computed(() => [
                 key: 'clean_sheets_per_90',
                 label: 'Сух/90',
                 title: 'Сухих матчей на 90 минут на поле (на полный матч)',
+                bar: true,
+                tone: 'coral',
                 format: (r) => dec(r.clean_sheets_per_90),
             },
             {
@@ -125,22 +127,35 @@ const cards = computed(() => [
         title: 'Больше всех на поле',
         hint: 'сыграно минут',
         rows: props.leaders.minutes,
-        format: (r) => ({
-            main: num(r.minutes),
-            unit: 'минут',
-            meta: `${r.matches} матч.`,
-        }),
+        defaultSort: { key: 'minutes', dir: 'desc' },
+        columns: [
+            { key: 'matches', label: 'Матчи', title: 'Сыграно матчей', hideMobile: true },
+            {
+                key: 'minutes',
+                label: 'Минут',
+                title: 'Сыграно минут',
+                bar: true,
+                format: (r) => num(r.minutes),
+            },
+        ],
     },
     {
         key: 'ratings',
         title: 'Лучшие по рейтингу',
         hint: `средняя оценка · от ${props.thresholds.matches_rating} матчей`,
         rows: props.leaders.ratings,
-        format: (r) => ({
-            main: dec(r.rating),
-            unit: 'ср. оценка',
-            meta: `${r.matches} матч.`,
-        }),
+        defaultSort: { key: 'rating', dir: 'desc' },
+        columns: [
+            { key: 'matches', label: 'Матчи', title: 'Сыграно матчей', hideMobile: true },
+            {
+                key: 'rating',
+                label: 'Оценка',
+                title: 'Средняя оценка за матч',
+                bar: true,
+                tone: 'coral',
+                format: (r) => dec(r.rating),
+            },
+        ],
     },
 ]);
 </script>
@@ -256,23 +271,15 @@ const cards = computed(() => [
             </section>
 
             <div class="miq-tt-grid">
-                <template v-for="card in cards" :key="card.key">
-                    <TournamentSortTable
-                        v-if="card.columns"
-                        :title="card.title"
-                        :hint="card.hint"
-                        :rows="card.rows"
-                        :columns="card.columns"
-                        :default-sort="card.defaultSort"
-                    />
-                    <TournamentTopCard
-                        v-else
-                        :title="card.title"
-                        :hint="card.hint"
-                        :rows="card.rows"
-                        :format="card.format"
-                    />
-                </template>
+                <TournamentSortTable
+                    v-for="card in cards"
+                    :key="card.key"
+                    :title="card.title"
+                    :hint="card.hint"
+                    :rows="card.rows"
+                    :columns="card.columns"
+                    :default-sort="card.defaultSort"
+                />
             </div>
         </div>
     </AppLayout>

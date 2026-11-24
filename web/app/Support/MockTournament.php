@@ -288,7 +288,7 @@ class MockTournament
     }
 
     /**
-     * Ассистенты: передачи ↓, минуты ↑.
+     * Ассистенты: передачи ↓, минуты ↑. Весь список — для сортировки на странице.
      */
     private static function assists(array $players): array
     {
@@ -298,6 +298,7 @@ class MockTournament
             $eligible,
             static fn (array $a, array $b) => [$b['assists'], $a['minutes']] <=> [$a['assists'], $b['minutes']],
             ['name', 'team', 'matches', 'assists'],
+            null,
         );
     }
 
@@ -360,6 +361,7 @@ class MockTournament
             $players,
             static fn (array $a, array $b) => [$b['minutes'], $b['matches']] <=> [$a['minutes'], $a['matches']],
             ['name', 'team', 'matches', 'minutes'],
+            null,
         );
     }
 
@@ -377,6 +379,7 @@ class MockTournament
             $eligible,
             static fn (array $a, array $b) => [$b['rating'], $b['matches']] <=> [$a['rating'], $a['matches']],
             ['name', 'team', 'matches', 'rating'],
+            null,
         );
     }
 }

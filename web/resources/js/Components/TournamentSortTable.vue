@@ -9,8 +9,9 @@ const props = defineProps({
     hint: { type: String, default: '' },
     rows: { type: Array, default: () => [] },
     /**
-     * [{ key, label, title?, format?(row), value?(row), hideMobile?, firstDir? }]
-     * value — по чему сортировать (по умолчанию row[key]); firstDir — направление при первом клике.
+     * [{ key, label, title?, format?(row), value?(row), hideMobile?, firstDir?, bar?, tone? }]
+     * value — по чему сортировать (по умолчанию row[key]); firstDir — направление при первом клике;
+     * bar — полоса в ячейке (доля от максимума по всему списку); tone — 'coral' вместо sage.
      */
     columns: { type: Array, required: true },
     defaultSort: { type: Object, required: true },
@@ -23,13 +24,31 @@ const sortDir = ref(props.defaultSort.dir ?? 'desc');
 
 const sortColumn = computed(() => props.columns.find((c) => c.key === sortKey.value));
 
+function valueOf(column, row) {
+    return column?.value ? column.value(row) : row[column?.key];
+}
+
+const barMax = computed(() => {
+    const maxes = {};
+    for (const column of props.columns.filter((c) => c.bar)) {
+        maxes[column.key] = Math.max(0, ...props.rows.map((row) => Number(valueOf(column, row)) || 0));
+    }
+    return maxes;
+});
+
+function barWidth(column, row) {
+    const max = barMax.value[column.key];
+    const value = Number(valueOf(column, row)) || 0;
+    if (!max || value <= 0) return '0%';
+    return `${Math.max(6, Math.round((value / max) * 100))}%`;
+}
+
 const visibleRows = computed(() => {
     const column = sortColumn.value;
-    const valueOf = (row) => (column?.value ? column.value(row) : row[column?.key]);
     const factor = sortDir.value === 'asc' ? 1 : -1;
 
     return props.rows
-        .map((row, index) => ({ row, index, value: valueOf(row) }))
+        .map((row, index) => ({ row, index, value: valueOf(column, row) }))
         .sort((a, b) => (a.value - b.value) * factor || a.index - b.index)
         .slice(0, props.limit)
         .map((item) => item.row);
@@ -65,12 +84,16 @@ function cell(column, row) {
             <table class="miq-tt-ptable">
                 <thead>
                     <tr>
-                        <th class="is-rank" title="Место в текущей сортировке">#</th>
+                        <th class="is-rank" title="Место в текущей сортировке">№</th>
                         <th class="is-player">Игрок</th>
                         <th
                             v-for="column in columns"
                             :key="column.key"
-                            :class="{ 'is-mobile-hidden': column.hideMobile, 'is-sorted': sortKey === column.key }"
+                            :class="{
+                                'is-mobile-hidden': column.hideMobile,
+                                'is-sorted': sortKey === column.key,
+                                'is-bar': column.bar,
+                            }"
                             :aria-sort="ariaSort(column)"
                         >
                             <button
@@ -106,20 +129,32 @@ function cell(column, row) {
                             <span class="miq-tt-rank" :data-medal="MEDALS[i + 1]">{{ i + 1 }}</span>
                         </td>
                         <td class="is-player">
-                            <div class="flex min-w-0 items-center gap-2">
+                            <div class="flex min-w-0 items-center gap-1.5">
                                 <PlayerAvatar :name="row.name" size="sm" />
-                                <div class="min-w-0">
-                                    <p class="truncate text-sm font-semibold text-miq-ink">{{ row.name }}</p>
-                                    <p class="truncate text-xs text-miq-muted">{{ row.team }}</p>
-                                </div>
+                                <p class="min-w-0 truncate text-[13px] font-semibold leading-tight text-miq-ink">
+                                    {{ row.name }}
+                                    <span class="miq-tt-team">{{ row.team }}</span>
+                                </p>
                             </div>
                         </td>
                         <td
                             v-for="column in columns"
                             :key="column.key"
-                            :class="{ 'is-mobile-hidden': column.hideMobile, 'is-sorted': sortKey === column.key }"
+                            :class="{
+                                'is-mobile-hidden': column.hideMobile,
+                                'is-sorted': sortKey === column.key,
+                                'is-bar': column.bar,
+                            }"
                         >
-                            {{ cell(column, row) }}
+                            <div
+                                v-if="column.bar"
+                                class="miq-tt-bar"
+                                :class="{ 'is-coral': column.tone === 'coral' }"
+                            >
+                                <span class="miq-tt-bar-fill" :style="{ width: barWidth(column, row) }" />
+                                <span class="miq-tt-bar-num">{{ cell(column, row) }}</span>
+                            </div>
+                            <template v-else>{{ cell(column, row) }}</template>
                         </td>
                     </tr>
                 </tbody>
