@@ -30,6 +30,10 @@ class TournamentPageTest extends TestCase
                 ->has('teamStats.overall.possession', 5)
                 ->has('teamStats.home.aggression', 5)
                 ->has('teamStats.away.rating', 5)
+                ->has('attackDefense.best_attack', 5)
+                ->has('attackDefense.best_defense', 5)
+                ->has('attackDefense.worst_attack', 5)
+                ->has('attackDefense.worst_defense', 5)
                 ->has('contribution.overall', 10)
                 ->has('contribution.home', 10)
                 ->has('contribution.away', 10)
@@ -244,6 +248,38 @@ class TournamentPageTest extends TestCase
                 $this->assertLessThanOrEqual($overall[$row['name']]['goals'] ?? PHP_INT_MAX, $row['goals']);
             }
         }
+    }
+
+    public function test_attack_defense_tables_follow_standings(): void
+    {
+        $data = MockTournament::find(1);
+        $standings = collect($data['standings'])->keyBy('team');
+        $ad = $data['attackDefense'];
+
+        $this->assertSame(['best_attack', 'best_defense', 'worst_attack', 'worst_defense'], array_keys($ad));
+
+        foreach ($ad as $key => $rows) {
+            $this->assertSame(range(1, 5), array_column($rows, 'rank'), $key);
+            $field = str_contains($key, 'attack') ? 'gf' : 'ga';
+            foreach ($rows as $row) {
+                $team = $standings[$row['team']];
+                $this->assertSame($team[$field], $row['goals'], $key);
+                $this->assertEqualsWithDelta($team[$field] / $team['played'], $row['per_match'], 0.006);
+            }
+        }
+
+        $goals = static fn (string $key) => array_column($ad[$key], 'goals');
+        $this->assertSame(max(array_column($data['standings'], 'gf')), $goals('best_attack')[0]);
+        $this->assertSame(min(array_column($data['standings'], 'ga')), $goals('best_defense')[0]);
+        $this->assertSame(min(array_column($data['standings'], 'gf')), $goals('worst_attack')[0]);
+        $this->assertSame(max(array_column($data['standings'], 'ga')), $goals('worst_defense')[0]);
+
+        $sorted = $goals('best_attack');
+        rsort($sorted);
+        $this->assertSame($sorted, $goals('best_attack'));
+        $sorted = $goals('best_defense');
+        sort($sorted);
+        $this->assertSame($sorted, $goals('best_defense'), 'у защиты меньше пропущенных — лучше');
     }
 
     public function test_player_tables_carry_position(): void

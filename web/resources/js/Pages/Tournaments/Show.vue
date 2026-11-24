@@ -1,4 +1,5 @@
 <script setup>
+import TournamentAttackDefense from '@/Components/TournamentAttackDefense.vue';
 import TournamentContribution from '@/Components/TournamentContribution.vue';
 import TournamentSortTable from '@/Components/TournamentSortTable.vue';
 import TournamentTeamStats from '@/Components/TournamentTeamStats.vue';
@@ -11,6 +12,7 @@ const props = defineProps({
     zones: { type: Array, default: () => [] },
     standings: { type: Array, default: () => [] },
     leaders: { type: Object, default: () => ({}) },
+    attackDefense: { type: Object, default: () => ({}) },
     teamStats: { type: Object, default: () => ({}) },
     contribution: { type: Object, default: () => ({}) },
     thresholds: { type: Object, default: () => ({}) },
@@ -278,6 +280,12 @@ const cards = computed(() => [
                 title="Лучшие команды"
                 :hint="`${tournament.name} · топ-5 по каждому показателю`"
                 :stats="teamStats"
+            />
+
+            <TournamentAttackDefense
+                title="Атака и защита"
+                :hint="`${tournament.name} · голы после ${tournament.round} тура`"
+                :data="attackDefense"
             />
 
             <TournamentContribution

@@ -170,6 +170,7 @@ class MockTournament
         }
 
         $players = array_map(self::player(...), self::PLAYERS);
+        $standings = self::standings();
 
         return [
             'tournament' => self::header($date ?? Carbon::now()),
@@ -177,7 +178,8 @@ class MockTournament
                 static fn (array $z) => ['id' => $z['id'], 'label' => $z['label'], 'range' => self::zoneRange($z)],
                 self::ZONES,
             ),
-            'standings' => self::standings(),
+            'standings' => $standings,
+            'attackDefense' => self::attackDefense($standings),
             'leaders' => [
                 'scorers' => self::scorers($players),
                 'assists' => self::assists($players),
@@ -419,6 +421,42 @@ class MockTournament
             ['name', 'team', 'position', 'matches', 'rating'],
             null,
         );
+    }
+
+    /**
+     * Лучшие / худшие атаки и защиты из турнирной таблицы: голы и голы на матч (игры из таблицы).
+     * Равные значения идут в порядке турнирной таблицы.
+     *
+     * @param  list<array<string, mixed>>  $standings
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function attackDefense(array $standings): array
+    {
+        $build = static function (string $field, bool $descending) use ($standings): array {
+            $teams = $standings;
+            usort($teams, static fn (array $a, array $b) => $descending
+                ? $b[$field] <=> $a[$field]
+                : $a[$field] <=> $b[$field]);
+
+            $rows = [];
+            foreach (array_slice($teams, 0, self::TEAM_TOP_LIMIT) as $i => $t) {
+                $rows[] = [
+                    'rank' => $i + 1,
+                    'team' => $t['team'],
+                    'goals' => $t[$field],
+                    'per_match' => round($t[$field] / $t['played'], 2),
+                ];
+            }
+
+            return $rows;
+        };
+
+        return [
+            'best_attack' => $build('gf', true),
+            'best_defense' => $build('ga', false),
+            'worst_attack' => $build('gf', false),
+            'worst_defense' => $build('ga', true),
+        ];
     }
 
     /**

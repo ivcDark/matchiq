@@ -2709,6 +2709,45 @@
         @apply w-[6.5rem] whitespace-nowrap text-right;
     }
 
+    .miq-tt-ad-grid {
+        @apply grid grid-cols-1 sm:grid-cols-2;
+    }
+
+    .miq-tt-ad thead tr.miq-tt-ad-sub th {
+        @apply whitespace-nowrap px-3 py-1 text-right text-[10px] font-semibold normal-case tracking-normal text-miq-muted;
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
+    }
+
+    .miq-tt-ad thead tr.miq-tt-ad-sub th.is-team,
+    .miq-tt-ad thead tr.miq-tt-ad-sub th.is-rank {
+        @apply text-left;
+    }
+
+    .miq-tt-ad td.is-rank {
+        @apply w-8 pr-0 text-xs tabular-nums text-miq-muted;
+    }
+
+    .miq-tt-ad td.is-goals,
+    .miq-tt-ad td.is-per-match {
+        @apply whitespace-nowrap text-right tabular-nums;
+    }
+
+    .miq-tt-ad td.is-goals {
+        @apply w-24 font-bold text-miq-ink;
+    }
+
+    .miq-tt-ad td.is-per-match {
+        @apply w-20 text-miq-ink-soft;
+    }
+
+    .miq-tt-ad[data-tone='bad'] td.is-goals {
+        color: var(--miq-cmp-trail-ink);
+    }
+
+    .miq-tt-ad[data-tone='good'] td.is-goals {
+        color: var(--miq-cmp-lead-ink);
+    }
+
     .miq-tt-card-chip {
         @apply ml-1 inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-sm px-1 text-xs font-bold leading-none tabular-nums;
     }
