@@ -927,6 +927,7 @@ function loginHref() {
                 <template v-if="centerTab === 'summary'">
                     <MatchChronicle :events="matchCenter.events" :live="match.status === 'live'" />
                     <MatchBestPlayers
+                        v-if="match.status === 'finished' && matchCenter.best_players"
                         :players="matchCenter.best_players"
                         :home="match.home"
                         :away="match.away"

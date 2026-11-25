@@ -91,7 +91,7 @@ class MockMatchCenter
             'minute' => $minute,
             'events' => $events,
             'stats' => self::stats($seed, $f, $live, $goalsHome, $goalsAway, $events, $lineups),
-            'best_players' => $bestPlayers,
+            'best_players' => $live ? null : $bestPlayers,
             'lineups' => $lineups,
         ];
     }

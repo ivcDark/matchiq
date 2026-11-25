@@ -58,8 +58,7 @@ class MatchCenterTest extends TestCase
                 ->where('matchCenter.minute', MockMatchCenter::LIVE_MINUTE)
                 ->has('matchCenter.events')
                 ->has('matchCenter.stats', 8)
-                ->has('matchCenter.best_players.home', 3)
-                ->has('matchCenter.best_players.away', 3)
+                ->where('matchCenter.best_players', null)
                 ->has('matchCenter.lineups.home.players', 11)
                 ->has('matchCenter.lineups.away.players', 11)
                 ->has('matchCenter.lineups.home.substitutes', 7)
@@ -77,7 +76,9 @@ class MatchCenterTest extends TestCase
                 ->where('match.minute', null)
                 ->where('matchCenter.minute', null)
                 ->has('matchCenter.events')
-                ->has('matchCenter.stats'));
+                ->has('matchCenter.stats')
+                ->has('matchCenter.best_players.home', 3)
+                ->has('matchCenter.best_players.away', 3));
     }
 
     #[DataProvider('startedMatches')]
@@ -143,12 +144,16 @@ class MatchCenterTest extends TestCase
         $center = $this->center($id);
 
         foreach (['home', 'away'] as $side) {
-            $best = $center['best_players'][$side];
-            $this->assertCount(3, $best);
-            $ratings = array_column($best, 'rating');
-            $sorted = $ratings;
-            rsort($sorted);
-            $this->assertSame($sorted, $ratings, 'Лучшие игроки отсортированы по рейтингу.');
+            if ($center['minute'] === null) {
+                $best = $center['best_players'][$side];
+                $this->assertCount(3, $best);
+                $ratings = array_column($best, 'rating');
+                $sorted = $ratings;
+                rsort($sorted);
+                $this->assertSame($sorted, $ratings, 'Лучшие игроки отсортированы по рейтингу.');
+            } else {
+                $this->assertNull($center['best_players']);
+            }
 
             $lineup = $center['lineups'][$side];
             $this->assertCount(11, $lineup['players']);
