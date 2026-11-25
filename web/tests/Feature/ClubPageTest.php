@@ -35,6 +35,31 @@ class ClubPageTest extends TestCase
                 ->has('players.cup.overall'));
     }
 
+    public function test_goals_block_has_opened_scoring_market_instead_of_scored(): void
+    {
+        $this->get('/clubs/1')
+            ->assertOk()
+            ->assertInertia(function ($page) {
+                $props = $page->toArray()['props'];
+                $market = collect($props['goals']['rpl']['overall']['markets'])->firstWhere('key', 'scored');
+
+                $this->assertSame('Открыли счёт', $market['title']);
+                $this->assertSame('Да', $market['left_label']);
+                $this->assertSame('Нет', $market['right_label']);
+                $this->assertSame($props['goals']['rpl']['overall']['matches'], $market['left'] + $market['right']);
+                $this->assertSame(100, $market['left_pct'] + $market['right_pct']);
+
+                $matches = MockTournament::teamMatches('Зенит');
+                $scoredAtLeastOnce = count(array_filter($matches, fn (array $m) => $m['gf'] > 0));
+                $keptCleanSheetAndScored = count(array_filter($matches, fn (array $m) => $m['gf'] > 0 && $m['ga'] === 0));
+                $this->assertLessThanOrEqual($scoredAtLeastOnce, $market['left']);
+                $this->assertGreaterThanOrEqual($keptCleanSheetAndScored, $market['left']);
+            });
+
+        $first = MockClub::find(1)['goals']['rpl']['overall']['markets'];
+        $this->assertSame($first, MockClub::find(1)['goals']['rpl']['overall']['markets']);
+    }
+
     public function test_every_standings_team_has_a_working_club_page(): void
     {
         $standings = MockTournament::find(1)['standings'];

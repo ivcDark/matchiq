@@ -157,9 +157,9 @@ class MockClub
             ],
             'stats' => self::statsTable($team, $rows, $cupMatches),
             'goals' => [
-                self::RPL_KEY => array_map(self::goalSplit(...), $rplMatches),
+                self::RPL_KEY => array_map(static fn (array $m) => self::goalSplit($m, $team, 'rpl'), $rplMatches),
                 self::CUP_KEY => array_combine($contexts, array_map(
-                    static fn (string $c) => self::goalSplit(self::filterVenue($cupMatches, $c)),
+                    static fn (string $c) => self::goalSplit(self::filterVenue($cupMatches, $c), $team, 'cup'),
                     $contexts,
                 )),
             ],
@@ -485,12 +485,12 @@ class MockClub
     }
 
     /**
-     * Голы забитые / пропущенные и рынки (тоталы 1.5–3.5, обе забьют, сухой матч, забил гол) по списку матчей.
+     * Голы забитые / пропущенные и рынки (тоталы 1.5–3.5, обе забьют, сухой матч, открыли счёт) по списку матчей.
      *
      * @param  list<array<string, mixed>>  $matches
      * @return array<string, mixed>
      */
-    private static function goalSplit(array $matches): array
+    private static function goalSplit(array $matches, string $team, string $tournament): array
     {
         $n = count($matches);
         $scored = array_sum(array_column($matches, 'gf'));
@@ -522,9 +522,31 @@ class MockClub
                 $market('total_3_5', '3.5', 'Менее', 'Более', $count(static fn (array $m) => $total($m) <= 3)),
                 $market('btts', 'Обе забьют', 'Да', 'Нет', $count(static fn (array $m) => $m['gf'] > 0 && $m['ga'] > 0)),
                 $market('clean_sheet', 'Сухой матч', 'Да', 'Нет', $count(static fn (array $m) => $m['ga'] === 0)),
-                $market('scored', 'Забили сами', 'Да', 'Нет', $count(static fn (array $m) => $m['gf'] > 0)),
+                $market('scored', 'Открыли счёт', 'Да', 'Нет', $count(static fn (array $m) => self::openedScoring($m, $team, $tournament))),
             ],
         ];
+    }
+
+    /**
+     * Открыл ли клуб счёт в матче. В моках нет минут первого гола, поэтому исход стабильно выводится из результата:
+     * без забитых голов — нет, без пропущенных — да, иначе по хэшу матча: победа ~70%, ничья 50%, поражение ~30%.
+     *
+     * @param  array<string, mixed>  $match
+     */
+    private static function openedScoring(array $match, string $team, string $tournament): bool
+    {
+        if ($match['gf'] === 0) {
+            return false;
+        }
+        if ($match['ga'] === 0) {
+            return true;
+        }
+
+        $chance = $match['gf'] <=> $match['ga'];
+        $threshold = [-1 => 30, 0 => 50, 1 => 70][$chance];
+        $roll = crc32(implode('|', ['first-goal', $tournament, $team, $match['round'], $match['venue'], $match['opponent']])) % 100;
+
+        return $roll < $threshold;
     }
 
     /**
