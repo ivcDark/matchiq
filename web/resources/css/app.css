@@ -4031,6 +4031,20 @@
         background: #b91c1c;
     }
 
+    .miq-motm-star {
+        @apply inline-flex h-4 w-4 shrink-0 items-center justify-center;
+        filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--miq-ink) 35%, transparent));
+    }
+
+    .miq-motm-star svg {
+        @apply h-full w-full;
+    }
+
+    .miq-mc-dot .miq-motm-star {
+        @apply absolute -top-3 left-1/2 h-[18px] w-[18px] -translate-x-1/2;
+        z-index: 2;
+    }
+
     .miq-mc-pitch-wrap {
         @apply mx-auto w-full max-w-[34rem];
     }

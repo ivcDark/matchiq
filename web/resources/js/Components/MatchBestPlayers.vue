@@ -1,4 +1,5 @@
 <script setup>
+import MotmStar from '@/Components/MotmStar.vue';
 import PlayerAvatar from '@/Components/PlayerAvatar.vue';
 
 defineProps({
@@ -34,6 +35,7 @@ function tone(rating) {
                                 <span v-if="player.sub_in" class="font-semibold text-miq-pitch">▲ {{ player.sub_in }}' </span>{{ player.position }}
                             </span>
                         </span>
+                        <MotmStar v-if="player.motm" />
                         <span class="miq-mc-rating tabular-nums" :class="tone(player.rating)">{{ player.rating.toFixed(1) }}</span>
                     </li>
                 </ul>

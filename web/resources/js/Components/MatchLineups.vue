@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import MotmStar from '@/Components/MotmStar.vue';
 
 const props = defineProps({
     /** { home: { formation, rating (null у live), players: [...11, GK first, then by lines] }, away: {...} } */
@@ -72,6 +73,7 @@ const teams = computed(() => [
                         :style="{ left: `${player.x}%`, top: `${player.y}%` }"
                     >
                         <span class="miq-mc-dot" :class="`is-${team.side}`">
+                            <MotmStar v-if="showRatings && player.motm" />
                             <span class="tabular-nums">{{ player.number }}</span>
                             <span v-if="showRatings && player.rating != null" class="miq-mc-dot-rating tabular-nums" :class="tone(player.rating)">{{ player.rating.toFixed(1) }}</span>
                             <span v-if="player.goals" class="miq-mc-dot-badge is-goal" title="Гол">⚽{{ player.goals > 1 ? player.goals : '' }}</span>

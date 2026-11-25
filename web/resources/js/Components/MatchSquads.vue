@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import MotmStar from '@/Components/MotmStar.vue';
 
 const props = defineProps({
     /** { home: { formation, coach, players[11], substitutes[] }, away: {...} } */
@@ -59,6 +60,7 @@ const count = (id) => props.lineups.home[id === 'starters' ? 'players' : 'substi
                     <li v-for="p in team.lineup.players" :key="`s-${p.number}`" class="miq-mc-bench-row">
                         <span class="miq-mc-best-num tabular-nums">{{ p.number }}</span>
                         <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-miq-ink">{{ p.name }}</span>
+                        <MotmStar v-if="p.motm" />
                         <span v-if="p.sub_out" class="text-[11px] font-semibold text-miq-warn tabular-nums" :title="`Замена ${p.sub_out}'`">▼ {{ p.sub_out }}'</span>
                         <span v-if="p.red" class="miq-mc-card is-red" title="Красная карточка" />
                         <span v-else-if="p.yellow" class="miq-mc-card is-yellow" title="Жёлтая карточка" />
@@ -70,6 +72,7 @@ const count = (id) => props.lineups.home[id === 'starters' ? 'players' : 'substi
                     <li v-for="p in team.lineup.substitutes" :key="`b-${p.number}`" class="miq-mc-bench-row">
                         <span class="miq-mc-best-num tabular-nums">{{ p.number }}</span>
                         <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-miq-ink">{{ p.name }}</span>
+                        <MotmStar v-if="p.motm" />
                         <span v-if="p.sub_in" class="text-[11px] font-semibold text-miq-pitch tabular-nums" :title="`Вышел на ${p.sub_in}'`">▲ {{ p.sub_in }}'</span>
                         <span class="miq-mc-squad-line">{{ LINES[p.line] }}</span>
                     </li>

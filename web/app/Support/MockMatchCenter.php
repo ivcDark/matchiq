@@ -310,6 +310,7 @@ class MockMatchCenter
                     'red' => $red,
                     'sub_out' => $subOut,
                     'sub_in' => $subIn,
+                    'motm' => false,
                 ];
             };
 
@@ -337,6 +338,7 @@ class MockMatchCenter
                     'name' => $p['name'],
                     'line' => $p['line'],
                     'sub_in' => $subIn,
+                    'motm' => false,
                 ];
             }
 
@@ -350,6 +352,36 @@ class MockMatchCenter
                 'bench' => $bench,
                 'all' => $played,
             ];
+        }
+
+        return $live ? $result : self::markManOfTheMatch($result);
+    }
+
+    /**
+     * Лучший игрок матча — единственный игрок с максимальным рейтингом среди обеих команд
+     * (стартовый состав и вышедшие со скамейки). При равенстве выигрывает хозяин, затем тот, кто
+     * раньше в списке (старт, затем скамейка). Флаг `motm` проставляется во всех списках игроков.
+     *
+     * @param  array<string, array<string, mixed>>  $result
+     * @return array<string, array<string, mixed>>
+     */
+    private static function markManOfTheMatch(array $result): array
+    {
+        $best = null;
+        foreach (['home', 'away'] as $side) {
+            foreach ($result[$side]['all'] as $p) {
+                if ($best === null || $p['rating'] > $best['rating']) {
+                    $best = ['side' => $side, 'number' => $p['number'], 'rating' => $p['rating']];
+                }
+            }
+        }
+
+        foreach (['home', 'away'] as $side) {
+            foreach (['players', 'bench', 'all', 'substitutes'] as $list) {
+                foreach ($result[$side][$list] as $i => $p) {
+                    $result[$side][$list][$i]['motm'] = $best['side'] === $side && $best['number'] === $p['number'];
+                }
+            }
         }
 
         return $result;
@@ -371,6 +403,7 @@ class MockMatchCenter
             'position' => $labels[$p['line']],
             'rating' => $p['rating'],
             'sub_in' => $p['sub_in'],
+            'motm' => $p['motm'],
         ], array_slice($players, 0, 3));
     }
 

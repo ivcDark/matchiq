@@ -257,6 +257,50 @@ class MatchCenterTest extends TestCase
         }
     }
 
+    #[DataProvider('startedMatches')]
+    public function test_man_of_the_match_is_single_best_rated_player_of_finished_match(int $id, string $home, string $away, int $scoreHome, int $scoreAway): void
+    {
+        $center = $this->center($id);
+        $live = $center['minute'] !== null;
+
+        $motm = [];
+        $maxRating = 0.0;
+        foreach (['home', 'away'] as $side) {
+            $lineup = $center['lineups'][$side];
+            foreach (array_merge($lineup['players'], $lineup['bench']) as $player) {
+                $maxRating = max($maxRating, (float) $player['rating']);
+                if ($player['motm']) {
+                    $motm[] = [$side, $player['number'], $player['rating']];
+                }
+            }
+
+            $subs = array_values(array_filter($lineup['substitutes'], fn (array $p): bool => $p['motm']));
+            $inLineup = array_values(array_filter($lineup['bench'], fn (array $p): bool => $p['motm']));
+            $this->assertSame(array_column($inLineup, 'number'), array_column($subs, 'number'));
+        }
+
+        if ($live) {
+            $this->assertSame([], $motm, 'У live лучшего игрока нет.');
+            $this->assertNull($center['best_players']);
+
+            return;
+        }
+
+        $this->assertCount(1, $motm, 'Лучший игрок матча один.');
+        $this->assertSame($maxRating, (float) $motm[0][2], 'Лучший игрок — с максимальным рейтингом матча.');
+
+        $flagged = [];
+        foreach (['home', 'away'] as $side) {
+            foreach ($center['best_players'][$side] as $player) {
+                if ($player['motm']) {
+                    $flagged[] = [$side, $player['number']];
+                }
+            }
+        }
+        $this->assertSame([[$motm[0][0], $motm[0][1]]], $flagged, 'Звезда в «Лучших игроках» совпадает с составом.');
+        $this->assertTrue($center['best_players'][$motm[0][0]][0]['motm'], 'Лучший игрок команды стоит первым.');
+    }
+
     public function test_known_teams_have_named_coach(): void
     {
         $center = $this->center(102);
