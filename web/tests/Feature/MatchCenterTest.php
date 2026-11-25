@@ -57,7 +57,12 @@ class MatchCenterTest extends TestCase
                 ->where('match.score_away', 1)
                 ->where('matchCenter.minute', MockMatchCenter::LIVE_MINUTE)
                 ->has('matchCenter.events')
-                ->has('matchCenter.stats', 8)
+                ->has('matchCenter.stats.match', 8)
+                ->has('matchCenter.stats.first_half', 8)
+                ->has('matchCenter.stats.second_half', 8)
+                ->where('matchCenter.lineups.home.rating', null)
+                ->where('matchCenter.lineups.home.players.0.rating', null)
+                ->where('matchCenter.lineups.away.players.0.rating', null)
                 ->where('matchCenter.best_players', null)
                 ->has('matchCenter.lineups.home.players', 11)
                 ->has('matchCenter.lineups.away.players', 11)
@@ -76,7 +81,9 @@ class MatchCenterTest extends TestCase
                 ->where('match.minute', null)
                 ->where('matchCenter.minute', null)
                 ->has('matchCenter.events')
-                ->has('matchCenter.stats')
+                ->has('matchCenter.stats.match', 8)
+                ->has('matchCenter.stats.first_half', 8)
+                ->has('matchCenter.stats.second_half', 8)
                 ->has('matchCenter.best_players.home', 3)
                 ->has('matchCenter.best_players.away', 3));
     }
@@ -112,7 +119,7 @@ class MatchCenterTest extends TestCase
     {
         $center = $this->center($id);
         $rows = [];
-        foreach ($center['stats'] as $section) {
+        foreach ($center['stats']['match'] as $section) {
             $this->assertContains($section['column'], ['left', 'right']);
             foreach ($section['rows'] as $row) {
                 $rows[$row['id']] = $row;
@@ -138,6 +145,65 @@ class MatchCenterTest extends TestCase
         $this->assertSame(count($yellowEvents), $rows['yellow']['home'] + $rows['yellow']['away']);
     }
 
+    /**
+     * @param  list<array<string, mixed>>  $sections
+     * @return array<string, array<string, mixed>>
+     */
+    private function flatRows(array $sections): array
+    {
+        $rows = [];
+        foreach ($sections as $section) {
+            foreach ($section['rows'] as $row) {
+                $rows[$row['id']] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    #[DataProvider('startedMatches')]
+    public function test_stats_periods_are_consistent(int $id, string $home, string $away, int $scoreHome, int $scoreAway): void
+    {
+        $center = $this->center($id);
+        $live = $center['minute'] !== null;
+        $stats = $center['stats'];
+
+        $this->assertSame(['match', 'first_half', 'second_half'], array_keys($stats));
+        $this->assertNotNull($stats['second_half'], 'К 63-й минуте и в finished 2 тайм уже есть.');
+
+        $match = $this->flatRows($stats['match']);
+        $h1 = $this->flatRows($stats['first_half']);
+        $h2 = $this->flatRows($stats['second_half']);
+
+        foreach (['goals-open', 'shots', 'on-target', 'saves', 'passes', 'tackles', 'fouls', 'yellow', 'red', 'xg', 'xgot', 'corners'] as $key) {
+            foreach (['home', 'away'] as $side) {
+                $this->assertEqualsWithDelta(
+                    $match[$key][$side],
+                    $h1[$key][$side] + $h2[$key][$side],
+                    0.011,
+                    "Сумма таймов = матч: {$key}/{$side}",
+                );
+            }
+        }
+
+        foreach ([$match, $h1, $h2] as $rows) {
+            $this->assertSame(100, $rows['possession']['home'] + $rows['possession']['away']);
+            $this->assertGreaterThanOrEqual($rows['on-target']['home'], $rows['shots']['home']);
+        }
+
+        $this->assertSame($scoreHome, $h1['goals-open']['home'] + $h2['goals-open']['home']);
+        $this->assertSame($scoreAway, $h1['goals-open']['away'] + $h2['goals-open']['away']);
+        $this->assertNotSame(
+            [$h1['possession']['home'], $h1['passes']['home']],
+            [$h2['possession']['home'], $h2['passes']['home']],
+            'Периоды считаются отдельно.',
+        );
+
+        if ($live) {
+            $this->assertLessThan($h1['passes']['home'], $h2['passes']['home'], '2 тайм у live неполный (63′).');
+        }
+    }
+
     #[DataProvider('startedMatches')]
     public function test_best_players_and_lineups_are_complete(int $id, string $home, string $away, int $scoreHome, int $scoreAway): void
     {
@@ -159,7 +225,17 @@ class MatchCenterTest extends TestCase
             $this->assertCount(11, $lineup['players']);
             $this->assertSame(10, array_sum(array_map('intval', explode('-', $lineup['formation']))));
             $this->assertSame('gk', $lineup['players'][0]['line']);
-            $this->assertGreaterThan(4, $lineup['rating']);
+            if ($center['minute'] === null) {
+                $this->assertGreaterThan(4, $lineup['rating']);
+                foreach ($lineup['players'] as $player) {
+                    $this->assertNotNull($player['rating']);
+                }
+            } else {
+                $this->assertNull($lineup['rating'], 'Оценки команд у live не отдаются.');
+                foreach (array_merge($lineup['players'], $lineup['bench']) as $player) {
+                    $this->assertNull($player['rating'], 'Оценки игроков у live не отдаются.');
+                }
+            }
 
             $this->assertNotSame('', $lineup['coach']);
             $this->assertCount(7, $lineup['substitutes']);

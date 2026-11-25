@@ -59,7 +59,7 @@ const props = defineProps({
         default: () => ({ averages: null, ht_ft: [], halves: [] }),
     },
     comments: { type: Array, default: () => [] },
-    /** Только live / finished: { minute, events, stats, best_players, lineups }; у предстоящих — null */
+    /** Только live / finished: { minute, events, stats: { match, first_half, second_half }, best_players, lineups }; у предстоящих — null */
     matchCenter: { type: Object, default: null },
     /** Статистика судьи за сезон: { name, place, season, tabs, samples } */
     refereeStats: {
@@ -932,12 +932,12 @@ function loginHref() {
                         :home="match.home"
                         :away="match.away"
                     />
-                    <MatchLineups
+                    <MatchSquads
                         :lineups="matchCenter.lineups"
                         :home="match.home"
                         :away="match.away"
                     />
-                    <MatchSquads
+                    <MatchLineups
                         :lineups="matchCenter.lineups"
                         :home="match.home"
                         :away="match.away"
@@ -946,7 +946,7 @@ function loginHref() {
 
                 <MatchStatRows
                     v-else-if="centerTab === 'stats'"
-                    :sections="matchCenter.stats"
+                    :stats="matchCenter.stats"
                     :home="match.home"
                     :away="match.away"
                 />

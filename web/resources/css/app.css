@@ -3786,6 +3786,11 @@
         color: var(--miq-ink);
     }
 
+    .miq-mc-tab:disabled {
+        @apply cursor-not-allowed opacity-45;
+        color: var(--miq-muted);
+    }
+
     .miq-mc-tab:focus-visible {
         outline: 2px solid var(--miq-pitch);
         outline-offset: -2px;

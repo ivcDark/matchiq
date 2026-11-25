@@ -6,7 +6,8 @@ namespace App\Support;
  * Моковая статистика матча для live / finished: хроника, секции статистики, лучшие игроки, составы.
  * Всё детерминировано от id матча и счёта, поэтому события и цифры не расходятся между собой
  * (голы в хронике = счёт, сейвы вратаря = удары в створ соперника минус пропущенные и т.д.).
- * Для live все «объёмные» показатели масштабируются минутой, хроника обрезается по ней.
+ * Для live все «объёмные» показатели масштабируются минутой, хроника обрезается по ней,
+ * оценки игроков и команд не отдаются (rating = null), они только у finished.
  */
 class MockMatchCenter
 {
@@ -69,7 +70,6 @@ class MockMatchCenter
         $live = $status === 'live';
         $minute = $live ? self::LIVE_MINUTE : null;
         $limit = $live ? self::LIVE_MINUTE : 90;
-        $f = $live ? $limit / 90 : 1.0;
         $goalsHome = (int) ($match['score_home'] ?? 0);
         $goalsAway = (int) ($match['score_away'] ?? 0);
 
@@ -79,9 +79,9 @@ class MockMatchCenter
         ];
 
         $events = self::events($seed, $squads, $goalsHome, $goalsAway, $limit, $live);
-        $lineups = self::lineups($seed, $squads, $events, $goalsHome, $goalsAway);
+        $lineups = self::lineups($seed, $squads, $events, $goalsHome, $goalsAway, $live);
 
-        $bestPlayers = [
+        $bestPlayers = $live ? null : [
             'home' => self::bestPlayers($lineups['home']),
             'away' => self::bestPlayers($lineups['away']),
         ];
@@ -90,8 +90,8 @@ class MockMatchCenter
         return [
             'minute' => $minute,
             'events' => $events,
-            'stats' => self::stats($seed, $f, $live, $goalsHome, $goalsAway, $events, $lineups),
-            'best_players' => $live ? null : $bestPlayers,
+            'stats' => self::stats($seed, $live, $limit, $events),
+            'best_players' => $bestPlayers,
             'lineups' => $lineups,
         ];
     }
@@ -262,7 +262,7 @@ class MockMatchCenter
      * @param  list<array<string, mixed>>  $events
      * @return array<string, array<string, mixed>>
      */
-    private static function lineups(int $seed, array $squads, array $events, int $goalsHome, int $goalsAway): array
+    private static function lineups(int $seed, array $squads, array $events, int $goalsHome, int $goalsAway, bool $live): array
     {
         $result = [];
 
@@ -272,7 +272,7 @@ class MockMatchCenter
             $resultBonus = $goalsFor <=> $goalsAgainst;
 
             $rows = [];
-            $build = static function (array $p, int $i) use ($seed, $side, $resultBonus, $events): array {
+            $build = static function (array $p, int $i) use ($seed, $side, $resultBonus, $events, $live): array {
                 $goals = 0;
                 $assists = 0;
                 $yellow = 0;
@@ -303,7 +303,7 @@ class MockMatchCenter
                     'number' => $p['number'],
                     'name' => $p['name'],
                     'line' => $p['line'],
-                    'rating' => round(max(4.5, min(9.9, $rating)), 1),
+                    'rating' => $live ? null : round(max(4.5, min(9.9, $rating)), 1),
                     'goals' => $goals,
                     'assists' => $assists,
                     'yellow' => $yellow,
@@ -345,7 +345,7 @@ class MockMatchCenter
                 'coach' => $squads[$side]['coach'],
                 'substitutes' => $substitutes,
                 'formation' => $squads[$side]['formation'],
-                'rating' => round(array_sum(array_column($rows, 'rating')) / count($rows), 2),
+                'rating' => $live ? null : round(array_sum(array_column($rows, 'rating')) / count($rows), 2),
                 'players' => $rows,
                 'bench' => $bench,
                 'all' => $played,
@@ -375,41 +375,187 @@ class MockMatchCenter
     }
 
     /**
+     * Статистика по периодам: весь матч, 1 тайм, 2 тайм. Счётчики матча = сумма таймов,
+     * проценты и владение считаются отдельно по периоду, у матча — взвешенно. 2 тайм у live
+     * до перерыва недоступен (null).
+     *
      * @param  list<array<string, mixed>>  $events
-     * @param  array<string, array<string, mixed>>  $lineups
-     * @return list<array<string, mixed>>
+     * @return array{match: list<array<string, mixed>>, first_half: list<array<string, mixed>>, second_half: list<array<string, mixed>>|null}
      */
-    private static function stats(int $seed, float $f, bool $live, int $goalsHome, int $goalsAway, array $events, array $lineups): array
+    private static function stats(int $seed, bool $live, int $limit, array $events): array
     {
+        $minutes = ['h1' => min(45, $limit), 'h2' => max(0, $limit - 45)];
+
+        $slice = static fn (int $from, int $to): array => array_values(array_filter(
+            $events,
+            static fn (array $e): bool => $e['minute'] >= $from && $e['minute'] <= $to,
+        ));
+
+        $first = self::periodMetrics($seed, 'h1', $minutes['h1'] / 90, $live, $slice(0, 45));
+        $second = $minutes['h2'] > 0
+            ? self::periodMetrics($seed, 'h2', $minutes['h2'] / 90, $live, $slice(46, 200))
+            : null;
+
+        $total = $second === null ? $first : self::mergeMetrics($first, $second, $minutes['h1'], $minutes['h2']);
+
+        return [
+            'match' => self::statSections($total),
+            'first_half' => self::statSections($first),
+            'second_half' => $second === null ? null : self::statSections($second),
+        ];
+    }
+
+    private const ADDITIVE = [
+        'goals', 'yellow', 'red', 'xg', 'xgot', 'xgsp', 'xgc', 'on_target', 'off', 'blocked', 'saves',
+        'attacks', 'dangerous', 'big', 'big_missed', 'dribbles', 'corners', 'free_kicks', 'woodwork',
+        'in_box', 'out_box', 'passes', 'key_passes', 'crosses', 'throw_ins', 'offsides', 'tackles',
+        'tackles_won', 'interceptions', 'duels', 'ground', 'air', 'fouls',
+    ];
+
+    /**
+     * @param  list<array<string, mixed>>  $events  события только этого периода
+     * @return array<string, array{home: int|float, away: int|float}>
+     */
+    private static function periodMetrics(int $seed, string $tag, float $f, bool $live, array $events): array
+    {
+        $r = static fn (string $key, int $min, int $max): int => self::rnd($seed, $key.'-'.$tag, $min, $max);
+        $scaled = static fn (string $key, int $min, int $max): int => (int) round($r($key, $min, $max) * $f);
+
         $count = static function (string $type, string $side) use ($events): int {
             return count(array_filter($events, static fn (array $e): bool => $e['type'] === $type && $e['side'] === $side));
         };
-        $r = static fn (string $key, int $min, int $max): int => self::rnd($seed, $key, $min, $max);
-        $scaled = static fn (string $key, int $min, int $max): int => (int) round($r($key, $min, $max) * $f);
 
-        $goals = ['home' => $goalsHome, 'away' => $goalsAway];
-        $opponent = ['home' => 'away', 'away' => 'home'];
+        $m = [];
+        $set = static function (string $key, mixed $home, mixed $away) use (&$m): void {
+            $m[$key] = ['home' => $home, 'away' => $away];
+        };
 
-        $possHome = max(38, min(62, 50 + ($goalsHome - $goalsAway) * 3 + $r('poss', -8, 8)));
+        $goals = ['home' => $count('goal', 'home'), 'away' => $count('goal', 'away')];
+        $set('goals', $goals['home'], $goals['away']);
+        $set('yellow', $count('yellow', 'home'), $count('yellow', 'away'));
+        $set('red', $count('red', 'home'), $count('red', 'away'));
+
+        $possHome = max(38, min(62, 50 + ($goals['home'] - $goals['away']) * 3 + $r('poss', -8, 8)));
         $poss = ['home' => $possHome, 'away' => 100 - $possHome];
+        $set('poss', $poss['home'], $poss['away']);
 
-        $xgScale = $live ? max($f, 0.3) : 1.0;
-        $xg = [];
-        $xgot = [];
-        $onTarget = [];
-        $off = [];
-        $blocked = [];
-        $shots = [];
+        $extra = [];
+        $metric = [];
         foreach (['home', 'away'] as $s) {
-            $xg[$s] = round((0.35 + $r("xg-$s", 0, 90) / 100 + $goals[$s] * 0.4) * $xgScale, 2);
-            $xgot[$s] = round($xg[$s] * $r("xgot-$s", 105, 140) / 100, 2);
-            $onTarget[$s] = $goals[$s] + (int) round($r("sot-$s", 1, 5) * $f);
-            $off[$s] = $scaled("soff-$s", 2, 7);
-            $blocked[$s] = $scaled("sbl-$s", 1, 5);
-            $shots[$s] = $onTarget[$s] + $off[$s] + $blocked[$s];
+            $xg = round((0.35 + $r("xg-$s", 0, 90) / 100 + $goals[$s] * 0.4) * $f, 2);
+            $sp = round($xg * $r("sp-$s", 10, 35) / 100, 2);
+            $onTarget = $goals[$s] + (int) round($r("sot-$s", 1, 5) * $f);
+            $off = $scaled("soff-$s", 2, 7);
+            $blocked = $scaled("sbl-$s", 1, 5);
+            $shots = $onTarget + $off + $blocked;
+            $inBox = (int) round($shots * $r("box-$s", 55, 75) / 100);
+            $attacks = (int) round($r("att-$s", 60, 110) * $f * $poss[$s] / 50);
+            $dribbles = $scaled("dr-$s", 8, 24);
+            $duels = $scaled("du-$s", 35, 60);
+            $tackles = $scaled("tk-$s", 8, 22);
+            $big = max($goals[$s], $scaled("big-$s", 1, 4));
+            $passes = (int) round($r("ps-$s", 250, 480) * $f * $poss[$s] / 50);
+            $crosses = $scaled("cr-$s", 8, 26);
+            $ground = (int) round($duels * 0.72);
+
+            $metric['xg'][$s] = $xg;
+            $metric['xgot'][$s] = round($xg * $r("xgot-$s", 105, 140) / 100, 2);
+            $metric['xgsp'][$s] = $sp;
+            $metric['xgc'][$s] = round($sp * $r("spc-$s", 40, 70) / 100, 2);
+            $metric['on_target'][$s] = $onTarget;
+            $metric['off'][$s] = $off;
+            $metric['blocked'][$s] = $blocked;
+            $extra[$s] = $onTarget - $goals[$s];
+            $metric['attacks'][$s] = $attacks;
+            $metric['dangerous'][$s] = (int) round($attacks * $r("da-$s", 40, 65) / 100);
+            $metric['big'][$s] = $big;
+            $metric['big_missed'][$s] = max(0, $big - $goals[$s]);
+            $metric['dribbles'][$s] = $dribbles;
+            $metric['corners'][$s] = $scaled("co-$s", 2, 9);
+            $metric['free_kicks'][$s] = $scaled("fk-$s", 6, 14);
+            $metric['in_box'][$s] = $inBox;
+            $metric['out_box'][$s] = $shots - $inBox;
+            $metric['passes'][$s] = $passes;
+            $metric['key_passes'][$s] = $scaled("kp-$s", 4, 14);
+            $metric['crosses'][$s] = $crosses;
+            $metric['throw_ins'][$s] = $scaled("ti-$s", 10, 24);
+            $metric['offsides'][$s] = $scaled("of-$s", 0, 4);
+            $metric['tackles'][$s] = $tackles;
+            $metric['tackles_won'][$s] = (int) round($tackles * $r("tw-$s", 50, 75) / 100);
+            $metric['interceptions'][$s] = $scaled("ic-$s", 4, 14);
+            $metric['duels'][$s] = $duels;
+            $metric['ground'][$s] = $ground;
+            $metric['air'][$s] = $duels - $ground;
+            $metric['fouls'][$s] = $scaled("fo-$s", 7, 15);
+            $metric['pass_acc'][$s] = $r("acc-$s", 74, 91);
+            $metric['dribble_pct'][$s] = $r("dp-$s", 45, 70);
+            $metric['cross_pct'][$s] = $r("cp-$s", 22, 40);
         }
 
-        $diffXg = $xg['home'] - $xg['away'];
+        foreach ($metric as $key => $pair) {
+            $set($key, $pair['home'], $pair['away']);
+        }
+        $set('saves', $extra['away'], $extra['home']);
+        $set('woodwork', 0, 0);
+        if (! $live) {
+            $set('woodwork', $tag === 'h1' && $seed % 3 === 0 ? 1 : 0, $tag === 'h2' && $seed % 4 === 0 ? 1 : 0);
+        }
+        $m['minutes'] = $f * 90;
+
+        return $m;
+    }
+
+    /**
+     * @param  array<string, mixed>  $a
+     * @param  array<string, mixed>  $b
+     * @return array<string, mixed>
+     */
+    private static function mergeMetrics(array $a, array $b, int $minutesA, int $minutesB): array
+    {
+        $out = [];
+        foreach (self::ADDITIVE as $key) {
+            foreach (['home', 'away'] as $s) {
+                $sum = $a[$key][$s] + $b[$key][$s];
+                $out[$key][$s] = is_float($sum) ? round($sum, 2) : $sum;
+            }
+        }
+
+        $weighted = static function (string $key, string $weightKey, string $s) use ($a, $b): int {
+            $wa = $weightKey === 'minutes' ? $a['minutes'] : $a[$weightKey][$s];
+            $wb = $weightKey === 'minutes' ? $b['minutes'] : $b[$weightKey][$s];
+            $total = $wa + $wb;
+
+            return $total > 0 ? (int) round(($a[$key][$s] * $wa + $b[$key][$s] * $wb) / $total) : (int) round(($a[$key][$s] + $b[$key][$s]) / 2);
+        };
+
+        foreach (['home', 'away'] as $s) {
+            $out['pass_acc'][$s] = $weighted('pass_acc', 'passes', $s);
+            $out['dribble_pct'][$s] = $weighted('dribble_pct', 'dribbles', $s);
+            $out['cross_pct'][$s] = $weighted('cross_pct', 'crosses', $s);
+        }
+        $out['poss']['home'] = $weighted('poss', 'minutes', 'home');
+        $out['poss']['away'] = 100 - $out['poss']['home'];
+        $out['minutes'] = $minutesA + $minutesB;
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, mixed>  $m
+     * @return list<array<string, mixed>>
+     */
+    private static function statSections(array $m): array
+    {
+        $v = static fn (string $key, string $s): mixed => $m[$key][$s];
+        $pair = static fn (string $key): array => [$m[$key]['home'], $m[$key]['away']];
+        $row = static function (string $id, string $label, mixed $home, mixed $away, string $fmt = 'int', ?string $better = 'high', ?string $hint = null): array {
+            return compact('id', 'label', 'home', 'away', 'fmt', 'better', 'hint');
+        };
+
+        $shots = ['home' => $v('on_target', 'home') + $v('off', 'home') + $v('blocked', 'home'), 'away' => $v('on_target', 'away') + $v('off', 'away') + $v('blocked', 'away')];
+        $goals = ['home' => $v('goals', 'home'), 'away' => $v('goals', 'away')];
+
+        $diffXg = $v('xg', 'home') - $v('xg', 'away');
         $pHome = 1 / (1 + exp(-1.7 * $diffXg));
         $pDraw = 0.28 * exp(-abs($diffXg));
         $xpts = [
@@ -417,170 +563,110 @@ class MockMatchCenter
             'away' => round(3 * (1 - $pHome) * (1 - $pDraw) + $pDraw, 2),
         ];
 
-        $pair = static function (callable $value) {
-            return [$value('home'), $value('away')];
-        };
-
-        $row = static function (string $id, string $label, mixed $home, mixed $away, string $fmt = 'int', ?string $better = 'high', ?string $hint = null): array {
-            return compact('id', 'label', 'home', 'away', 'fmt', 'better', 'hint');
-        };
-
-        $attacks = [];
-        $dribbleAttempts = [];
-        $duels = [];
-        $tackles = [];
-        $passes = [];
-        $crossesTotal = [];
-        $setPieceXg = [];
-        $cornerXg = [];
-        foreach (['home', 'away'] as $s) {
-            $attacks[$s] = (int) round($r("att-$s", 60, 110) * $f * $poss[$s] / 50);
-            $dribbleAttempts[$s] = $scaled("dr-$s", 8, 24);
-            $duels[$s] = $scaled("du-$s", 35, 60);
-            $tackles[$s] = $scaled("tk-$s", 8, 22);
-            $passes[$s] = (int) round($r("ps-$s", 250, 480) * $f * $poss[$s] / 50);
-            $crossesTotal[$s] = $scaled("cr-$s", 8, 26);
-            $setPieceXg[$s] = round($xg[$s] * $r("sp-$s", 10, 35) / 100, 2);
-            $cornerXg[$s] = round($setPieceXg[$s] * $r("spc-$s", 40, 70) / 100, 2);
-        }
-
-        $sections = [];
-
-        $sections[] = [
-            'id' => 'xg-expected',
-            'title' => 'Ожидаемые очки',
-            'column' => 'left',
-            'rows' => [
-                $row('xpts', 'Ожидаемые очки (xPTS)', $xpts['home'], $xpts['away'], 'dec', 'high', 'Сколько очков «заслужила» команда по качеству моментов'),
+        return [
+            [
+                'id' => 'xg-expected',
+                'title' => 'Ожидаемые очки',
+                'column' => 'left',
+                'rows' => [
+                    $row('xpts', 'Ожидаемые очки (xPTS)', $xpts['home'], $xpts['away'], 'dec', 'high', 'Сколько очков «заслужила» команда по качеству моментов'),
+                ],
+            ],
+            [
+                'id' => 'xg-attack',
+                'title' => 'Атака · xG',
+                'column' => 'left',
+                'rows' => [
+                    $row('xg', 'Ожидаемые голы (xG)', ...[...$pair('xg'), 'dec', 'high', 'Суммарное качество созданных моментов']),
+                    $row('xg-over', 'Перевыполнение xG', round($goals['home'] - $v('xg', 'home'), 2), round($goals['away'] - $v('xg', 'away'), 2), 'signed', 'high', 'Голы минус xG'),
+                    $row('xgop', 'xG с игры (xGOP)', round($v('xg', 'home') * 0.82, 2), round($v('xg', 'away') * 0.82, 2), 'dec', 'high'),
+                    $row('npxg', 'xG без пенальти (npxG)', ...[...$pair('xg'), 'dec', 'high']),
+                    $row('xgot', 'xG в створ (xGOT)', ...[...$pair('xgot'), 'dec', 'high', 'Качество ударов, пришедшихся в створ']),
+                ],
+            ],
+            [
+                'id' => 'xg-defense',
+                'title' => 'Защита · xG',
+                'column' => 'left',
+                'rows' => [
+                    $row('xga', 'Допущенные xG (xGA)', $v('xg', 'away'), $v('xg', 'home'), 'dec', 'low', 'Сколько xG создал соперник'),
+                    $row('xgp', 'Предотвращённые xG (xGP)', round($v('xgot', 'away') - $goals['away'], 2), round($v('xgot', 'home') - $goals['home'], 2), 'signed', 'high', 'xG в створ соперника минус пропущенные голы'),
+                ],
+            ],
+            [
+                'id' => 'xg-setpieces',
+                'title' => 'Стандарты · xG',
+                'column' => 'left',
+                'rows' => [
+                    $row('xgsp', 'xG со стандартов (xGSP)', ...[...$pair('xgsp'), 'dec', 'high']),
+                    $row('xgc', 'xG с угловых (xGC)', ...[...$pair('xgc'), 'dec', 'high']),
+                    $row('xgfk', 'xG со штрафных (xGFK)', round($v('xgsp', 'home') - $v('xgc', 'home'), 2), round($v('xgsp', 'away') - $v('xgc', 'away'), 2), 'dec', 'high'),
+                    $row('xgpen', 'xG с пенальти (xGPen)', null, null, 'dec', null),
+                ],
+            ],
+            [
+                'id' => 'attack',
+                'title' => 'Атака',
+                'column' => 'right',
+                'rows' => [
+                    $row('goals-open', 'Голы из игры', $goals['home'], $goals['away']),
+                    $row('goals-pen', 'Голы с пенальти', null, null),
+                    $row('attacks', 'Атаки', ...$pair('attacks')),
+                    $row('dangerous', 'Опасные атаки', ...$pair('dangerous')),
+                    $row('big', 'Голевые моменты', ...$pair('big')),
+                    $row('big-missed', 'Упущенные моменты', $v('big_missed', 'home'), $v('big_missed', 'away'), 'int', 'low'),
+                    $row('dribbles', 'Попытки дриблинга', ...$pair('dribbles')),
+                    $row('dribble-pct', 'Успешный дриблинг', $v('dribble_pct', 'home'), $v('dribble_pct', 'away'), 'pct'),
+                    $row('corners', 'Угловые', ...$pair('corners')),
+                    $row('free-kicks', 'Штрафные удары', ...$pair('free_kicks')),
+                ],
+            ],
+            [
+                'id' => 'shots',
+                'title' => 'Удары',
+                'column' => 'right',
+                'rows' => [
+                    $row('shots', 'Удары', $shots['home'], $shots['away']),
+                    $row('on-target', 'В створ ворот', ...$pair('on_target')),
+                    $row('woodwork', 'В каркас ворот', ...$pair('woodwork')),
+                    $row('off-target', 'Мимо ворот', $v('off', 'home'), $v('off', 'away'), 'int', 'low'),
+                    $row('blocked', 'Заблокированные удары', $v('blocked', 'home'), $v('blocked', 'away'), 'int', 'low'),
+                    $row('in-box', 'Удары из штрафной', ...$pair('in_box')),
+                    $row('out-box', 'Удары из-за штрафной', ...$pair('out_box')),
+                ],
+            ],
+            [
+                'id' => 'passes',
+                'title' => 'Передачи',
+                'column' => 'left',
+                'rows' => [
+                    $row('possession', 'Владение мячом', $v('poss', 'home'), $v('poss', 'away'), 'pct'),
+                    $row('passes', 'Передачи всего', ...$pair('passes')),
+                    $row('pass-acc', 'Точные передачи', $v('pass_acc', 'home'), $v('pass_acc', 'away'), 'pct'),
+                    $row('key-passes', 'Ключевые передачи', ...$pair('key_passes')),
+                    $row('crosses', 'Всего кроссов', ...$pair('crosses')),
+                    $row('cross-pct', 'Точные кроссы', $v('cross_pct', 'home'), $v('cross_pct', 'away'), 'pct'),
+                    $row('throw-ins', 'Вбрасывания', ...$pair('throw_ins')),
+                    $row('offsides', 'Офсайды', $v('offsides', 'home'), $v('offsides', 'away'), 'int', 'low'),
+                ],
+            ],
+            [
+                'id' => 'defense',
+                'title' => 'Защита',
+                'column' => 'right',
+                'rows' => [
+                    $row('tackles', 'Отборы', ...$pair('tackles')),
+                    $row('tackles-won', 'Отборы выигранные', ...$pair('tackles_won')),
+                    $row('interceptions', 'Перехваты', ...$pair('interceptions')),
+                    $row('saves', 'Сейвы вратаря', ...$pair('saves')),
+                    $row('duels', 'Выиграно единоборств всего', ...$pair('duels')),
+                    $row('duels-ground', 'Выиграно единоборств на земле', ...$pair('ground')),
+                    $row('duels-air', 'Выиграно единоборств в воздухе', ...$pair('air')),
+                    $row('fouls', 'Фолы', $v('fouls', 'home'), $v('fouls', 'away'), 'int', 'low'),
+                    $row('yellow', 'Жёлтые карточки', $v('yellow', 'home'), $v('yellow', 'away'), 'int', 'low'),
+                    $row('red', 'Красные карточки', $v('red', 'home'), $v('red', 'away'), 'int', 'low'),
+                ],
             ],
         ];
-
-        $sections[] = [
-            'id' => 'xg-attack',
-            'title' => 'Атака · xG',
-            'column' => 'left',
-            'rows' => [
-                $row('xg', 'Ожидаемые голы (xG)', $xg['home'], $xg['away'], 'dec', 'high', 'Суммарное качество созданных моментов'),
-                $row('xg-over', 'Перевыполнение xG', round($goalsHome - $xg['home'], 2), round($goalsAway - $xg['away'], 2), 'signed', 'high', 'Голы минус xG'),
-                $row('xgop', 'xG с игры (xGOP)', round($xg['home'] * 0.82, 2), round($xg['away'] * 0.82, 2), 'dec', 'high'),
-                $row('npxg', 'xG без пенальти (npxG)', $xg['home'], $xg['away'], 'dec', 'high'),
-                $row('xgot', 'xG в створ (xGOT)', $xgot['home'], $xgot['away'], 'dec', 'high', 'Качество ударов, пришедшихся в створ'),
-            ],
-        ];
-
-        $sections[] = [
-            'id' => 'xg-defense',
-            'title' => 'Защита · xG',
-            'column' => 'left',
-            'rows' => [
-                $row('xga', 'Допущенные xG (xGA)', $xg['away'], $xg['home'], 'dec', 'low', 'Сколько xG создал соперник'),
-                $row('xgp', 'Предотвращённые xG (xGP)', round($xgot['away'] - $goalsAway, 2), round($xgot['home'] - $goalsHome, 2), 'signed', 'high', 'xG в створ соперника минус пропущенные голы'),
-            ],
-        ];
-
-        $sections[] = [
-            'id' => 'xg-setpieces',
-            'title' => 'Стандарты · xG',
-            'column' => 'left',
-            'rows' => [
-                $row('xgsp', 'xG со стандартов (xGSP)', $setPieceXg['home'], $setPieceXg['away'], 'dec', 'high'),
-                $row('xgc', 'xG с угловых (xGC)', $cornerXg['home'], $cornerXg['away'], 'dec', 'high'),
-                $row('xgfk', 'xG со штрафных (xGFK)', round($setPieceXg['home'] - $cornerXg['home'], 2), round($setPieceXg['away'] - $cornerXg['away'], 2), 'dec', 'high'),
-                $row('xgpen', 'xG с пенальти (xGPen)', null, null, 'dec', null),
-            ],
-        ];
-
-        $dribblePct = ['home' => $r('dp-home', 45, 70), 'away' => $r('dp-away', 45, 70)];
-        $bigChances = [
-            'home' => max($goalsHome, $scaled('big-home', 1, 4)),
-            'away' => max($goalsAway, $scaled('big-away', 1, 4)),
-        ];
-
-        $sections[] = [
-            'id' => 'attack',
-            'title' => 'Атака',
-            'column' => 'right',
-            'rows' => [
-                $row('goals-open', 'Голы из игры', $goalsHome, $goalsAway),
-                $row('goals-pen', 'Голы с пенальти', null, null),
-                $row('attacks', 'Атаки', ...$pair(fn ($s) => $attacks[$s])),
-                $row('dangerous', 'Опасные атаки', (int) round($attacks['home'] * $r('da-home', 40, 65) / 100), (int) round($attacks['away'] * $r('da-away', 40, 65) / 100)),
-                $row('big', 'Голевые моменты', $bigChances['home'], $bigChances['away']),
-                $row('big-missed', 'Упущенные моменты', max(0, $bigChances['home'] - $goalsHome), max(0, $bigChances['away'] - $goalsAway), 'int', 'low'),
-                $row('dribbles', 'Попытки дриблинга', ...$pair(fn ($s) => $dribbleAttempts[$s])),
-                $row('dribble-pct', 'Успешный дриблинг', $dribblePct['home'], $dribblePct['away'], 'pct'),
-                $row('corners', 'Угловые', $scaled('co-home', 2, 9), $scaled('co-away', 2, 9)),
-                $row('free-kicks', 'Штрафные удары', $scaled('fk-home', 6, 14), $scaled('fk-away', 6, 14)),
-            ],
-        ];
-
-        $inBox = [];
-        foreach (['home', 'away'] as $s) {
-            $inBox[$s] = (int) round($shots[$s] * $r("box-$s", 55, 75) / 100);
-        }
-
-        $sections[] = [
-            'id' => 'shots',
-            'title' => 'Удары',
-            'column' => 'right',
-            'rows' => [
-                $row('shots', 'Удары', $shots['home'], $shots['away']),
-                $row('on-target', 'В створ ворот', $onTarget['home'], $onTarget['away']),
-                $row('woodwork', 'В каркас ворот', $live ? 0 : ($seed % 3 === 0 ? 1 : 0), $live ? 0 : ($seed % 4 === 0 ? 1 : 0)),
-                $row('off-target', 'Мимо ворот', $off['home'], $off['away'], 'int', 'low'),
-                $row('blocked', 'Заблокированные удары', $blocked['home'], $blocked['away'], 'int', 'low'),
-                $row('in-box', 'Удары из штрафной', $inBox['home'], $inBox['away']),
-                $row('out-box', 'Удары из-за штрафной', $shots['home'] - $inBox['home'], $shots['away'] - $inBox['away']),
-            ],
-        ];
-
-        $accuracy = ['home' => $r('acc-home', 74, 91), 'away' => $r('acc-away', 74, 91)];
-        $crossPct = ['home' => $r('cp-home', 22, 40), 'away' => $r('cp-away', 22, 40)];
-
-        $sections[] = [
-            'id' => 'passes',
-            'title' => 'Передачи',
-            'column' => 'left',
-            'rows' => [
-                $row('possession', 'Владение мячом', $poss['home'], $poss['away'], 'pct'),
-                $row('passes', 'Передачи всего', $passes['home'], $passes['away']),
-                $row('pass-acc', 'Точные передачи', $accuracy['home'], $accuracy['away'], 'pct'),
-                $row('key-passes', 'Ключевые передачи', $scaled('kp-home', 4, 14), $scaled('kp-away', 4, 14)),
-                $row('crosses', 'Всего кроссов', $crossesTotal['home'], $crossesTotal['away']),
-                $row('cross-pct', 'Точные кроссы', $crossPct['home'], $crossPct['away'], 'pct'),
-                $row('throw-ins', 'Вбрасывания', $scaled('ti-home', 10, 24), $scaled('ti-away', 10, 24)),
-                $row('offsides', 'Офсайды', $scaled('of-home', 0, 4), $scaled('of-away', 0, 4), 'int', 'low'),
-            ],
-        ];
-
-        $duelsWon = $duels;
-        $tacklesWon = [];
-        foreach (['home', 'away'] as $s) {
-            $tacklesWon[$s] = (int) round($tackles[$s] * $r("tw-$s", 50, 75) / 100);
-        }
-        $groundWon = [
-            'home' => (int) round($duelsWon['home'] * 0.72),
-            'away' => (int) round($duelsWon['away'] * 0.72),
-        ];
-
-        $sections[] = [
-            'id' => 'defense',
-            'title' => 'Защита',
-            'column' => 'right',
-            'rows' => [
-                $row('tackles', 'Отборы', $tackles['home'], $tackles['away']),
-                $row('tackles-won', 'Отборы выигранные', $tacklesWon['home'], $tacklesWon['away']),
-                $row('interceptions', 'Перехваты', $scaled('ic-home', 4, 14), $scaled('ic-away', 4, 14)),
-                $row('saves', 'Сейвы вратаря', max(0, $onTarget['away'] - $goalsAway), max(0, $onTarget['home'] - $goalsHome)),
-                $row('duels', 'Выиграно единоборств всего', $duelsWon['home'], $duelsWon['away']),
-                $row('duels-ground', 'Выиграно единоборств на земле', $groundWon['home'], $groundWon['away']),
-                $row('duels-air', 'Выиграно единоборств в воздухе', $duelsWon['home'] - $groundWon['home'], $duelsWon['away'] - $groundWon['away']),
-                $row('fouls', 'Фолы', $scaled('fo-home', 7, 15), $scaled('fo-away', 7, 15), 'int', 'low'),
-                $row('yellow', 'Жёлтые карточки', $count('yellow', 'home'), $count('yellow', 'away'), 'int', 'low'),
-                $row('red', 'Красные карточки', $count('red', 'home'), $count('red', 'away'), 'int', 'low'),
-            ],
-        ];
-
-        return $sections;
     }
 }

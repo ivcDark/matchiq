@@ -1,16 +1,36 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
-    /** [{ id, title, column: left|right, rows: [{ id, label, home, away, fmt, better, hint }] }] */
-    sections: { type: Array, required: true },
+    /**
+     * { match, first_half, second_half } — каждый период: [{ id, title, column: left|right, rows: [{ id, label, home, away, fmt, better, hint }] }];
+     * second_half = null, пока 2-й тайм не начался (live до перерыва)
+     */
+    stats: { type: Object, required: true },
     home: { type: String, required: true },
     away: { type: String, required: true },
 });
 
+const periods = computed(() => [
+    { id: 'match', label: 'Весь матч', available: Boolean(props.stats.match) },
+    { id: 'first_half', label: '1 тайм', available: Boolean(props.stats.first_half) },
+    { id: 'second_half', label: '2 тайм', available: Boolean(props.stats.second_half) },
+]);
+
+const period = ref('match');
+
+watch(
+    () => props.stats,
+    () => {
+        if (!props.stats[period.value]) period.value = 'match';
+    },
+);
+
+const sections = computed(() => props.stats[period.value] || []);
+
 const columns = computed(() => ({
-    left: props.sections.filter((s) => s.column !== 'right'),
-    right: props.sections.filter((s) => s.column === 'right'),
+    left: sections.value.filter((s) => s.column !== 'right'),
+    right: sections.value.filter((s) => s.column === 'right'),
 }));
 
 const dec = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -41,6 +61,22 @@ function leader(row) {
         <div class="miq-panel-head">
             <h2 class="miq-panel-title">Статистика матча</h2>
             <p class="text-[11px] font-medium text-miq-muted">лучшее значение выделено</p>
+        </div>
+        <div class="miq-mc-tabs" role="tablist" aria-label="Период статистики">
+            <button
+                v-for="p in periods"
+                :key="p.id"
+                type="button"
+                role="tab"
+                class="miq-mc-tab"
+                :class="{ 'is-active': period === p.id }"
+                :aria-selected="period === p.id"
+                :disabled="!p.available"
+                :title="p.available ? undefined : 'Тайм ещё не начался'"
+                @click="period = p.id"
+            >
+                {{ p.label }}
+            </button>
         </div>
         <div class="miq-mc-stats-head" aria-hidden="true">
             <span class="truncate text-left">{{ home }}</span>

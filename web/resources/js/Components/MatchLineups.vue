@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 const props = defineProps({
-    /** { home: { formation, rating, players: [...11, GK first, then by lines] }, away: {...} } */
+    /** { home: { formation, rating (null у live), players: [...11, GK first, then by lines] }, away: {...} } */
     lineups: { type: Object, required: true },
     home: { type: String, required: true },
     away: { type: String, required: true },
@@ -34,6 +34,10 @@ function layout(lineup, side) {
     return result;
 }
 
+const showRatings = computed(
+    () => props.lineups.home.rating != null && props.lineups.away.rating != null,
+);
+
 const teams = computed(() => [
     { side: 'home', name: props.home, lineup: props.lineups.home, players: layout(props.lineups.home, 'home') },
     { side: 'away', name: props.away, lineup: props.lineups.away, players: layout(props.lineups.away, 'away') },
@@ -44,14 +48,14 @@ const teams = computed(() => [
     <section class="miq-panel" aria-label="Составы">
         <div class="miq-panel-head">
             <h2 class="miq-panel-title">Составы</h2>
-            <p class="text-[11px] font-medium text-miq-muted">схема и рейтинги</p>
+            <p class="text-[11px] font-medium text-miq-muted">{{ showRatings ? 'схема и рейтинги' : 'схема расстановки' }}</p>
         </div>
 
         <div class="miq-mc-pitch-wrap">
             <div class="miq-mc-pitch-team is-home">
                 <span class="font-semibold text-miq-ink">{{ teams[0].name }}</span>
                 <span class="text-xs text-miq-muted">{{ teams[0].lineup.formation }}</span>
-                <span class="miq-mc-rating tabular-nums" :class="tone(teams[0].lineup.rating)">{{ teams[0].lineup.rating.toFixed(2) }}</span>
+                <span v-if="showRatings" class="miq-mc-rating tabular-nums" :class="tone(teams[0].lineup.rating)">{{ teams[0].lineup.rating.toFixed(2) }}</span>
             </div>
 
             <div class="miq-mc-pitch" role="img" :aria-label="`Схема составов: ${home} — ${away}`">
@@ -69,7 +73,7 @@ const teams = computed(() => [
                     >
                         <span class="miq-mc-dot" :class="`is-${team.side}`">
                             <span class="tabular-nums">{{ player.number }}</span>
-                            <span class="miq-mc-dot-rating tabular-nums" :class="tone(player.rating)">{{ player.rating.toFixed(1) }}</span>
+                            <span v-if="showRatings && player.rating != null" class="miq-mc-dot-rating tabular-nums" :class="tone(player.rating)">{{ player.rating.toFixed(1) }}</span>
                             <span v-if="player.goals" class="miq-mc-dot-badge is-goal" title="Гол">⚽{{ player.goals > 1 ? player.goals : '' }}</span>
                             <span v-else-if="player.assists" class="miq-mc-dot-badge is-assist" title="Голевая передача">А</span>
                             <span v-if="player.red" class="miq-mc-dot-card is-red" title="Красная карточка" />
@@ -84,7 +88,7 @@ const teams = computed(() => [
             <div class="miq-mc-pitch-team is-away">
                 <span class="font-semibold text-miq-ink">{{ teams[1].name }}</span>
                 <span class="text-xs text-miq-muted">{{ teams[1].lineup.formation }}</span>
-                <span class="miq-mc-rating tabular-nums" :class="tone(teams[1].lineup.rating)">{{ teams[1].lineup.rating.toFixed(2) }}</span>
+                <span v-if="showRatings" class="miq-mc-rating tabular-nums" :class="tone(teams[1].lineup.rating)">{{ teams[1].lineup.rating.toFixed(2) }}</span>
             </div>
         </div>
     </section>
