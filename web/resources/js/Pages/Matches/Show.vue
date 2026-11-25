@@ -793,7 +793,13 @@ function loginHref() {
                     <div class="miq-match-hero-teams">
                         <div class="miq-match-hero-side">
                             <p class="miq-display text-xl font-semibold leading-tight text-miq-ink sm:text-2xl">
-                                {{ match.home }}
+                                <Link
+                                    v-if="match.home_club_id"
+                                    :href="route('clubs.show', match.home_club_id)"
+                                    class="transition hover:text-miq-pitch hover:underline"
+                                    :title="`${match.home} — страница клуба`"
+                                >{{ match.home }}</Link>
+                                <template v-else>{{ match.home }}</template>
                             </p>
                             <div
                                 v-if="formResults('home').length"
@@ -831,7 +837,13 @@ function loginHref() {
 
                         <div class="miq-match-hero-side is-away">
                             <p class="miq-display text-xl font-semibold leading-tight text-miq-ink sm:text-2xl">
-                                {{ match.away }}
+                                <Link
+                                    v-if="match.away_club_id"
+                                    :href="route('clubs.show', match.away_club_id)"
+                                    class="transition hover:text-miq-pitch hover:underline"
+                                    :title="`${match.away} — страница клуба`"
+                                >{{ match.away }}</Link>
+                                <template v-else>{{ match.away }}</template>
                             </p>
                             <div
                                 v-if="formResults('away').length"

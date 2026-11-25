@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\MockClub;
 use App\Support\MockTournament;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -234,6 +235,8 @@ class MatchController extends Controller
             'league_short' => $league['short'] ?? $league['name'] ?? 'Лига',
             'league_country' => $league['country'] ?? '',
             'tournament_id' => MockTournament::idForLeague($league['id'] ?? null),
+            'home_club_id' => MockClub::idForName($home),
+            'away_club_id' => MockClub::idForName($away),
             'venue' => $meta['venue'],
             'referee' => $meta['referee'],
             'round' => $meta['round'],

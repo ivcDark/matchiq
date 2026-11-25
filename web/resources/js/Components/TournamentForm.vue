@@ -1,4 +1,6 @@
 <script setup>
+import { Link } from '@inertiajs/vue3';
+
 const props = defineProps({
     title: { type: String, default: 'Форма команд' },
     round: { type: Number, required: true },
@@ -42,7 +44,10 @@ function summary(team) {
         <ol class="miq-tt-formlist">
             <li v-for="team in teams" :key="team.team" class="miq-tt-formrow">
                 <span class="miq-tt-formrow-pos">{{ team.pos }}</span>
-                <span class="miq-tt-formrow-team" :title="team.team">{{ team.team }}</span>
+                <span class="miq-tt-formrow-team" :title="team.team">
+                    <Link v-if="team.team_id" :href="route('clubs.show', team.team_id)" class="miq-club-link">{{ team.team }}</Link>
+                    <template v-else>{{ team.team }}</template>
+                </span>
                 <span class="miq-tt-formrow-chips" role="img" :aria-label="`${team.team}: ${summary(team)}`">
                     <span
                         v-for="m in team.matches"

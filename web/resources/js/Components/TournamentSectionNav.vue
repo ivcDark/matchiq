@@ -3,6 +3,7 @@ const props = defineProps({
     modelValue: { type: String, required: true },
     sections: { type: Array, required: true },
     idPrefix: { type: String, default: 'tt' },
+    label: { type: String, default: 'Разделы турнира' },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -20,7 +21,7 @@ function onKeydown(event, index) {
 </script>
 
 <template>
-    <nav class="miq-tt-nav" aria-label="Разделы турнира">
+    <nav class="miq-tt-nav" :aria-label="label">
         <div class="miq-tt-nav-list" role="tablist">
             <button
                 v-for="(section, index) in sections"

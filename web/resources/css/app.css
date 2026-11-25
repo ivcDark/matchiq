@@ -3359,6 +3359,316 @@
         @apply rounded-md border border-dashed px-4 py-3 text-center text-sm text-miq-muted;
         border-color: color-mix(in srgb, var(--miq-line) 85%, transparent);
     }
+
+    /* Страница клуба */
+    .miq-club-link {
+        @apply font-semibold text-miq-ink transition-colors;
+    }
+
+    .miq-club-link:hover,
+    .miq-club-link:focus-visible {
+        @apply text-miq-pitch underline underline-offset-2;
+        outline: none;
+    }
+
+    .miq-club-head-pos {
+        @apply inline-flex items-baseline gap-1.5 rounded-md border px-2.5 py-1 text-sm;
+        border-color: color-mix(in srgb, var(--miq-line) 90%, transparent);
+        background: color-mix(in srgb, var(--miq-lime) 18%, white);
+    }
+
+    .miq-club-grid {
+        @apply grid grid-cols-1 gap-4 lg:grid-cols-2;
+    }
+
+    .miq-club-grid-wide {
+        @apply grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)];
+    }
+
+    .miq-club-filters {
+        @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg border;
+        border-color: color-mix(in srgb, var(--miq-line) 85%, transparent);
+        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+    }
+
+    .miq-club-filters .miq-tt-tabs {
+        background: transparent;
+    }
+
+    .miq-club-filters .miq-tt-season {
+        @apply pr-3;
+    }
+
+    .miq-club-kpis {
+        @apply grid grid-cols-3 gap-px border-b sm:grid-cols-6;
+        border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, var(--miq-line) 70%, transparent);
+    }
+
+    .miq-club-kpi {
+        @apply min-w-0 px-3 py-1.5;
+        background: color-mix(in srgb, white 78%, var(--miq-chalk));
+    }
+
+    .miq-club-kpi dt {
+        @apply text-[10px] font-semibold uppercase tracking-[0.1em] text-miq-muted;
+    }
+
+    .miq-club-kpi dd {
+        @apply num-display mt-0.5 text-base leading-none text-miq-ink;
+    }
+
+    .miq-club-table {
+        --tt-bg: color-mix(in srgb, white 78%, var(--miq-chalk));
+        @apply w-full border-collapse text-[13px];
+    }
+
+    .miq-club-table thead th {
+        @apply whitespace-nowrap px-2 py-1.5 text-right text-[10px] font-semibold uppercase leading-none tracking-wider text-miq-muted;
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 70%, transparent);
+    }
+
+    .miq-club-table td {
+        @apply whitespace-nowrap px-2 py-1 text-right tabular-nums text-miq-ink-soft;
+    }
+
+    .miq-club-table th.is-left,
+    .miq-club-table td.is-left {
+        @apply text-left;
+    }
+
+    .miq-club-table th:first-child,
+    .miq-club-table td:first-child {
+        @apply pl-3;
+    }
+
+    .miq-club-table th:last-child,
+    .miq-club-table td:last-child {
+        @apply pr-3;
+    }
+
+    .miq-club-table tbody tr {
+        background: var(--tt-bg);
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-club-table tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .miq-club-table tbody tr:nth-child(even) {
+        --tt-bg: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-club-table tbody tr:hover {
+        background: color-mix(in srgb, var(--miq-lime) 18%, white);
+    }
+
+    .miq-club-table tbody tr.is-current {
+        --tt-bg: color-mix(in srgb, var(--miq-lime) 30%, white);
+    }
+
+    .miq-club-table tbody tr[data-zone] td:first-child {
+        box-shadow: inset 4px 0 0 var(--tt-zone);
+    }
+
+    .miq-club-table tbody tr.is-advance td:first-child {
+        box-shadow: inset 4px 0 0 var(--miq-cmp-lead);
+    }
+
+    .miq-club-table tfoot td {
+        @apply font-bold text-miq-ink;
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+    }
+
+    .miq-club-table td.is-strong {
+        @apply font-bold text-miq-ink;
+    }
+
+    .miq-club-table td.is-sticky,
+    .miq-club-table th.is-sticky {
+        @apply sticky left-0 z-[1];
+        background: var(--tt-bg);
+    }
+
+    .miq-club-table thead th.is-sticky {
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
+    }
+
+    .miq-club-table tfoot td.is-sticky {
+        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+    }
+
+    .miq-club-table .is-na {
+        @apply text-miq-muted opacity-60;
+    }
+
+    .miq-club-table .miq-form-chip {
+        @apply h-[18px] w-[18px] rounded text-[10px];
+    }
+
+    .miq-club-rating {
+        @apply font-bold;
+        color: var(--miq-cmp-trail-ink);
+    }
+
+    .miq-club-sort {
+        @apply inline-flex items-center gap-0.5 rounded px-1 py-0.5 font-semibold uppercase tracking-wider transition-colors;
+    }
+
+    .miq-club-sort:hover,
+    .miq-club-sort:focus-visible {
+        @apply text-miq-ink;
+        outline: none;
+        background: color-mix(in srgb, var(--miq-ink) 8%, transparent);
+    }
+
+    th.is-sorted .miq-club-sort {
+        @apply text-miq-ink;
+    }
+
+    .miq-club-sort-icon {
+        @apply h-3 w-3 opacity-0 transition;
+    }
+
+    .miq-club-sort:hover .miq-club-sort-icon {
+        @apply opacity-40;
+    }
+
+    .miq-club-sort-icon.is-active {
+        @apply opacity-100;
+        color: var(--miq-pitch);
+    }
+
+    .miq-club-sort-icon.is-asc {
+        @apply rotate-180;
+    }
+
+    .miq-club-split-total {
+        @apply grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-3.5 py-3;
+    }
+
+    .miq-club-split-num {
+        @apply num-display text-2xl leading-none text-miq-ink;
+    }
+
+    .miq-club-split-pair {
+        @apply inline-flex overflow-hidden rounded-md text-sm font-bold tabular-nums;
+    }
+
+    .miq-club-split-pair span {
+        @apply px-2.5 py-1;
+    }
+
+    .miq-club-split-row {
+        @apply px-3.5 py-2;
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 40%, transparent);
+    }
+
+    .miq-club-split-meta {
+        @apply flex items-baseline justify-between gap-2 text-[11px] text-miq-ink-soft;
+    }
+
+    .miq-club-split-meta strong {
+        @apply font-bold text-miq-ink;
+    }
+
+    .miq-club-split-title {
+        @apply text-[10px] font-semibold uppercase tracking-[0.1em] text-miq-muted;
+    }
+
+    .miq-club-split-bar {
+        @apply mt-1 flex h-[18px] overflow-hidden rounded-sm;
+        background: color-mix(in srgb, var(--miq-line) 40%, white);
+    }
+
+    .miq-club-split-seg {
+        @apply flex items-center px-1.5 text-[10px] font-bold leading-none tabular-nums text-miq-ink;
+        transition: width 220ms ease;
+    }
+
+    .miq-club-split-seg.is-left {
+        background: var(--miq-cmp-lead);
+    }
+
+    .miq-club-split-seg.is-right {
+        @apply justify-end;
+        background: var(--miq-cmp-trail);
+    }
+
+    .miq-club-best-grid {
+        @apply grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3;
+    }
+
+    .miq-club-best-block {
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 45%, transparent);
+    }
+
+    .miq-club-best-title {
+        @apply px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-miq-muted;
+        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+    }
+
+    .miq-club-best-row {
+        @apply grid grid-cols-[minmax(0,1fr)_minmax(5.5rem,auto)] items-center gap-2 px-3.5 py-1 text-[13px];
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 30%, transparent);
+    }
+
+    .miq-club-best-row:nth-child(odd) {
+        background: color-mix(in srgb, var(--miq-mist-deep) 28%, white);
+    }
+
+    .miq-club-bar {
+        --bar: var(--miq-cmp-lead);
+        @apply relative flex h-[18px] items-center justify-end overflow-hidden rounded-sm;
+        background: color-mix(in srgb, var(--bar) 18%, white);
+    }
+
+    .miq-club-bar.is-coral {
+        --bar: var(--miq-cmp-trail);
+    }
+
+    .miq-club-bar-fill {
+        @apply absolute inset-y-0 left-0 rounded-sm;
+        background: var(--bar);
+        transition: width 220ms ease;
+    }
+
+    .miq-club-bar-num {
+        @apply relative px-1.5 text-xs font-bold leading-none tabular-nums text-miq-ink;
+    }
+
+    .miq-club-pill {
+        @apply inline-flex h-[18px] min-w-[2rem] items-center justify-center rounded-sm px-1.5 text-xs font-bold leading-none tabular-nums;
+    }
+
+    .miq-club-pill.is-muted {
+        @apply text-miq-ink-soft;
+        background: color-mix(in srgb, var(--miq-line) 55%, white);
+    }
+
+    .miq-club-pill.is-coral {
+        @apply text-miq-ink;
+        background: var(--miq-cmp-trail);
+    }
+
+    .miq-club-pill.is-sage {
+        @apply text-miq-ink;
+        background: var(--miq-cmp-lead);
+    }
+
+    .miq-club-placeholder {
+        @apply px-4 py-10 text-center text-sm text-miq-muted;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .miq-club-split-seg,
+        .miq-club-bar-fill {
+            transition: none;
+        }
+    }
 }
 
 @layer utilities {

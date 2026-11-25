@@ -289,6 +289,72 @@ class MockTournament
         'Сочи' => [42.8, 38, 2, 44.1, 10.4, 69.5, 6.22],
     ];
 
+    /**
+     * Командная статистика (владение, карточки, воздух, удары, передачи, оценка) в контексте — для страницы клуба.
+     *
+     * @return array{possession: float, yellow: int, red: int, aerial: float, shots: float, passing: float, rating: float}|null
+     */
+    public static function teamStatLine(string $team, string $context = 'overall'): ?array
+    {
+        if (! isset(self::TEAM_STATS[$team])) {
+            return null;
+        }
+
+        [$possession, $yellow, $red, $aerial, $shots, $passing, $rating] = self::TEAM_STATS[$team];
+
+        return [
+            'possession' => self::teamValue($team, 'possession', $possession, $context),
+            'yellow' => self::teamValue($team, 'yellow', $yellow, $context),
+            'red' => self::teamValue($team, 'red', $red, $context),
+            'aerial' => self::teamValue($team, 'aerial', $aerial, $context),
+            'shots' => self::teamValue($team, 'shots', $shots, $context),
+            'passing' => self::teamValue($team, 'passing', $passing, $context),
+            'rating' => self::teamValue($team, 'rating', $rating, $context),
+        ];
+    }
+
+    /**
+     * Известные игроки команды из моков турнира (текущий срез сезона) — основа состава на странице клуба.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function teamPlayers(string $team): array
+    {
+        $rows = [];
+        foreach (self::PLAYERS as $p) {
+            if ($p[1] === $team) {
+                $rows[] = self::player($p);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Сыгранные матчи РПЛ команды в хронологическом порядке: тур, дома/в гостях, соперник, голы.
+     *
+     * @return list<array{round: int, venue: string, opponent: string, gf: int, ga: int}>
+     */
+    public static function teamMatches(string $team): array
+    {
+        $rows = [];
+        foreach (self::firstCircle(self::ROUNDS_PLAYED) as $m) {
+            foreach (['home' => 'away', 'away' => 'home'] as $side => $other) {
+                if ($m[$side] === $team) {
+                    $rows[] = [
+                        'round' => $m['round'],
+                        'venue' => $side,
+                        'opponent' => $m[$other],
+                        'gf' => $m[$side.'_goals'],
+                        'ga' => $m[$other.'_goals'],
+                    ];
+                }
+            }
+        }
+
+        return $rows;
+    }
+
     public static function idForLeague(?string $leagueId): ?int
     {
         return $leagueId !== null ? (self::LEAGUE_TOURNAMENTS[$leagueId] ?? null) : null;
@@ -539,6 +605,7 @@ class MockTournament
         foreach ($stats as $team => $s) {
             $rows[] = [
                 'team' => $team,
+                'team_id' => MockClub::idForName($team),
                 'played' => $s['wins'] + $s['draws'] + $s['losses'],
                 'wins' => $s['wins'],
                 'draws' => $s['draws'],
@@ -598,6 +665,7 @@ class MockTournament
         return array_map(static fn (array $row) => [
             'pos' => $row['pos'],
             'team' => $row['team'],
+            'team_id' => $row['team_id'],
             'matches' => $byTeam[$row['team']] ?? [],
         ], $standings);
     }

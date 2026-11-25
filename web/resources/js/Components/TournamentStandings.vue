@@ -1,5 +1,6 @@
 <script setup>
 import TournamentContextTabs from '@/Components/TournamentContextTabs.vue';
+import { Link } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -61,7 +62,13 @@ function signed(n) {
                     <tr v-for="row in rows" :key="row.team" :data-zone="row.zone || undefined">
                         <td class="is-rank" :title="row.zone ? zoneLabels[row.zone] : undefined">{{ row.pos }}</td>
                         <td class="is-team">
-                            <span class="block truncate">{{ row.team }}</span>
+                            <Link
+                                v-if="row.team_id"
+                                :href="route('clubs.show', row.team_id)"
+                                class="miq-club-link block truncate"
+                                :title="`${row.team} — страница клуба`"
+                            >{{ row.team }}</Link>
+                            <span v-else class="block truncate">{{ row.team }}</span>
                         </td>
                         <td>{{ row.played }}</td>
                         <td>{{ row.wins }}</td>
