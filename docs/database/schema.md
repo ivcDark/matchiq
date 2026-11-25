@@ -1,8 +1,10 @@
 # MatchIQ — схема БД: таблицы по доменам
 
-Принципы и границы MVP — в [README.md](README.md). Принятые решения — в [open-questions.md](open-questions.md).
+Принципы и границы MVP — в [README.md](README.md). Принятые решения — в [open-questions.md](open-questions.md). Сквозные темы: мультиязычность сущностей — [i18n.md](i18n.md), производительность и индексы — [performance.md](performance.md).
 
 **Соглашения.** `id bigint PK` у каждой таблицы; `created_at` / `updated_at` (`timestamptz`) есть везде и в диаграммах не показаны; перечисления — `varchar` + enum в коде. Тип `numeric` в диаграммах — десятичное число (точность — в тексте). Колонка **MVP**: «да» — нужна для экранов-макетов, «позже» — можно не делать в первой итерации.
+
+**Мультиязычность.** Переводимые сущности (`countries`, `competitions`, `teams`, `venues`, `players`, `coaches`, `referees`, `market_types`) хранят **каноническое английское имя в `name`** и переводы в **`name_i18n jsonb`** (`{"ru": "Зенит"}`, ключ `en` не пишется; `NOT NULL DEFAULT '{}'`); у `teams`/`competitions` — ещё `short_name_i18n`, у `teams`/`venues` — `city_i18n`. Чтение: `name_i18n[locale] ?? name`, без JOIN. Колонки `*_i18n` в ER-диаграммах ниже — jsonb; `created_at`/`updated_at` не показаны. Подробности и обоснование — [i18n.md](i18n.md).
 
 Домены:
 
@@ -13,6 +15,8 @@
 5. [Вероятности, рынки, AI-превью](#5-вероятности-рынки-ai-превью)
 6. [Пользователи, picks и рейтинг](#6-users-picks-и-рейтинг)
 7. [Источники данных и маппинг](#7-источники-данных-и-маппинг)
+
+Сквозное: [мультиязычность](i18n.md), [производительность и индексы](performance.md).
 
 ---
 
@@ -27,7 +31,7 @@ erDiagram
         varchar code UK
         varchar kind
         varchar name
-        varchar name_ru
+        jsonb name_i18n
         smallint sort_order
     }
     competitions {
@@ -35,8 +39,9 @@ erDiagram
         bigint country_id FK
         varchar slug UK
         varchar name
-        varchar name_ru
+        jsonb name_i18n
         varchar short_name
+        jsonb short_name_i18n
         varchar type
         varchar scope
         varchar participant_type
@@ -144,8 +149,8 @@ competition  — постоянная «марка» (РПЛ, Кубок Рос�
 
 | Таблица | MVP | Назначение | Ключевые поля / ограничения |
 |---------|-----|------------|------------------------------|
-| `countries` | да | Страны (табы на главной) и «псевдо-страны» для международных турниров | `code` — ISO 3166-1 alpha-2 (`RU`, `GB-ENG`) либо `EU` / `WORLD`; `kind`: `country` \| `region` (UCL → «Европа»); `sort_order` порядок табов |
-| `competitions` | да | Соревнование как постоянная сущность (РПЛ, ФНЛ, Кубок России, UCL, ЧМ, товарищеские матчи). **Это «турнир» из URL `/tournaments/{id}`**. Описывает «что это за турнир», а не его формат — формат в `stages` | `slug` (`rpl`) UNIQUE; `country_id` NULL для международных; **`type`**: `league` (чемпионат) \| `cup` (кубок) \| `tournament` (многоэтапный: UCL, ЧМ, ЧЕ) \| `friendly` (товарищеские — **вне MVP**, задел); **`scope`**: `domestic` \| `continental` \| `world`; **`participant_type`**: `club` \| `national` (какие `teams.type` допустимы); `tier` — уровень пирамиды; `status`: `live` \| `soon` \| `hidden` (UI «скоро»); `sort_order` — порядок групп в списке матчей; `short_name` — код в чипе |
+| `countries` | да | Страны (табы на главной) и «псевдо-страны» для международных турниров | `code` — ISO 3166-1 alpha-2 (`RU`, `GB-ENG`) либо `EU` / `WORLD`; `kind`: `country` \| `region` (UCL → «Европа»); `sort_order` порядок табов; `name` — каноническое EN, переводы в `name_i18n` ([i18n.md](i18n.md)) |
+| `competitions` | да | Соревнование как постоянная сущность (РПЛ, ФНЛ, Кубок России, UCL, ЧМ, товарищеские матчи). **Это «турнир» из URL `/tournaments/{id}`**. Описывает «что это за турнир», а не его формат — формат в `stages` | `slug` (`rpl`) UNIQUE; `country_id` NULL для международных; **`type`**: `league` (чемпионат) \| `cup` (кубок) \| `tournament` (многоэтапный: UCL, ЧМ, ЧЕ) \| `friendly` (товарищеские — **вне MVP**, задел); **`scope`**: `domestic` \| `continental` \| `world`; **`participant_type`**: `club` \| `national` (какие `teams.type` допустимы); `tier` — уровень пирамиды; `status`: `live` \| `soon` \| `hidden` (UI «скоро»); `sort_order` — порядок групп в списке матчей; `short_name` — код в чипе; `name`/`short_name` — EN, переводы в `name_i18n`/`short_name_i18n` ([i18n.md](i18n.md)) |
 | `seasons` | да | Издание соревнования («2026/27»; ЧМ — «2026») | UNIQUE (`competition_id`, `slug`); `label` для показа, `slug` вида `2026-27` (параметр `?season=`); `is_current` — не более одного на соревнование (partial unique); `rounds_total` — число туров основного этапа (30) или NULL. У турнира без регулярного сезона (ЧМ, товарищеские) — один сезон на издание/год |
 | `stages` | да | **Этап формата сезона.** Определяет, как играют и нужна ли таблица | **`type`**: `league` (круговой турнир без групп: чемпионат, лиговая фаза UCL) \| `group` (групповой этап: несколько групп, таблица на группу) \| `knockout` (плей-офф на вылет: сетка, кубок) \| `playoff` (стыковые/переходные матчи после чемпионата — **этап внутри сезона турнира**, не отдельное соревнование; технически та же сетка пар) \| `friendly` (товарищеские, без туров и таблицы — **вне MVP**, задел); `stage_order` — порядок в сезоне; **`cycles`** — кругов в `league`/`group` (1 — каждый с каждым один раз, 2 — дома и в гостях, 4 — четырёхкруговой); **`matches_per_team`** — для неполного кругового турнира (лиговая фаза UCL = 8; NULL, если полный круг); **`has_standings`** — вести ли таблицу (true для `league`/`group`, false для остальных); **`default_legs`** — матчей в паре для `knockout`/`playoff` (1 или 2); `has_third_place_match`; `rules` jsonb — очки за победу/ничью, тай-брейки, правила определения победителя пары (доп. время, пенальти, правило выездных голов — флагами), **продвижение дальше** (`advancement`: «топ-2 каждой группы → 1/8»). У обычной лиги ровно один stage `league` — он создаётся при заведении сезона |
 | `stage_groups` | да | Группы внутри `group`-этапа (Кубок России: A–D; ЧМ: A–H; чемпионат из двух групп: «Группа 1/2») | UNIQUE (`stage_id`, `name`); для `league`/`knockout` групп нет |
@@ -171,9 +176,11 @@ erDiagram
         varchar slug UK
         varchar type
         varchar name
-        varchar name_ru
+        jsonb name_i18n
         varchar short_name
+        jsonb short_name_i18n
         varchar city
+        jsonb city_i18n
         smallint founded_year
         varchar logo_url
         varchar primary_color
@@ -184,7 +191,9 @@ erDiagram
         bigint id PK
         bigint country_id FK
         varchar name
+        jsonb name_i18n
         varchar city
+        jsonb city_i18n
         integer capacity
         varchar surface
         numeric lat
@@ -195,6 +204,7 @@ erDiagram
         bigint country_id FK
         varchar slug UK
         varchar name
+        jsonb name_i18n
         varchar first_name
         varchar last_name
         date birth_date
@@ -228,12 +238,14 @@ erDiagram
         bigint id PK
         bigint country_id FK
         varchar name
+        jsonb name_i18n
         date birth_date
     }
     referees {
         bigint id PK
         bigint country_id FK
         varchar name
+        jsonb name_i18n
         varchar city
     }
     countries ||--o{ teams : "country_id"
@@ -251,13 +263,13 @@ erDiagram
 
 | Таблица | MVP | Назначение | Ключевые поля / ограничения |
 |---------|-----|------------|------------------------------|
-| `teams` | да | Участник матча. На странице называется «клуб» (`/clubs/{id}`), в модели — `teams` (подходит и для сборных) | `type`: `club` \| `national`; `slug`; `short_name` (ЦСКА); `primary_color`/`secondary_color` — цвета команды для шкал/кругов; `home_venue_id` — основной стадион; `parent_team_id` — для дублей/молодёжных («Зенит-2» в ФНЛ); `is_active` |
-| `venues` | да | Стадионы | `name`, `city`, `capacity`, `surface`; координаты — для погоды (позже) |
-| `players` | да | Игрок как личность (без привязки к клубу) | `position`: `GK` \| `DF` \| `MF` \| `FW` (подписи ВР/ЗЩ/ПЗ/НАП — в UI); `birth_date` (возраст считается); `height_cm`, `weight_kg`, `photo_url` (пусто → инициалы) |
+| `teams` | да | Участник матча. На странице называется «клуб» (`/clubs/{id}`), в модели — `teams` (подходит и для сборных) | `type`: `club` \| `national`; `slug`; `name`/`short_name` — EN («CSKA»), переводы («ЦСКА») в `name_i18n`/`short_name_i18n`, город — `city`/`city_i18n` ([i18n.md](i18n.md)); `primary_color`/`secondary_color` — цвета команды для шкал/кругов; `home_venue_id` — основной стадион; `parent_team_id` — для дублей/молодёжных («Зенит-2» в ФНЛ); `is_active` |
+| `venues` | да | Стадионы | `name`/`name_i18n`, `city`/`city_i18n` ([i18n.md](i18n.md)), `capacity`, `surface`; координаты — для погоды (позже) |
+| `players` | да | Игрок как личность (без привязки к клубу) | `name` — EN, переводы в `name_i18n` (`first_name`/`last_name` — канонические EN, не переводятся); `position`: `GK` \| `DF` \| `MF` \| `FW` (подписи ВР/ЗЩ/ПЗ/НАП — в UI); `birth_date` (возраст считается); `height_cm`, `weight_kg`, `photo_url` (пусто → инициалы) |
 | `squad_memberships` | да | Принадлежность игрока команде во времени («заявка») | период `joined_on`..`left_on` (NULL = действует); `shirt_number`; `kind`: `permanent` \| `loan`; индекс (`team_id`, `left_on`); на странице клуба состав = membership, пересекающийся с датой сезона/матча. Исторические матчи привязываются к игроку через `match_lineups.team_id`, а не через membership |
 | `player_absences` | да | «Потери»: травма / дисквалификация / сомнительный | `type`: `injury` \| `suspension` \| `doubtful`; `since`, `expected_return`; `is_active`. Источник — парсер/API; для матча берутся активные записи обеих команд на `kickoff_at` |
-| `coaches` | да | Тренеры (в составе матча показывается тренер) | связь с матчем — `match_teams.coach_id` |
-| `referees` | да | Судьи (шапка матча, статистика судьи) | связь с матчем — `matches.referee_id`; статистика считается |
+| `coaches` | да | Тренеры (в составе матча показывается тренер) | `name`/`name_i18n`; связь с матчем — `match_teams.coach_id` |
+| `referees` | да | Судьи (шапка матча, статистика судьи) | `name`/`name_i18n`; связь с матчем — `matches.referee_id`; статистика считается |
 
 ---
 
@@ -389,7 +401,7 @@ erDiagram
 
 | Таблица | MVP | Назначение | Ключевые поля / ограничения |
 |---------|-----|------------|------------------------------|
-| `matches` | да | Матч — ядро домена (`/matches/{id}`) | `kickoff_at timestamptz`; `status`: `scheduled` \| `live` \| `finished` \| `postponed` \| `cancelled` \| `abandoned`; `period`: `first_half` \| `half_time` \| `second_half` \| `extra_time` \| `penalties` (только у live); `minute` — только live; `home_goals`/`away_goals` — счёт после основного времени (и доп. времени, если было), без серии пенальти; `*_ht` — счёт к перерыву; `*_et`, `*_pens` — для кубковых матчей (серия пенальти отдельно); `weather_*` — погода (условие · °C · ветер м/с); `round_id` NULL у товарищеских матчей и стыков без нумерации тура; **`tie_id` + `leg`** — только у матчей плей-офф (`leg` = 1 или 2; одиночный матч — `leg = 1`, пара с `legs = 1`); у круговых этапов и товарищеских — NULL; `stage_group_id` — только на групповом этапе; `is_neutral_venue` — финалы/ЧМ; `CHECK (home_team_id <> away_team_id)`; индексы: (`kickoff_at`), (`stage_id`, `round_id`), (`home_team_id`, `kickoff_at`), (`away_team_id`, `kickoff_at`), (`status`, `kickoff_at`). `competition_id` и `season_id` — **денормализация** от `stage` (ради фильтров главной «лиги + день» и ссылки `match.tournament_id`); согласованность обеспечивает сервис записи/`CHECK` через триггер; индекс (`competition_id`, `kickoff_at`) |
+| `matches` | да | Матч — ядро домена (`/matches/{id}`) | `kickoff_at timestamptz`; `status`: `scheduled` \| `live` \| `finished` \| `postponed` \| `cancelled` \| `abandoned`; `period`: `first_half` \| `half_time` \| `second_half` \| `extra_time` \| `penalties` (только у live); `minute` — только live; `home_goals`/`away_goals` — счёт после основного времени (и доп. времени, если было), без серии пенальти; `*_ht` — счёт к перерыву; `*_et`, `*_pens` — для кубковых матчей (серия пенальти отдельно); `weather_*` — погода (условие · °C · ветер м/с); `round_id` NULL у товарищеских матчей и стыков без нумерации тура; **`tie_id` + `leg`** — только у матчей плей-офф (`leg` = 1 или 2; одиночный матч — `leg = 1`, пара с `legs = 1`); у круговых этапов и товарищеских — NULL; `stage_group_id` — только на групповом этапе; `is_neutral_venue` — финалы/ЧМ; `CHECK (home_team_id <> away_team_id)`; индексы (полный список с обоснованием — [performance.md](performance.md#ключевые-индексы)): (`kickoff_at`, `id`), (`competition_id`, `kickoff_at`, `id`), (`season_id`, `round_id`, `kickoff_at`), (`stage_id`, `round_id`), (`tie_id`, `leg`), (`home_team_id`, `kickoff_at` DESC) и (`away_team_id`, `kickoff_at` DESC) — оба `WHERE status = 'finished'`, выражение-индекс для H2H (`LEAST`/`GREATEST` по командам, `kickoff_at` DESC) `WHERE status = 'finished'`, **partial** (`kickoff_at`, `id`) `WHERE status = 'live'` и `WHERE status = 'scheduled'` вместо широкого (`status`, `kickoff_at`); живые колонки (`minute`, `period`, счёт) не индексируются, `fillfactor` 85–90 (HOT-обновления). `competition_id` и `season_id` — **денормализация** от `stage` (ради фильтров главной «лиги + день» и ссылки `match.tournament_id`); согласованность обеспечивает сервис записи и тест (без триггеров БД на старте) |
 | `match_teams` | да | Данные «стороны» матча: формация, тренер, оценка команды | UNIQUE (`match_id`, `side`) и (`match_id`, `team_id`); `side`: `home` \| `away`; `rating` — оценка команды (только `finished`) |
 | `match_lineups` | да | Кто в составе: стартовый и запасные, позиция на поле | UNIQUE (`match_id`, `player_id`); `is_starter`; `position`: `GK/DF/MF/FW`; `line` + `sort_order` — раскладка по линиям для «Расстановки на поле»; `minute_in` (вышел на замену) / `minute_out` (ушёл) — NULL, если нет |
 | `match_events` | да | Хроника: голы, ассисты, карточки, замены | `type`: `goal` \| `own_goal` \| `penalty_goal` \| `penalty_missed` \| `yellow` \| `second_yellow` \| `red` \| `substitution` \| `var`; `player_id` — автор / ушедший (при замене); `related_player_id` — ассистент / вышедший; `minute` + `added_minute` (45+2); `score_home`/`score_away` — счёт после гола; `sort_order` внутри минуты; `details` — подтип (удар головой, пенальти, причина карточки). Из событий считаются «голы по минутам», бомбардиры, карточки судьи |
@@ -405,7 +417,7 @@ erDiagram
 
 ---
 
-## 4. Турнирные таблицы
+## 4. Турнирные таблицы и сезонные срезы
 
 ```mermaid
 erDiagram
@@ -427,6 +439,7 @@ erDiagram
         smallint points
         varchar form
         varchar zone_code
+        boolean is_current
         timestamptz computed_at
     }
     standing_zones {
@@ -438,21 +451,66 @@ erDiagram
         varchar label
         varchar color
     }
+    player_season_stats {
+        bigint id PK
+        bigint season_id FK
+        bigint competition_id FK
+        bigint player_id FK
+        bigint team_id FK
+        smallint appearances
+        smallint starts
+        integer minutes
+        smallint goals
+        smallint assists
+        smallint penalties_scored
+        smallint shots
+        smallint shots_on_target
+        numeric xg
+        numeric xa
+        smallint yellow_cards
+        smallint red_cards
+        numeric rating_sum
+        smallint rated_matches
+        smallint motm_count
+        smallint clean_sheets
+        timestamptz computed_at
+    }
+    team_season_stats {
+        bigint id PK
+        bigint season_id FK
+        bigint competition_id FK
+        bigint team_id FK
+        smallint played
+        numeric xg_for
+        numeric xg_against
+        numeric avg_possession_pct
+        numeric avg_rating
+        jsonb goals_by_interval
+        jsonb extra
+        timestamptz computed_at
+    }
     stages ||--o{ standings : "stage_id"
     rounds ||--o{ standings : "round_id"
     teams ||--o{ standings : "team_id"
     stage_groups |o--o{ standings : "stage_group_id"
     stages ||--o{ standing_zones : "stage_id"
+    seasons ||--o{ player_season_stats : "season_id"
+    players ||--o{ player_season_stats : "player_id"
+    teams ||--o{ player_season_stats : "team_id"
+    seasons ||--o{ team_season_stats : "season_id"
+    teams ||--o{ team_season_stats : "team_id"
 ```
 
 **Предложение:** хранить таблицу как **материализованные срезы по турам**, пересчитываемые job'ом при завершении матча, плюс кэш «текущей» таблицы в Redis. Чистый SQL-вид на каждый запрос отвергнут: на странице турнира нужны контексты (все / хозяева / гости), форма в контексте, «срез после N тура» для прошлых сезонов и зоны — это дешевле читать, чем пересчитывать при каждом открытии.
 
 | Таблица | MVP | Назначение | Ключевые поля / ограничения |
 |---------|-----|------------|------------------------------|
-| `standings` | да | Строка таблицы: команда на этапе (и в группе) после тура `round_id` в контексте | UNIQUE (`stage_id`, `stage_group_id`, `round_id`, `context`, `team_id`); `context`: `overall` \| `home` \| `away`; `form` — строка последних 5 (`WWDLW`, слева старше); `zone_code` — денормализация из `standing_zones` для текущей позиции; «текущая» таблица = срез с максимальным `rounds.number`, где есть сыгранные матчи. `goal_diff` хранится для сортировки/индекса |
+| `standings` | да | Строка таблицы: команда на этапе (и в группе) после тура `round_id` в контексте | UNIQUE (`stage_id`, `stage_group_id`, `round_id`, `context`, `team_id`); `context`: `overall` \| `home` \| `away`; `form` — строка последних 5 (`WWDLW`, слева старше); `zone_code` — денормализация из `standing_zones` для текущей позиции; **`is_current`** — признак актуального среза (job переключает его при пересчёте в той же транзакции; partial-индекс (`stage_id`, `context`, `position`) `WHERE is_current` — «текущая» таблица без поиска «последнего тура по `rounds.number`»). `goal_diff` хранится для сортировки/индекса |
+| `player_season_stats` | да | **Лидеры игроков сезона**, посчитанные заранее: бомбардиры, ассистенты, рейтинг, карточки, сухие матчи вратарей. Нужна главной (мини-бомбардиры лиги), турниру, клубу и профилю игрока | UNIQUE (`season_id`, `player_id`, `team_id`) — игрок мог сменить клуб за сезон; `competition_id` — денормализация; счётчики колонками, средний рейтинг = `rating_sum / rated_matches` (пересчёт точечный); индексы (`season_id`, `goals` DESC), (`season_id`, `assists` DESC), (`season_id`, `team_id`), (`player_id`). **Источник правды — `match_player_stats`**; таблица пересобирается командой; job после `finished` пересчитывает только игроков этого матча. Подробнее — [performance.md](performance.md#player_season_stats-новая-mvp-да) |
+| `team_season_stats` | позже | Командные сезонные агрегаты: лучшие команды (владение, рейтинг), Атака/Защита (xG), голы по 15-минуткам | UNIQUE (`season_id`, `team_id`); `goals_by_interval` jsonb (`{"0-15": 3, …}`), хвост — `extra`; до введения — SQL-агрегат + Redis-кэш |
 | `standing_zones` | да | Зоны таблицы: Лига чемпионов, Лига Европы, стыки, вылет | `from_position`..`to_position`, `code` (`ucl`, `uel`, `relegation_playoff`, `relegation`), `label`, `color`; конфиг на этап; в UI цветная полоса и легенда |
 
-Таблица ведётся только для этапов с `stages.has_standings = true` (`league`, `group`); в плей-офф вместо таблицы — сетка `ties`, у товарищеских таблицы нет. Для `group` строка таблицы привязана к `stage_group_id`; для `league` без групп — NULL. Перенесённые очки (`stage_teams.initial_points`) входят в `points`. Тай-брейки (личные встречи, победы и т.д.) — в `stages.rules`; штрафные очки (если понадобятся) — через поле `points_adjustment` в `stage_teams` (**позже**, см. вопросы). Лидеры игроков/команд (бомбардиры, «лучшие команды») отдельными таблицами **не хранятся**, см. [README](README.md#что-хранится-в-postgresql-а-что-считаем--кэшируем).
+Таблица ведётся только для этапов с `stages.has_standings = true` (`league`, `group`); в плей-офф вместо таблицы — сетка `ties`, у товарищеских таблицы нет. Для `group` строка таблицы привязана к `stage_group_id`; для `league` без групп — NULL. Перенесённые очки (`stage_teams.initial_points`) входят в `points`. Тай-брейки (личные встречи, победы и т.д.) — в `stages.rules`; штрафные очки (если понадобятся) — через поле `points_adjustment` в `stage_teams` (**позже**, см. вопросы). Лидеры игроков хранятся срезом `player_season_stats` (горячий путь главной и турнира), командные агрегаты («лучшие команды») — пока кэш (таблица `team_season_stats` — позже); см. [README](README.md#что-хранится-в-postgresql-а-что-считаем--кэшируем) и [performance.md](performance.md#что-материализуем-храним-готовым).
 
 ---
 
@@ -477,6 +535,9 @@ erDiagram
         boolean is_current
         numeric expected_home_goals
         numeric expected_away_goals
+        numeric p_home
+        numeric p_draw
+        numeric p_away
         timestamptz generated_at
         timestamptz locked_at
     }
@@ -485,7 +546,7 @@ erDiagram
         varchar code UK
         varchar category
         varchar name
-        varchar name_ru
+        jsonb name_i18n
         varchar period
         varchar subject
         boolean has_line
@@ -496,7 +557,8 @@ erDiagram
         bigint id PK
         bigint market_type_id FK
         varchar outcome_key
-        varchar label_ru
+        varchar label
+        jsonb label_i18n
         smallint sort_order
     }
     prediction_outcomes {
@@ -539,9 +601,9 @@ erDiagram
 | Таблица | MVP | Назначение | Ключевые поля / ограничения |
 |---------|-----|------------|------------------------------|
 | `model_versions` | да | Версия модели (Poisson v1 → ML позже) | `code` (`poisson_v1`), `version`, `is_active`; нужно, чтобы сравнивать качество моделей и не терять историю |
-| `match_predictions` | да | **Один прогон модели по матчу** — заголовок снимка | `kind`: `pre_match` (обновляется до kickoff) \| `locked` (снимок на kickoff, read-only для live/finished); `is_current` — актуальный для показа (partial unique на матч); `expected_*_goals` — λ Пуассона (ожидаемый тотал на странице); `locked_at`. Старые прогоны **не удаляются**: на них ссылаются picks |
-| `market_types` | да | Справочник рынков (карточка «События») | `code`: `result_1x2`, `total_goals`, `btts`, `double_chance`, `handicap`, `halftime_fulltime`, `total_corners`, `total_yellow_cards`, `total_red_cards`, …; `category`: `results` \| `totals` \| `goals` \| `corners` \| `yellows` \| `reds` \| `handicap` (табы Исходы · Тоталы · Голы · Угловые · ЖК · КК); `period`: `full_time` \| `first_half` \| `second_half`; `subject`: `match` \| `home_team` \| `away_team` (позже `tie` — рынок «пройдёт дальше»); `has_line` — рынок с линией (тотал 2.5); `is_popular` — для сортировки «Популярные» |
-| `market_type_outcomes` | да | Допустимые исходы рынка (ключ + русская подпись) | `outcome_key`: `home`/`draw`/`away`, `over`/`under`, `yes`/`no`, `1_1`/`1_X`/… (тайм/матч); UNIQUE (`market_type_id`, `outcome_key`); порядок отображения |
+| `match_predictions` | да | **Один прогон модели по матчу** — заголовок снимка | `kind`: `pre_match` (обновляется до kickoff) \| `locked` (снимок на kickoff, read-only для live/finished); `is_current` — актуальный для показа (partial unique на матч); `expected_*_goals` — λ Пуассона (ожидаемый тотал на странице); **`p_home` / `p_draw` / `p_away`** `numeric(5,4)` — денормализованный заголовок исхода 1X2 для карточек ленты (пишется в одной транзакции с `prediction_outcomes`, где остаётся источником правды для picks) — список матчей читает прогноз **одним JOIN** вместо трёх строк рынка; partial UNIQUE (`match_id`) `WHERE is_current`; `locked_at`. Старые прогоны **не удаляются**: на них ссылаются picks |
+| `market_types` | да | Справочник рынков (карточка «События») | `code`: `result_1x2`, `total_goals`, `btts`, `double_chance`, `handicap`, `halftime_fulltime`, `total_corners`, `total_yellow_cards`, `total_red_cards`, …; `category`: `results` \| `totals` \| `goals` \| `corners` \| `yellows` \| `reds` \| `handicap` (табы Исходы · Тоталы · Голы · Угловые · ЖК · КК); `period`: `full_time` \| `first_half` \| `second_half`; `subject`: `match` \| `home_team` \| `away_team` (позже `tie` — рынок «пройдёт дальше»); `has_line` — рынок с линией (тотал 2.5); `is_popular` — для сортировки «Популярные»; `name` — EN, переводы в `name_i18n` ([i18n.md](i18n.md)) |
+| `market_type_outcomes` | да | Допустимые исходы рынка (ключ + EN-подпись + переводы) | `outcome_key`: `home`/`draw`/`away`, `over`/`under`, `yes`/`no`, `1_1`/`1_X`/… (тайм/матч); UNIQUE (`market_type_id`, `outcome_key`); порядок отображения; `label` — EN («Home win»), переводы в `label_i18n` |
 | `prediction_outcomes` | да | **Вероятность конкретного исхода рынка в конкретном прогоне** — это то, что показывает UI и на что ставят picks | UNIQUE (`match_prediction_id`, `market_type_id`, `line`, `outcome_key`) (`line` NULL → использовать `COALESCE` / `NULLS NOT DISTINCT`); `probability numeric(5,4)`; группа исходов одного рынка в сумме = 1; `is_hit` / `resolved_at` — «зашло / мимо» после финала (для `finished`); строки **неизменяемы** после записи (новый прогон = новый `match_predictions`) |
 | `prediction_scorelines` | да | Сетка точных счетов (0..6 × 0..6) для «возможного счёта» и топ-счетов | UNIQUE (`match_prediction_id`, `home_goals`, `away_goals`); хранить полную сетку или топ-N — решает модель; сумма ≈ 1 |
 | `match_previews` | да | AI-превью (2–4 предложения) + факты/инсайты | `locale` (`ru`); `facts` jsonb — список 4–6 пунктов; `generator` — модель/версия промпта; блок скрывается, если записи нет |
@@ -627,8 +689,8 @@ erDiagram
 |---------|-----|------------|------------------------------|
 | `users` | да (есть) | Аккаунты. `name` — ник в рейтинге (может быть кириллицей с пробелами; в URL не используется — только `users.id`) | Таблица уже мигрирована. Возможные добавления: `role` (`user` \| `admin`), `locale`; уникальность ника — [принятое решение](open-questions.md) |
 | `social_accounts` | да (есть) | Вход через Яндекс / VK | UNIQUE (`provider`, `provider_id`) — уже в миграции |
-| `picks` | да | Выбор пользователя: **1 событие на матч**, замена до kickoff | Ссылается на `prediction_outcome_id` — неизменяемую строку снимка; `probability_at_pick` — копия (вероятность модели на момент выбора, нужна для очков и профиля); `market_type_id`/`outcome_key`/`line` — денормализация для быстрых агрегатов («частые события»); `status`: `pending` \| `won` \| `lost` \| `void`; `points` = `round(100 × (1 − probability_at_pick))` при `won`, иначе 0 (формула — `RatingRules::points()`); `superseded_at` — при замене старая строка закрывается, новая создаётся; **partial UNIQUE (`user_id`, `match_id`) WHERE `superseded_at IS NULL`**; `resolved_at` — когда посчитан результат. Принимать pick можно только пока `matches.status = scheduled` и `now() < kickoff_at` (проверка в сервисе) |
-| `leaderboard_entries` | да | Материализованные места/очки по окнам | `period_type`: `week` \| `month` \| `season` \| `all_time`; `period_key`: `2026-W47`, `2026-11`, `2026/27`, `all`; `competition_id` NULL = «все лиги» (MVP — только NULL), потом фильтр по лиге без смены схемы; UNIQUE (`period_type`, `period_key`, `competition_id`, `user_id`) (NULL — `NULLS NOT DISTINCT`, PG15+); `rank`, `points`, `picks_count`, `correct_count`, `streak`; `computed_at`. Пересчитывается job'ом после резолва picks |
+| `picks` | да | Выбор пользователя: **1 событие на матч**, замена до kickoff | Ссылается на `prediction_outcome_id` — неизменяемую строку снимка; `probability_at_pick` — копия (вероятность модели на момент выбора, нужна для очков и профиля); `market_type_id`/`outcome_key`/`line` — денормализация для быстрых агрегатов («частые события»); `status`: `pending` \| `won` \| `lost` \| `void`; `points` = `round(100 × (1 − probability_at_pick))` при `won`, иначе 0 (формула — `RatingRules::points()`); `superseded_at` — при замене старая строка закрывается, новая создаётся; **partial UNIQUE (`user_id`, `match_id`) WHERE `superseded_at IS NULL`**; `resolved_at` — когда посчитан результат. Принимать pick можно только пока `matches.status = scheduled` и `now() < kickoff_at` (проверка в сервисе). Индексы: (`user_id`, `picked_at` DESC) — профиль/история, (`match_id`) `WHERE status = 'pending'` — резолв после матча; «выбрали N%» — счётчики в Redis, не `COUNT(*)` на запрос ([performance.md](performance.md#что-кэшируем-redis)) |
+| `leaderboard_entries` | да | Материализованные места/очки по окнам | `period_type`: `week` \| `month` \| `season` \| `all_time`; `period_key`: `2026-W47`, `2026-11`, `2026/27`, `all`; `competition_id` NULL = «все лиги» (MVP — только NULL), потом фильтр по лиге без смены схемы; UNIQUE (`period_type`, `period_key`, `competition_id`, `user_id`) (NULL — `NULLS NOT DISTINCT`, PG15+); `rank`, `points`, `picks_count`, `correct_count`, `streak`; `computed_at`. Пересчитывается job'ом после резолва picks; индексы: (`period_type`, `period_key`, `competition_id`, `rank`) `INCLUDE (points, picks_count, correct_count, streak)` — топ-N без сортировки, (`user_id`, `period_type`, `period_key`) — место пользователя |
 | `match_comments` | позже | Тред комментариев под матчем | `parent_id` для ответов; `deleted_at` — мягкое удаление; писать только авторизованным |
 
 **Рейтинг:** точка истины — `picks.points` и `picks.resolved_at`. Рейтинг **не обнуляется**; «неделя / месяц / сезон» — окна по времени над одними и теми же picks. Сезон рейтинга (1 авг — 31 июл) вычисляется кодом (`RatingSeason`) и пишется как `period_key`, отдельной таблицы сезонов рейтинга нет. Резолв: job после `matches.status = finished` выставляет `prediction_outcomes.is_hit`, затем `picks.status/points`, затем пересчёт `leaderboard_entries`. История **мест** во времени хранится только в той мере, в какой окна дают срезы (`period_key`); графика рейтинга в MVP нет.
@@ -712,9 +774,9 @@ erDiagram
 | География / соревнования | `countries`, `competitions`, `seasons`, `stages`, `stage_groups`, `stage_teams`, `rounds`, `ties` |
 | Клубы / люди | `teams`, `venues`, `players`, `squad_memberships`, `player_absences`, `coaches`, `referees` |
 | Матчи | `matches`, `match_teams`, `match_lineups`, `match_events`, `match_team_stats`, `match_player_stats` |
-| Таблицы | `standings`, `standing_zones` |
+| Таблицы и срезы | `standings`, `standing_zones`, `player_season_stats`, `team_season_stats` (позже) |
 | Прогнозы | `model_versions`, `match_predictions`, `market_types`, `market_type_outcomes`, `prediction_outcomes`, `prediction_scorelines`, `match_previews` |
 | Пользователи | `users`*, `social_accounts`*, `picks`, `leaderboard_entries`, `match_comments` (позже) |
 | Источники | `source_providers`, `competition_sources`, `external_ids`, `team_aliases`, `ingestion_runs` |
 
-\* уже мигрированы. Итого новых таблиц: **38** (из них «позже» — `match_comments`).
+\* уже мигрированы. Итого новых таблиц: **40** (из них «позже» — `match_comments`, `team_season_stats`). Отдельных таблиц переводов нет: переводы — jsonb `*_i18n` в самих таблицах ([i18n.md](i18n.md)); `entity_translations` — возможное расширение, не входит в счёт.
