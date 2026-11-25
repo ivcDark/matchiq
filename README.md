@@ -30,6 +30,7 @@
 - **Collectors (Go):** только ingestion. Адаптеры по `provider` + `league`. MVP = scraper; позже — платный API тем же контрактом.
 - **Domain в Postgres:** лиги, сезоны, команды, матчи, события — нейтрально к источнику. Мульти-лиговость: `leagues` (`rpl`, …), `providers`, маппинг внешних ID.
 - **Схема БД (черновик):** [docs/database/](docs/database/README.md) — ER-диаграммы, таблицы по доменам, открытые вопросы.
+- **Архитектура приложения и ingestion:** [docs/architecture/](docs/architecture/README.md) — слои Laravel (Services / Domains / Repositories / Form Requests / DTO / Enums, контроллеры только REST), [загрузка данных и наблюдаемость](docs/architecture/ingestion.md) (прогоны, ошибки по сущностям, смена источника).
 - **Predictions:** пишутся отдельным job/сервисом; веб читает готовые вероятности.
 - **Redis:** кэш, сессии, очереди.
 - **MVP-лига:** РПЛ; UI и схема готовы к другим лигам без ветвления монолита.

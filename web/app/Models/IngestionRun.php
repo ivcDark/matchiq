@@ -6,6 +6,7 @@ use App\Enums\IngestionKind;
 use App\Enums\IngestionStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class IngestionRun extends Model
 {
@@ -39,5 +40,10 @@ class IngestionRun extends Model
     public function competition(): BelongsTo
     {
         return $this->belongsTo(Competition::class);
+    }
+
+    public function errors(): HasMany
+    {
+        return $this->hasMany(IngestionRunError::class);
     }
 }

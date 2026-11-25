@@ -726,6 +726,7 @@ erDiagram
         varchar external_url
         varchar matched_by
         timestamptz last_seen_at
+        bigint last_ingestion_run_id FK
         jsonb meta
     }
     team_aliases {
@@ -746,6 +747,17 @@ erDiagram
         jsonb stats
         text error
     }
+    ingestion_run_errors {
+        bigint id PK
+        bigint ingestion_run_id FK
+        varchar entity_type
+        varchar external_id
+        bigint entity_id
+        varchar phase
+        text message
+        jsonb context
+        timestamptz created_at
+    }
     source_providers ||--o{ external_ids : "source_provider_id"
     source_providers ||--o{ competition_sources : "source_provider_id"
     competitions ||--o{ competition_sources : "competition_id"
@@ -753,17 +765,20 @@ erDiagram
     source_providers |o--o{ team_aliases : "source_provider_id"
     source_providers ||--o{ ingestion_runs : "source_provider_id"
     competitions |o--o{ ingestion_runs : "competition_id"
+    ingestion_runs ||--o{ ingestion_run_errors : "ingestion_run_id"
+    ingestion_runs |o--o{ external_ids : "last_ingestion_run_id"
 ```
 
 | Таблица | MVP | Назначение | Ключевые поля / ограничения |
 |---------|-----|------------|------------------------------|
 | `source_providers` | да | Источники: парсер сайта, платный API, ручной ввод | `code` (`scraper_xxx`, `api_xxx`, `manual`), `kind`: `scraper` \| `api` \| `manual`; `config` jsonb — базовый URL, лимиты, **без секретов** (секреты — в env) |
 | `competition_sources` | да | Какой провайдер питает какую лигу и в каком приоритете | UNIQUE (`competition_id`, `source_provider_id`); `priority` (меньше — приоритетнее при конфликте), `is_enabled`; `settings` — внешний код лиги, частота опроса. Включение лиги = строка тут + `competitions.status = 'live'` |
-| `external_ids` | да | **Единый маппинг сущностей:** (провайдер, тип сущности, внешний id) → наш `id` | UNIQUE (`source_provider_id`, `entity_type`, `external_id`); индекс (`entity_type`, `entity_id`); `entity_type`: `country` \| `competition` \| `season` \| `stage` \| `round` \| `tie` \| `team` \| `venue` \| `player` \| `coach` \| `referee` \| `match` \| `market_type`; `matched_by`: `auto` \| `manual` \| `alias`; `last_seen_at` — для чистки; `meta` — сырой признак для отладки. Полиморфная связь без FK: целостность проверяет приложение (morph map); при смене источника для той же сущности появляется вторая строка с другим `source_provider_id` |
+| `external_ids` | да | **Единый маппинг сущностей:** (провайдер, тип сущности, внешний id) → наш `id` | UNIQUE (`source_provider_id`, `entity_type`, `external_id`); индекс (`entity_type`, `entity_id`); `entity_type`: `country` \| `competition` \| `season` \| `stage` \| `round` \| `tie` \| `team` \| `venue` \| `player` \| `coach` \| `referee` \| `match` \| `market_type`; `matched_by`: `auto` \| `manual` \| `alias`; `last_seen_at` — когда источник последний раз отдал сущность (и для чистки); `last_ingestion_run_id` — FK на последний прогон, затронувший эту строку (`ON DELETE SET NULL`); `meta` — сырой признак для отладки. Полиморфная связь без FK: целостность проверяет приложение (morph map); при смене источника для той же сущности появляется вторая строка с другим `source_provider_id` |
 | `team_aliases` | да | Названия команд для автосопоставления (кириллица/латиница, «Spartak Moscow» / «Спартак») | UNIQUE (`team_id`, `alias`, `source_provider_id`) (провайдер NULL — общий алиас); нормализованная форма (lower, без пробелов/диакритики) считается в коде |
-| `ingestion_runs` | да | Журнал запусков коллектора | `kind`: `schedule` \| `match_stats` \| `lineups` \| `live`; `status`: `running` \| `ok` \| `failed` \| `partial`; `stats` jsonb (создано/обновлено/пропущено); `error`. Для мониторинга и отката, без бизнес-логики |
+| `ingestion_runs` | да | Журнал запусков (парсер/API/ручной ввод): провайдер, статус, счётчики | `kind`: `schedule` \| `match_stats` \| `lineups` \| `live`; `status`: `running` \| `ok` \| `failed` \| `partial`; `started_at`/`finished_at`; `stats` jsonb — **контракт счётчиков** `created / updated / unchanged / skipped / failed / unmatched`, `by_entity` по типам сущностей, `context.trigger` ([ingestion.md](../architecture/ingestion.md#счётчики--ingestion_runsstats-jsonb-фиксированный-контракт)); `error` — причина падения прогона целиком. Для мониторинга, админки и отката, без бизнес-логики |
+| `ingestion_run_errors` | да | Ошибки **по конкретным сущностям** внутри прогона (одна строка — один сбой) | FK `ingestion_run_id` (`ON DELETE CASCADE`); `entity_type` (значение `ExternalEntityType`, nullable), `external_id` (id в источнике), `entity_id` (наш id, если известен); `phase`: `fetch` \| `parse` \| `normalize` \| `match` \| `upsert`; `message`; `context` jsonb (фрагмент входа, без секретов); только `created_at`. Индексы: (`ingestion_run_id`), (`entity_type`, `external_id`) — «ошибки по сущности». Лимит ~1000 строк на прогон, retention 90 дней |
 
-**Поток записи:** коллектор получает сырые данные → ищет `external_ids` (нет — пробует `team_aliases` / ручной разбор очереди несматченных) → upsert в доменные таблицы по нашему id → обновляет `last_seen_at`. Хранение сырых payload'ов (`raw_payloads`) — **позже**, лучше вне основной БД (S3/объектное хранилище) или с retention.
+**Поток записи:** коллектор получает сырые данные → ищет `external_ids` (нет — пробует `team_aliases` / ручной разбор очереди несматченных) → upsert в доменные таблицы по нашему id → обновляет `last_seen_at` и `last_ingestion_run_id`; ошибки по сущностям пишет в `ingestion_run_errors`, итог — в `ingestion_runs.stats`. Подробный поток, идемпотентность и что видно в админке — [../architecture/ingestion.md](../architecture/ingestion.md). Хранение сырых payload'ов (`raw_payloads`) — **позже**, лучше вне основной БД (S3/объектное хранилище) или с retention.
 
 ---
 
@@ -777,6 +792,6 @@ erDiagram
 | Таблицы и срезы | `standings`, `standing_zones`, `player_season_stats`, `team_season_stats` (позже) |
 | Прогнозы | `model_versions`, `match_predictions`, `market_types`, `market_type_outcomes`, `prediction_outcomes`, `prediction_scorelines`, `match_previews` |
 | Пользователи | `users`*, `social_accounts`*, `picks`, `leaderboard_entries`, `match_comments` (позже) |
-| Источники | `source_providers`, `competition_sources`, `external_ids`, `team_aliases`, `ingestion_runs` |
+| Источники | `source_providers`, `competition_sources`, `external_ids`, `team_aliases`, `ingestion_runs`, `ingestion_run_errors` |
 
-\* уже мигрированы. Итого новых таблиц: **40** (из них «позже» — `match_comments`, `team_season_stats`). Отдельных таблиц переводов нет: переводы — jsonb `*_i18n` в самих таблицах ([i18n.md](i18n.md)); `entity_translations` — возможное расширение, не входит в счёт.
+\* уже мигрированы. Итого новых таблиц: **41** (из них «позже» — `match_comments`, `team_season_stats`). Отдельных таблиц переводов нет: переводы — jsonb `*_i18n` в самих таблицах ([i18n.md](i18n.md)); `entity_translations` — возможное расширение, не входит в счёт.

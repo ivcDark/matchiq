@@ -4,6 +4,9 @@ namespace Tests\Feature\Database;
 
 use App\Enums\CompetitionStatus;
 use App\Enums\CompetitionType;
+use App\Enums\IngestionKind;
+use App\Enums\IngestionPhase;
+use App\Enums\IngestionStatus;
 use App\Enums\MatchStatus;
 use App\Enums\PickStatus;
 use App\Enums\StageType;
@@ -11,6 +14,7 @@ use App\Models\Competition;
 use App\Models\Country;
 use App\Models\ExternalId;
 use App\Models\FootballMatch;
+use App\Models\IngestionRun;
 use App\Models\MarketType;
 use App\Models\MatchPrediction;
 use App\Models\ModelVersion;
@@ -188,6 +192,41 @@ class DomainSchemaTest extends TestCase
 
         $this->assertSame('team', $external->getRawOriginal('entity_type'));
         $this->assertTrue($external->entity->is($team));
+    }
+
+    public function test_ingestion_run_keeps_per_entity_errors_and_last_run_on_external_id(): void
+    {
+        $team = $this->seedMatch()->homeTeam;
+        $provider = SourceProvider::create(['code' => 'manual', 'name' => 'Manual', 'kind' => 'manual']);
+        $run = IngestionRun::create([
+            'source_provider_id' => $provider->id,
+            'kind' => IngestionKind::Schedule,
+            'status' => IngestionStatus::Partial,
+            'started_at' => now(),
+            'stats' => ['created' => 1, 'updated' => 0, 'failed' => 1],
+        ]);
+        $run->errors()->create([
+            'entity_type' => 'team',
+            'external_id' => 'bad-1',
+            'phase' => IngestionPhase::Match,
+            'message' => 'Команда не сопоставлена',
+            'context' => ['name' => 'Unknown FC'],
+        ]);
+        $external = $team->externalIds()->create([
+            'source_provider_id' => $provider->id,
+            'entity_type' => 'team',
+            'external_id' => 'ok-1',
+            'last_ingestion_run_id' => $run->id,
+        ]);
+
+        $error = $run->errors()->firstOrFail();
+        $this->assertSame(IngestionPhase::Match, $error->phase);
+        $this->assertSame('Unknown FC', $error->context['name']);
+        $this->assertTrue($external->lastIngestionRun->is($run));
+
+        $run->delete();
+        $this->assertSame(0, $run->errors()->count());
+        $this->assertNull($external->fresh()->last_ingestion_run_id);
     }
 
     public function test_translation_helper_falls_back_to_canonical_name(): void

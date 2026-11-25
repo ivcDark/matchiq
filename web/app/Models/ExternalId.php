@@ -21,6 +21,7 @@ class ExternalId extends Model
         'external_url',
         'matched_by',
         'last_seen_at',
+        'last_ingestion_run_id',
         'meta',
     ];
 
@@ -41,5 +42,10 @@ class ExternalId extends Model
     public function entity(): MorphTo
     {
         return $this->morphTo('entity', 'entity_type', 'entity_id');
+    }
+
+    public function lastIngestionRun(): BelongsTo
+    {
+        return $this->belongsTo(IngestionRun::class, 'last_ingestion_run_id');
     }
 }
