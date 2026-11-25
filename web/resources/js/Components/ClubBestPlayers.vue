@@ -45,7 +45,7 @@ const blocks = computed(() => {
         },
         {
             key: 'aerial',
-            tone: 'teal',
+            tone: 'sage',
             title: 'Борьба в воздухе (за матч)',
             kind: 'bar',
             rows: top(fieldPlayers, (a, b) => b.aerial - a.aerial),
@@ -54,7 +54,7 @@ const blocks = computed(() => {
         },
         {
             key: 'rating',
-            tone: 'gold',
+            tone: 'coral',
             title: 'Рейтинг',
             kind: 'pill',
             rows: top(regular.filter((p) => p.rating !== null), (a, b) => b.rating - a.rating || b.minutes - a.minutes),
@@ -62,7 +62,7 @@ const blocks = computed(() => {
         },
         {
             key: 'aggression',
-            tone: 'slate',
+            tone: 'sage',
             title: 'Агрессивность (ЖК / КК)',
             kind: 'cards',
             rows: top(
@@ -72,7 +72,7 @@ const blocks = computed(() => {
         },
         {
             key: 'apps',
-            tone: 'mist',
+            tone: 'sage',
             title: 'Выступления',
             kind: 'pill',
             rows: top(players, (a, b) => b.apps - a.apps || b.minutes - a.minutes),

@@ -3456,10 +3456,18 @@
         @apply w-full border-collapse text-[13px];
     }
 
+    .miq-club-table thead tr {
+        color: color-mix(in srgb, white 72%, transparent);
+        background: var(--miq-ink);
+    }
+
     .miq-club-table thead th {
-        @apply whitespace-nowrap px-2 py-1.5 text-right text-[10px] font-semibold uppercase leading-none tracking-wider text-miq-muted;
-        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
-        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 70%, transparent);
+        @apply whitespace-nowrap px-2 py-1.5 text-right text-[10px] font-semibold uppercase leading-none tracking-wider;
+        background: var(--miq-ink);
+    }
+
+    .miq-club-table thead th.is-sorted {
+        @apply text-white;
     }
 
     .miq-club-table td {
@@ -3512,12 +3520,22 @@
 
     .miq-club-table tfoot td {
         @apply font-bold text-miq-ink;
-        border-top: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
-        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+        border-top: 2px solid var(--miq-ink);
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
     }
 
     .miq-club-table td.is-strong {
         @apply font-bold text-miq-ink;
+    }
+
+    .miq-club-table td.is-good {
+        @apply font-bold;
+        color: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-club-table td.is-bad {
+        @apply font-bold;
+        color: var(--miq-cmp-trail-ink);
     }
 
     .miq-club-table td.is-sticky,
@@ -3527,11 +3545,11 @@
     }
 
     .miq-club-table thead th.is-sticky {
-        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
+        background: var(--miq-ink);
     }
 
     .miq-club-table tfoot td.is-sticky {
-        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+        background: color-mix(in srgb, var(--miq-mist-deep) 70%, white);
     }
 
     .miq-club-table .is-na {
@@ -3553,13 +3571,13 @@
 
     .miq-club-sort:hover,
     .miq-club-sort:focus-visible {
-        @apply text-miq-ink;
+        @apply text-white;
         outline: none;
-        background: color-mix(in srgb, var(--miq-ink) 8%, transparent);
+        background: color-mix(in srgb, white 14%, transparent);
     }
 
     th.is-sorted .miq-club-sort {
-        @apply text-miq-ink;
+        @apply text-white;
     }
 
     .miq-club-sort-icon {
@@ -3572,7 +3590,7 @@
 
     .miq-club-sort-icon.is-active {
         @apply opacity-100;
-        color: var(--miq-pitch);
+        color: var(--miq-lime);
     }
 
     .miq-club-sort-icon.is-asc {
@@ -3597,7 +3615,11 @@
 
     .miq-club-split-row {
         @apply px-3.5 py-2;
-        border-top: 1px solid color-mix(in srgb, var(--miq-line) 40%, transparent);
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+    }
+
+    .miq-club-split-row:nth-of-type(even) {
+        background: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
     }
 
     .miq-club-split-meta {
@@ -3632,18 +3654,10 @@
     }
 
     .miq-club-best-grid {
-        @apply grid grid-cols-1 gap-[3px] sm:grid-cols-2 2xl:grid-cols-3;
-        border-top: 1px solid color-mix(in srgb, var(--miq-line) 45%, transparent);
-        background: color-mix(in srgb, var(--miq-line) 55%, white);
+        @apply grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3;
     }
 
     .miq-club-best-block {
-        --tone: var(--miq-cmp-lead);
-        --tone-ink: var(--miq-cmp-lead-ink);
-        background: color-mix(in srgb, var(--tone) 10%, white);
-    }
-
-    .miq-club-best-block[data-tone='sage'] {
         --tone: var(--miq-cmp-lead);
         --tone-ink: var(--miq-cmp-lead-ink);
     }
@@ -3653,46 +3667,32 @@
         --tone-ink: var(--miq-cmp-trail-ink);
     }
 
-    .miq-club-best-block[data-tone='teal'] {
-        --tone: #6fb0a6;
-        --tone-ink: var(--miq-chip-away);
-    }
-
-    .miq-club-best-block[data-tone='gold'] {
-        --tone: var(--miq-medal-gold);
-        --tone-ink: var(--miq-medal-gold-ink);
-    }
-
-    .miq-club-best-block[data-tone='slate'] {
-        --tone: #8fa3b0;
-        --tone-ink: #4a5f6d;
-    }
-
-    .miq-club-best-block[data-tone='mist'] {
-        --tone: #9bb8a8;
-        --tone-ink: var(--miq-pitch-deep);
-    }
-
     .miq-club-best-title {
-        @apply px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em];
-        color: var(--tone-ink);
-        background: color-mix(in srgb, var(--tone) 26%, white);
-        border-top: 3px solid var(--tone);
+        @apply px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white;
+        background: var(--miq-ink);
     }
 
     .miq-club-best-row {
         @apply grid grid-cols-[minmax(0,1fr)_minmax(5.5rem,auto)] items-center gap-2 px-3.5 py-1 text-[13px];
-        border-top: 1px solid color-mix(in srgb, var(--tone) 22%, transparent);
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
     }
 
-    .miq-club-best-row:nth-child(odd) {
-        background: color-mix(in srgb, var(--tone) 7%, white);
+    .miq-club-best-row:last-child {
+        border-bottom: 0;
+    }
+
+    .miq-club-best-row:nth-child(even) {
+        background: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-club-best-row:hover {
+        background: color-mix(in srgb, var(--miq-lime) 18%, white);
     }
 
     .miq-club-bar {
         --bar: var(--tone);
         @apply relative flex h-[18px] items-center justify-end overflow-hidden rounded-sm;
-        background: color-mix(in srgb, var(--bar) 20%, white);
+        background: color-mix(in srgb, var(--bar) 22%, white);
     }
 
     .miq-club-bar-fill {

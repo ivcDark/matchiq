@@ -42,8 +42,8 @@ function fmt(value, formatter = one) {
                     <tr v-for="row in stats.rows" :key="row.key">
                         <td class="is-left is-sticky font-semibold text-miq-ink">{{ row.name }}</td>
                         <td>{{ row.apps }}</td>
-                        <td class="is-strong">{{ row.goals }}</td>
-                        <td>{{ row.conceded }}</td>
+                        <td class="is-good">{{ row.goals }}</td>
+                        <td class="is-bad">{{ row.conceded }}</td>
                         <td :class="{ 'is-na': row.shots === null }">{{ fmt(row.shots) ?? '—' }}</td>
                         <td>{{ row.yellow }}</td>
                         <td>{{ row.red }}</td>

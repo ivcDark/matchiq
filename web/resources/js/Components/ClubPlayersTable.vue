@@ -19,8 +19,8 @@ const COLUMNS = [
     { key: 'weight', label: 'кг', title: 'Вес, кг', hideMobile: true },
     { key: 'apps', label: 'Выст', title: 'Матчей: в старте (и выходов на замену)', cell: (p) => (p.subs > 0 ? `${p.starts}(${p.subs})` : String(p.starts)) },
     { key: 'minutes', label: 'Мин', title: 'Сыграно минут' },
-    { key: 'goals', label: 'Г', title: 'Голы', zero: true },
-    { key: 'assists', label: 'А', title: 'Голевые передачи', zero: true },
+    { key: 'goals', label: 'Г', title: 'Голы', zero: true, good: true },
+    { key: 'assists', label: 'А', title: 'Голевые передачи', zero: true, good: true },
     { key: 'yellow', label: 'ЖК', title: 'Жёлтые карточки', zero: true },
     { key: 'red', label: 'КК', title: 'Красные карточки', zero: true },
     { key: 'shots', label: 'Уд', title: 'Удары за матч', digits: 1 },
@@ -129,7 +129,8 @@ const ariaSort = (column) => (sortKey.value === column.key ? (sortDir.value === 
                             :key="column.key"
                             :class="{
                                 'miq-club-rating': column.rating && player.rating !== null,
-                                'is-strong': sortKey === column.key && !column.rating,
+                                'is-strong': sortKey === column.key && !column.rating && !column.good,
+                                'is-good': column.good,
                                 'max-sm:hidden': column.hideMobile,
                             }"
                         >{{ cell(column, player) }}</td>
