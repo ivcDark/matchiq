@@ -1,7 +1,7 @@
 # MatchIQ
 
 Футбольная статистика с вероятностями событий по матчу (MVP: **РПЛ**).  
-Стек: **Laravel + Vue + Inertia**, **PostgreSQL**, **Redis**, сбор данных — **Go collector**.
+Стек: **Laravel + Vue + Inertia**, **PostgreSQL**, **Redis**. Сбор данных: **Laravel** стартует прогоны (`artisan` + scheduler) и оркестрирует итоги, **Go-коллектор** парсит источник и пишет нормализованные данные в ту же БД.
 
 > Это каркас репозитория: маршруты и заглушки страниц, Docker Compose, stub collector.  
 > Парсинг, ML/скоринг и продакшен-дизайн — отдельно, позже.
@@ -20,14 +20,19 @@
 ## Архитектура (заложено с дня 1)
 
 ```
-[Go collectors] --normalize--> [PostgreSQL]
-                                    |
-                              [Laravel / Inertia]
-                                    |
-                              [Vue UI]
+[Laravel scheduler / artisan] --старт прогона--> [Go collectors]
+                                                      |
+                                              normalize + запись
+                                                      |
+                                                [PostgreSQL]
+                                                      |
+                                               [Laravel / Inertia]
+                                                      |
+                                                  [Vue UI]
 ```
 
-- **Collectors (Go):** только ingestion. Адаптеры по `provider` + `league`. MVP = scraper; позже — платный API тем же контрактом.
+- **Laravel:** расписание и оркестрация ingestion. Artisan-команда создаёт `ingestion_runs`, вызывает Go, пишет и читает итоги (`ingestion_runs`, `ingestion_run_errors`, `external_ids`). Парсера в PHP нет.
+- **Collectors (Go):** fetch и parse. Адаптеры по `provider` + `league`. Пишут нормализованные данные в ту же PostgreSQL по контракту [docs/architecture/ingestion.md](docs/architecture/ingestion.md). MVP = scraper; позже — платный API тем же контрактом.
 - **Domain в Postgres:** лиги, сезоны, команды, матчи, события — нейтрально к источнику. Мульти-лиговость: `leagues` (`rpl`, …), `providers`, маппинг внешних ID.
 - **Схема БД (черновик):** [docs/database/](docs/database/README.md) — ER-диаграммы, таблицы по доменам, открытые вопросы.
 - **Архитектура приложения и ingestion:** [docs/architecture/](docs/architecture/README.md) — слои Laravel (Services / Domains / Repositories / Form Requests / DTO / Enums, контроллеры только REST), [загрузка данных и наблюдаемость](docs/architecture/ingestion.md) (прогоны, ошибки по сущностям, смена источника).

@@ -1,7 +1,7 @@
 # MatchIQ — схема БД (черновик)
 
 **Статус:** схема согласована; миграции (`web/database/migrations/2026_11_25_*`), Eloquent-модели (`web/app/Models`) и PHP-enum'ы (`web/app/Enums`) созданы 2026-11-25. Для наблюдаемости ingestion добавлены `ingestion_run_errors` и `external_ids.last_ingestion_run_id` (миграция `2026_11_25_100040`). Не создавались таблицы «позже»: `match_comments`, `team_season_stats` (решение № 16 и колонка MVP). Страницы пока на моках.  
-**СУБД:** PostgreSQL (источник правды), Redis — кэш/очереди/сессии. Приложение: Laravel 11; сбор данных — исполнитель прогонов (Laravel по умолчанию либо Go collector, [№ 36](open-questions.md)) пишет в те же таблицы через нормализацию.  
+**СУБД:** PostgreSQL (источник правды), Redis — кэш/очереди/сессии. Приложение: Laravel 11. Сбор данных ([№ 36](open-questions.md), принято 2026-11-25): Laravel (`artisan` + scheduler) стартует прогон и пишет итоги в `ingestion_runs` / `ingestion_run_errors` / `external_ids`; Go-коллектор парсит источник и пишет нормализованные данные в те же таблицы.  
 **Язык:** текст — русский; имена таблиц и полей — английский `snake_case` (как в коде и как нужно для маппинга источников).
 
 ## Документы
