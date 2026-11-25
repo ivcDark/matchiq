@@ -1,6 +1,6 @@
 # MatchIQ — схема БД: таблицы по доменам
 
-Принципы и границы MVP — в [README.md](README.md). Открытые вопросы — в [open-questions.md](open-questions.md).
+Принципы и границы MVP — в [README.md](README.md). Принятые решения — в [open-questions.md](open-questions.md).
 
 **Соглашения.** `id bigint PK` у каждой таблицы; `created_at` / `updated_at` (`timestamptz`) есть везде и в диаграммах не показаны; перечисления — `varchar` + enum в коде. Тип `numeric` в диаграммах — десятичное число (точность — в тексте). Колонка **MVP**: «да» — нужна для экранов-макетов, «позже» — можно не делать в первой итерации.
 
@@ -399,7 +399,7 @@ erDiagram
 **Решения по домену:**
 
 - Команды-участники в матче всегда известны: «заглушки» сетки (`победитель пары X`, `1-е место группы A`) живут в `ties.source_*`, а матч создаётся, когда обе команды определены (поэтому `home_team_id`/`away_team_id` NOT NULL).
-- Каноническая привязка матча — **`stage_id`** (так группы и плей-офф кубка живут в одной таблице); `season_id` и `competition_id` продублированы для быстрых выборок (см. вопрос о денормализации в [open-questions.md](open-questions.md)).
+- Каноническая привязка матча — **`stage_id`** (так группы и плей-офф кубка живут в одной таблице); `season_id` и `competition_id` продублированы для быстрых выборок (решение — в [open-questions.md](open-questions.md)).
 - Live: `status = live`, `minute`, `period` обновляет коллектор; `home_goals/away_goals` — текущий счёт. Статистика live пишется в те же таблицы (режется на момент минуты). Вероятности на live **не пересчитываются** — read-only снимок на kickoff (см. домен 5).
 - xG хранится на уровне команды и игрока за матч; построчные удары (shot-level) — **позже** (таблица `match_shots`, см. вопросы).
 
@@ -625,7 +625,7 @@ erDiagram
 
 | Таблица | MVP | Назначение | Ключевые поля / ограничения |
 |---------|-----|------------|------------------------------|
-| `users` | да (есть) | Аккаунты. `name` — ник в рейтинге (может быть кириллицей с пробелами; в URL не используется — только `users.id`) | Таблица уже мигрирована. Возможные добавления: `role` (`user` \| `admin`), `locale`; уникальность ника — [вопрос](open-questions.md) |
+| `users` | да (есть) | Аккаунты. `name` — ник в рейтинге (может быть кириллицей с пробелами; в URL не используется — только `users.id`) | Таблица уже мигрирована. Возможные добавления: `role` (`user` \| `admin`), `locale`; уникальность ника — [принятое решение](open-questions.md) |
 | `social_accounts` | да (есть) | Вход через Яндекс / VK | UNIQUE (`provider`, `provider_id`) — уже в миграции |
 | `picks` | да | Выбор пользователя: **1 событие на матч**, замена до kickoff | Ссылается на `prediction_outcome_id` — неизменяемую строку снимка; `probability_at_pick` — копия (вероятность модели на момент выбора, нужна для очков и профиля); `market_type_id`/`outcome_key`/`line` — денормализация для быстрых агрегатов («частые события»); `status`: `pending` \| `won` \| `lost` \| `void`; `points` = `round(100 × (1 − probability_at_pick))` при `won`, иначе 0 (формула — `RatingRules::points()`); `superseded_at` — при замене старая строка закрывается, новая создаётся; **partial UNIQUE (`user_id`, `match_id`) WHERE `superseded_at IS NULL`**; `resolved_at` — когда посчитан результат. Принимать pick можно только пока `matches.status = scheduled` и `now() < kickoff_at` (проверка в сервисе) |
 | `leaderboard_entries` | да | Материализованные места/очки по окнам | `period_type`: `week` \| `month` \| `season` \| `all_time`; `period_key`: `2026-W47`, `2026-11`, `2026/27`, `all`; `competition_id` NULL = «все лиги» (MVP — только NULL), потом фильтр по лиге без смены схемы; UNIQUE (`period_type`, `period_key`, `competition_id`, `user_id`) (NULL — `NULLS NOT DISTINCT`, PG15+); `rank`, `points`, `picks_count`, `correct_count`, `streak`; `computed_at`. Пересчитывается job'ом после резолва picks |
