@@ -18,6 +18,8 @@
 
 ## 1. География и соревнования
 
+Модель рассчитана на **любой формат соревнования** (круговой чемпионат, кубок, чемпионат + стыки, групповой этап + плей-офф, товарищеские, плей-офф без групп; в плей-офф — один матч или два). Формат описывается **не типом соревнования, а цепочкой этапов сезона** (`stages`): у каждого сезона свой набор этапов, поэтому формат может меняться из года в год (UCL до 2024 — 8 групп, с 2024/25 — единая лиговая фаза) без изменения схемы. Готовые «рецепты» по каждому формату — в [formats.md](formats.md).
+
 ```mermaid
 erDiagram
     countries {
@@ -36,6 +38,8 @@ erDiagram
         varchar name_ru
         varchar short_name
         varchar type
+        varchar scope
+        varchar participant_type
         smallint tier
         varchar status
         smallint sort_order
@@ -57,6 +61,11 @@ erDiagram
         varchar name
         varchar type
         smallint stage_order
+        smallint cycles
+        smallint matches_per_team
+        boolean has_standings
+        smallint default_legs
+        boolean has_third_place_match
         jsonb rules
     }
     stage_groups {
@@ -71,14 +80,38 @@ erDiagram
         bigint team_id FK
         bigint stage_group_id FK
         smallint seed
+        smallint initial_points
     }
     rounds {
         bigint id PK
         bigint stage_id FK
         smallint number
+        varchar type
+        varchar code
         varchar name
+        smallint legs
         date starts_on
         date ends_on
+    }
+    ties {
+        bigint id PK
+        bigint stage_id FK
+        bigint round_id FK
+        smallint tie_number
+        bigint team_a_id FK
+        bigint team_b_id FK
+        jsonb source_a
+        jsonb source_b
+        smallint legs
+        varchar status
+        bigint winner_team_id FK
+        varchar decided_by
+        smallint aggregate_a
+        smallint aggregate_b
+        smallint penalties_a
+        smallint penalties_b
+        bigint next_tie_id FK
+        varchar next_tie_slot
     }
     countries ||--o{ competitions : "country_id"
     competitions ||--o{ seasons : "competition_id"
@@ -87,21 +120,42 @@ erDiagram
     stages ||--o{ rounds : "stage_id"
     stages ||--o{ stage_teams : "stage_id"
     stage_groups |o--o{ stage_teams : "stage_group_id"
+    stages ||--o{ ties : "stage_id"
+    rounds ||--o{ ties : "round_id"
+    ties |o--o{ ties : "next_tie_id"
 ```
 
-(`stage_teams.team_id` → `teams`, см. домен 2.)
+(`stage_teams.team_id`, `ties.team_a_id` / `team_b_id` / `winner_team_id` → `teams`, см. домен 2; `matches.tie_id` → `ties`, см. домен 3.)
+
+### Иерархия и роли сущностей
+
+```
+competition  — постоянная «марка» (РПЛ, Кубок России, UCL, ЧМ, товарищеские)
+ └─ season   — одно издание («2026/27», «2026»)
+     └─ stage — этап формата, по порядку (league → playoff; group → knockout …)
+         ├─ stage_groups — группы (только если есть группы)
+         ├─ stage_teams  — кто участвует (+ группа, посев, перенос очков)
+         ├─ rounds       — туры (matchday) или раунды плей-офф (1/8, 1/4, финал)
+         └─ ties         — пары плей-офф: 1 матч или 2 (первый + ответный)
+             └─ matches  — сами матчи (у плей-офф: tie_id + leg)
+```
+
+### Таблицы
 
 | Таблица | MVP | Назначение | Ключевые поля / ограничения |
 |---------|-----|------------|------------------------------|
 | `countries` | да | Страны (табы на главной) и «псевдо-страны» для международных турниров | `code` — ISO 3166-1 alpha-2 (`RU`, `GB-ENG`) либо `EU` / `WORLD`; `kind`: `country` \| `region` (UCL → «Европа»); `sort_order` порядок табов |
-| `competitions` | да | Лига или кубок как постоянная сущность (РПЛ, ФНЛ, Кубок России, UCL). **Это «турнир» из URL `/tournaments/{id}`** | `slug` (`rpl`) UNIQUE; `country_id` NULL допустим для международных; `type`: `league` \| `cup` \| `league_cup` (группы + плей-офф); `tier` уровень пирамиды; `status`: `live` \| `soon` \| `hidden` (для UI «скоро»); `sort_order` — порядок групп в списке матчей; `short_name` — код в чипе (РПЛ) |
-| `seasons` | да | Сезон конкретного соревнования («2026/27») | UNIQUE (`competition_id`, `slug`); `label` для показа, `slug` вида `2026-27` (параметр `?season=`); `is_current` — не более одного на соревнование (partial unique); `rounds_total` — число туров (30) |
-| `stages` | да | Этап формата: регулярный чемпионат, группы, плей-офф | `type`: `regular` \| `group` \| `knockout` \| `playoff`; `stage_order`; `rules` jsonb — очки за победу, тай-брейки, зоны по умолчанию. У лиги ровно один stage `regular` — он создаётся при заведении сезона |
-| `stage_groups` | да | Группы внутри этапа (Кубок России: A–D) | UNIQUE (`stage_id`, `name`) |
-| `stage_teams` | да | Участие команды в этапе (и группа, если есть) | UNIQUE (`stage_id`, `team_id`); `stage_group_id` NULL вне групп; `seed` — жеребьёвка/посев. «16 команд сезона» = distinct `team_id` по этапам сезона |
-| `rounds` | да | Туры / раунды этапа («15-й тур», «1/8 финала») | UNIQUE (`stage_id`, `number`); `name` для плей-офф; `starts_on`/`ends_on` — диапазон дат тура (расписание) |
+| `competitions` | да | Соревнование как постоянная сущность (РПЛ, ФНЛ, Кубок России, UCL, ЧМ, товарищеские матчи). **Это «турнир» из URL `/tournaments/{id}`**. Описывает «что это за турнир», а не его формат — формат в `stages` | `slug` (`rpl`) UNIQUE; `country_id` NULL для международных; **`type`**: `league` (чемпионат) \| `cup` (кубок) \| `tournament` (многоэтапный: UCL, ЧМ, ЧЕ) \| `friendly` (товарищеские); **`scope`**: `domestic` \| `continental` \| `world`; **`participant_type`**: `club` \| `national` (какие `teams.type` допустимы); `tier` — уровень пирамиды; `status`: `live` \| `soon` \| `hidden` (UI «скоро»); `sort_order` — порядок групп в списке матчей; `short_name` — код в чипе |
+| `seasons` | да | Издание соревнования («2026/27»; ЧМ — «2026») | UNIQUE (`competition_id`, `slug`); `label` для показа, `slug` вида `2026-27` (параметр `?season=`); `is_current` — не более одного на соревнование (partial unique); `rounds_total` — число туров основного этапа (30) или NULL. У турнира без регулярного сезона (ЧМ, товарищеские) — один сезон на издание/год |
+| `stages` | да | **Этап формата сезона.** Определяет, как играют и нужна ли таблица | **`type`**: `league` (круговой турнир без групп: чемпионат, лиговая фаза UCL) \| `group` (групповой этап: несколько групп, таблица на группу) \| `knockout` (плей-офф на вылет: сетка, кубок) \| `playoff` (стыковые/переходные матчи после чемпионата; технически та же сетка пар, но не «сетка турнира») \| `friendly` (товарищеские, без туров и таблицы); `stage_order` — порядок в сезоне; **`cycles`** — кругов в `league`/`group` (1 — каждый с каждым один раз, 2 — дома и в гостях, 4 — четырёхкруговой); **`matches_per_team`** — для неполного кругового турнира (лиговая фаза UCL = 8; NULL, если полный круг); **`has_standings`** — вести ли таблицу (true для `league`/`group`, false для остальных); **`default_legs`** — матчей в паре для `knockout`/`playoff` (1 или 2); `has_third_place_match`; `rules` jsonb — очки за победу/ничью, тай-брейки, правила определения победителя пары (доп. время, пенальти, правило выездных голов — флагами), **продвижение дальше** (`advancement`: «топ-2 каждой группы → 1/8»). У обычной лиги ровно один stage `league` — он создаётся при заведении сезона |
+| `stage_groups` | да | Группы внутри `group`-этапа (Кубок России: A–D; ЧМ: A–H; чемпионат из двух групп: «Группа 1/2») | UNIQUE (`stage_id`, `name`); для `league`/`knockout` групп нет |
+| `stage_teams` | да | Участие команды в этапе (+ группа, посев, перенос очков) | UNIQUE (`stage_id`, `team_id`); `stage_group_id` NULL вне групп; `seed` — жеребьёвка/посев; **`initial_points`** — очки, перенесённые с предыдущего этапа (чемпионат делится на «чемпионскую» и «турнир за выживание», очки половинятся). Команда может принадлежать другому соревнованию (стыки: РПЛ ↔ ФНЛ). «16 команд сезона» = distinct `team_id` по этапам сезона. Для плей-офф строки создаются, когда состав пары определён |
+| `rounds` | да | **Тур** (`matchday`) для круговых этапов или **раунд плей-офф** (1/8, 1/4, финал) | UNIQUE (`stage_id`, `number`); **`type`**: `matchday` \| `knockout_round`; **`code`**: `R64`, `R32`, `R16`, `QF`, `SF`, `THIRD`, `F`, `PO` (стыки) — для сортировки и локализации; `name` («15-й тур», «1/8 финала»); **`legs`** — матчей в паре в этом раунде (1 или 2), переопределяет `stages.default_legs` (финал UCL — 1 матч при остальных раундах по 2); для `matchday` — NULL; `starts_on`/`ends_on` — даты тура. У `friendly` туров нет (матчи с `round_id = NULL`) |
+| `ties` | да | **Пара плей-офф** («противостояние»): один матч или два (первый + ответный). Нужна и для одиночных финалов, чтобы сетка читалась единообразно | `stage_id`, `round_id`, `tie_number` — слот в сетке (UNIQUE `round_id`, `tie_number`); `team_a_id` / `team_b_id` — NULL, пока соперник неизвестен; **`source_a` / `source_b`** jsonb — откуда придёт команда: `{"type":"group_position","stage_group_id":1,"position":1}`, `{"type":"standing_position","stage_id":1,"position":5}` (лиговая фаза UCL), `{"type":"tie_winner","tie_id":42}`, `{"type":"tie_loser","tie_id":42}` (матч за 3-е место); **`legs`** (1 \| 2, копия из `rounds.legs`); `status`: `scheduled` \| `in_progress` \| `finished`; `winner_team_id`; **`decided_by`**: `single_match` \| `aggregate` \| `away_goals` \| `extra_time` \| `penalties` \| `walkover`; `aggregate_a`/`aggregate_b` — суммарный счёт пары (для legs=2); `penalties_a`/`penalties_b` — серия пенальти; **`next_tie_id` + `next_tie_slot` (`a`\|`b`)** — куда проходит победитель (строит сетку для UI без пересчёта правил). Матчи пары — `matches.tie_id` + `matches.leg` (1 или 2); команда A — хозяин первого матча |
 
-**Что даёт UI:** табы стран и чипы лиг — `countries` + `competitions` (`status`, `sort_order`, `short_name`); переключатель сезона на турнире — `seasons`; «Тур 15 из 30» — `rounds` + `seasons.rounds_total`; группы кубка на странице клуба — `stage_groups` + `stage_teams`.
+**Что даёт UI:** табы стран и чипы лиг — `countries` + `competitions` (`status`, `sort_order`, `short_name`); переключатель сезона на турнире — `seasons`; «Тур 15 из 30» — `rounds` + `seasons.rounds_total`; группы кубка на странице клуба — `stage_groups` + `stage_teams`; сетка плей-офф — `ties` (+ `next_tie_id`); у этапа без таблицы (`has_standings = false`) вкладка «Таблица» не показывается.
+
+**Правило целостности:** `stages.type ∈ {league, group}` → есть `rounds.type = matchday`, нет `ties`; `stages.type ∈ {knockout, playoff}` → матчи всегда с `tie_id`; `friendly` → нет `rounds`/`ties`/`standings`. Проверяется сервисом записи и тестами.
 
 ---
 
@@ -218,10 +272,12 @@ erDiagram
         bigint stage_id FK
         bigint round_id FK
         bigint stage_group_id FK
+        bigint tie_id FK
         bigint home_team_id FK
         bigint away_team_id FK
         bigint venue_id FK
         bigint referee_id FK
+        smallint leg
         timestamptz kickoff_at
         varchar status
         varchar period
@@ -329,11 +385,11 @@ erDiagram
     players ||--o{ match_player_stats : "player_id"
 ```
 
-(`matches.competition_id` → `competitions`, `season_id` → `seasons`, `stage_id` → `stages`, `round_id` → `rounds`, `stage_group_id` → `stage_groups`, `home_team_id`/`away_team_id`/`team_id` → `teams`, `venue_id` → `venues`, `referee_id` → `referees`.)
+(`matches.competition_id` → `competitions`, `season_id` → `seasons`, `stage_id` → `stages`, `round_id` → `rounds`, `stage_group_id` → `stage_groups`, `tie_id` → `ties`, `home_team_id`/`away_team_id`/`team_id` → `teams`, `venue_id` → `venues`, `referee_id` → `referees`.)
 
 | Таблица | MVP | Назначение | Ключевые поля / ограничения |
 |---------|-----|------------|------------------------------|
-| `matches` | да | Матч — ядро домена (`/matches/{id}`) | `kickoff_at timestamptz`; `status`: `scheduled` \| `live` \| `finished` \| `postponed` \| `cancelled` \| `abandoned`; `period`: `first_half` \| `half_time` \| `second_half` \| `extra_time` \| `penalties` (только у live); `minute` — только live; `home_goals`/`away_goals` — счёт после основного времени (и доп. времени, если было), без серии пенальти; `*_ht` — счёт к перерыву; `*_et`, `*_pens` — для кубковых матчей (серия пенальти отдельно); `weather_*` — погода (условие · °C · ветер м/с); `CHECK (home_team_id <> away_team_id)`; индексы: (`kickoff_at`), (`stage_id`, `round_id`), (`home_team_id`, `kickoff_at`), (`away_team_id`, `kickoff_at`), (`status`, `kickoff_at`). `competition_id` и `season_id` — **денормализация** от `stage` (ради фильтров главной «лиги + день» и ссылки `match.tournament_id`); согласованность обеспечивает сервис записи/`CHECK` через триггер; индекс (`competition_id`, `kickoff_at`) |
+| `matches` | да | Матч — ядро домена (`/matches/{id}`) | `kickoff_at timestamptz`; `status`: `scheduled` \| `live` \| `finished` \| `postponed` \| `cancelled` \| `abandoned`; `period`: `first_half` \| `half_time` \| `second_half` \| `extra_time` \| `penalties` (только у live); `minute` — только live; `home_goals`/`away_goals` — счёт после основного времени (и доп. времени, если было), без серии пенальти; `*_ht` — счёт к перерыву; `*_et`, `*_pens` — для кубковых матчей (серия пенальти отдельно); `weather_*` — погода (условие · °C · ветер м/с); `round_id` NULL у товарищеских матчей и стыков без нумерации тура; **`tie_id` + `leg`** — только у матчей плей-офф (`leg` = 1 или 2; одиночный матч — `leg = 1`, пара с `legs = 1`); у круговых этапов и товарищеских — NULL; `stage_group_id` — только на групповом этапе; `is_neutral_venue` — финалы/ЧМ; `CHECK (home_team_id <> away_team_id)`; индексы: (`kickoff_at`), (`stage_id`, `round_id`), (`home_team_id`, `kickoff_at`), (`away_team_id`, `kickoff_at`), (`status`, `kickoff_at`). `competition_id` и `season_id` — **денормализация** от `stage` (ради фильтров главной «лиги + день» и ссылки `match.tournament_id`); согласованность обеспечивает сервис записи/`CHECK` через триггер; индекс (`competition_id`, `kickoff_at`) |
 | `match_teams` | да | Данные «стороны» матча: формация, тренер, оценка команды | UNIQUE (`match_id`, `side`) и (`match_id`, `team_id`); `side`: `home` \| `away`; `rating` — оценка команды (только `finished`) |
 | `match_lineups` | да | Кто в составе: стартовый и запасные, позиция на поле | UNIQUE (`match_id`, `player_id`); `is_starter`; `position`: `GK/DF/MF/FW`; `line` + `sort_order` — раскладка по линиям для «Расстановки на поле»; `minute_in` (вышел на замену) / `minute_out` (ушёл) — NULL, если нет |
 | `match_events` | да | Хроника: голы, ассисты, карточки, замены | `type`: `goal` \| `own_goal` \| `penalty_goal` \| `penalty_missed` \| `yellow` \| `second_yellow` \| `red` \| `substitution` \| `var`; `player_id` — автор / ушедший (при замене); `related_player_id` — ассистент / вышедший; `minute` + `added_minute` (45+2); `score_home`/`score_away` — счёт после гола; `sort_order` внутри минуты; `details` — подтип (удар головой, пенальти, причина карточки). Из событий считаются «голы по минутам», бомбардиры, карточки судьи |
@@ -342,6 +398,7 @@ erDiagram
 
 **Решения по домену:**
 
+- Команды-участники в матче всегда известны: «заглушки» сетки (`победитель пары X`, `1-е место группы A`) живут в `ties.source_*`, а матч создаётся, когда обе команды определены (поэтому `home_team_id`/`away_team_id` NOT NULL).
 - Каноническая привязка матча — **`stage_id`** (так группы и плей-офф кубка живут в одной таблице); `season_id` и `competition_id` продублированы для быстрых выборок (см. вопрос о денормализации в [open-questions.md](open-questions.md)).
 - Live: `status = live`, `minute`, `period` обновляет коллектор; `home_goals/away_goals` — текущий счёт. Статистика live пишется в те же таблицы (режется на момент минуты). Вероятности на live **не пересчитываются** — read-only снимок на kickoff (см. домен 5).
 - xG хранится на уровне команды и игрока за матч; построчные удары (shot-level) — **позже** (таблица `match_shots`, см. вопросы).
@@ -395,7 +452,7 @@ erDiagram
 | `standings` | да | Строка таблицы: команда на этапе (и в группе) после тура `round_id` в контексте | UNIQUE (`stage_id`, `stage_group_id`, `round_id`, `context`, `team_id`); `context`: `overall` \| `home` \| `away`; `form` — строка последних 5 (`WWDLW`, слева старше); `zone_code` — денормализация из `standing_zones` для текущей позиции; «текущая» таблица = срез с максимальным `rounds.number`, где есть сыгранные матчи. `goal_diff` хранится для сортировки/индекса |
 | `standing_zones` | да | Зоны таблицы: Лига чемпионов, Лига Европы, стыки, вылет | `from_position`..`to_position`, `code` (`ucl`, `uel`, `relegation_playoff`, `relegation`), `label`, `color`; конфиг на этап; в UI цветная полоса и легенда |
 
-Тай-брейки (личные встречи, победы и т.д.) — в `stages.rules`; штрафные очки (если понадобятся) — через поле `points_adjustment` в `stage_teams` (**позже**, см. вопросы). Лидеры игроков/команд (бомбардиры, «лучшие команды») отдельными таблицами **не хранятся**, см. [README](README.md#что-хранится-в-postgresql-а-что-считаем--кэшируем).
+Таблица ведётся только для этапов с `stages.has_standings = true` (`league`, `group`); в плей-офф вместо таблицы — сетка `ties`, у товарищеских таблицы нет. Для `group` строка таблицы привязана к `stage_group_id`; для `league` без групп — NULL. Перенесённые очки (`stage_teams.initial_points`) входят в `points`. Тай-брейки (личные встречи, победы и т.д.) — в `stages.rules`; штрафные очки (если понадобятся) — через поле `points_adjustment` в `stage_teams` (**позже**, см. вопросы). Лидеры игроков/команд (бомбардиры, «лучшие команды») отдельными таблицами **не хранятся**, см. [README](README.md#что-хранится-в-postgresql-а-что-считаем--кэшируем).
 
 ---
 
@@ -483,7 +540,7 @@ erDiagram
 |---------|-----|------------|------------------------------|
 | `model_versions` | да | Версия модели (Poisson v1 → ML позже) | `code` (`poisson_v1`), `version`, `is_active`; нужно, чтобы сравнивать качество моделей и не терять историю |
 | `match_predictions` | да | **Один прогон модели по матчу** — заголовок снимка | `kind`: `pre_match` (обновляется до kickoff) \| `locked` (снимок на kickoff, read-only для live/finished); `is_current` — актуальный для показа (partial unique на матч); `expected_*_goals` — λ Пуассона (ожидаемый тотал на странице); `locked_at`. Старые прогоны **не удаляются**: на них ссылаются picks |
-| `market_types` | да | Справочник рынков (карточка «События») | `code`: `result_1x2`, `total_goals`, `btts`, `double_chance`, `handicap`, `halftime_fulltime`, `total_corners`, `total_yellow_cards`, `total_red_cards`, …; `category`: `results` \| `totals` \| `goals` \| `corners` \| `yellows` \| `reds` \| `handicap` (табы Исходы · Тоталы · Голы · Угловые · ЖК · КК); `period`: `full_time` \| `first_half` \| `second_half`; `subject`: `match` \| `home_team` \| `away_team`; `has_line` — рынок с линией (тотал 2.5); `is_popular` — для сортировки «Популярные» |
+| `market_types` | да | Справочник рынков (карточка «События») | `code`: `result_1x2`, `total_goals`, `btts`, `double_chance`, `handicap`, `halftime_fulltime`, `total_corners`, `total_yellow_cards`, `total_red_cards`, …; `category`: `results` \| `totals` \| `goals` \| `corners` \| `yellows` \| `reds` \| `handicap` (табы Исходы · Тоталы · Голы · Угловые · ЖК · КК); `period`: `full_time` \| `first_half` \| `second_half`; `subject`: `match` \| `home_team` \| `away_team` (позже `tie` — рынок «пройдёт дальше»); `has_line` — рынок с линией (тотал 2.5); `is_popular` — для сортировки «Популярные» |
 | `market_type_outcomes` | да | Допустимые исходы рынка (ключ + русская подпись) | `outcome_key`: `home`/`draw`/`away`, `over`/`under`, `yes`/`no`, `1_1`/`1_X`/… (тайм/матч); UNIQUE (`market_type_id`, `outcome_key`); порядок отображения |
 | `prediction_outcomes` | да | **Вероятность конкретного исхода рынка в конкретном прогоне** — это то, что показывает UI и на что ставят picks | UNIQUE (`match_prediction_id`, `market_type_id`, `line`, `outcome_key`) (`line` NULL → использовать `COALESCE` / `NULLS NOT DISTINCT`); `probability numeric(5,4)`; группа исходов одного рынка в сумме = 1; `is_hit` / `resolved_at` — «зашло / мимо» после финала (для `finished`); строки **неизменяемы** после записи (новый прогон = новый `match_predictions`) |
 | `prediction_scorelines` | да | Сетка точных счетов (0..6 × 0..6) для «возможного счёта» и топ-счетов | UNIQUE (`match_prediction_id`, `home_goals`, `away_goals`); хранить полную сетку или топ-N — решает модель; сумма ≈ 1 |
@@ -640,7 +697,7 @@ erDiagram
 |---------|-----|------------|------------------------------|
 | `source_providers` | да | Источники: парсер сайта, платный API, ручной ввод | `code` (`scraper_xxx`, `api_xxx`, `manual`), `kind`: `scraper` \| `api` \| `manual`; `config` jsonb — базовый URL, лимиты, **без секретов** (секреты — в env) |
 | `competition_sources` | да | Какой провайдер питает какую лигу и в каком приоритете | UNIQUE (`competition_id`, `source_provider_id`); `priority` (меньше — приоритетнее при конфликте), `is_enabled`; `settings` — внешний код лиги, частота опроса. Включение лиги = строка тут + `competitions.status = 'live'` |
-| `external_ids` | да | **Единый маппинг сущностей:** (провайдер, тип сущности, внешний id) → наш `id` | UNIQUE (`source_provider_id`, `entity_type`, `external_id`); индекс (`entity_type`, `entity_id`); `entity_type`: `country` \| `competition` \| `season` \| `stage` \| `round` \| `team` \| `venue` \| `player` \| `coach` \| `referee` \| `match` \| `market_type`; `matched_by`: `auto` \| `manual` \| `alias`; `last_seen_at` — для чистки; `meta` — сырой признак для отладки. Полиморфная связь без FK: целостность проверяет приложение (morph map); при смене источника для той же сущности появляется вторая строка с другим `source_provider_id` |
+| `external_ids` | да | **Единый маппинг сущностей:** (провайдер, тип сущности, внешний id) → наш `id` | UNIQUE (`source_provider_id`, `entity_type`, `external_id`); индекс (`entity_type`, `entity_id`); `entity_type`: `country` \| `competition` \| `season` \| `stage` \| `round` \| `tie` \| `team` \| `venue` \| `player` \| `coach` \| `referee` \| `match` \| `market_type`; `matched_by`: `auto` \| `manual` \| `alias`; `last_seen_at` — для чистки; `meta` — сырой признак для отладки. Полиморфная связь без FK: целостность проверяет приложение (morph map); при смене источника для той же сущности появляется вторая строка с другим `source_provider_id` |
 | `team_aliases` | да | Названия команд для автосопоставления (кириллица/латиница, «Spartak Moscow» / «Спартак») | UNIQUE (`team_id`, `alias`, `source_provider_id`) (провайдер NULL — общий алиас); нормализованная форма (lower, без пробелов/диакритики) считается в коде |
 | `ingestion_runs` | да | Журнал запусков коллектора | `kind`: `schedule` \| `match_stats` \| `lineups` \| `live`; `status`: `running` \| `ok` \| `failed` \| `partial`; `stats` jsonb (создано/обновлено/пропущено); `error`. Для мониторинга и отката, без бизнес-логики |
 
@@ -652,7 +709,7 @@ erDiagram
 
 | Домен | Таблицы |
 |-------|---------|
-| География / соревнования | `countries`, `competitions`, `seasons`, `stages`, `stage_groups`, `stage_teams`, `rounds` |
+| География / соревнования | `countries`, `competitions`, `seasons`, `stages`, `stage_groups`, `stage_teams`, `rounds`, `ties` |
 | Клубы / люди | `teams`, `venues`, `players`, `squad_memberships`, `player_absences`, `coaches`, `referees` |
 | Матчи | `matches`, `match_teams`, `match_lineups`, `match_events`, `match_team_stats`, `match_player_stats` |
 | Таблицы | `standings`, `standing_zones` |
@@ -660,4 +717,4 @@ erDiagram
 | Пользователи | `users`*, `social_accounts`*, `picks`, `leaderboard_entries`, `match_comments` (позже) |
 | Источники | `source_providers`, `competition_sources`, `external_ids`, `team_aliases`, `ingestion_runs` |
 
-\* уже мигрированы. Итого новых таблиц: **37** (из них «позже» — `match_comments`).
+\* уже мигрированы. Итого новых таблиц: **38** (из них «позже» — `match_comments`).
