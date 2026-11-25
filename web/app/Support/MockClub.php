@@ -418,8 +418,10 @@ class MockClub
     }
 
     /** @return array<string, mixed> */
-    private static function fixtureRow(array $m): array
+    private static function fixtureRow(array $m, string $team): array
     {
+        $isHome = $m['venue'] === 'home';
+
         return [
             'tournament' => $m['tournament'],
             'tournament_name' => $m['tournament_name'],
@@ -429,13 +431,19 @@ class MockClub
             'venue' => $m['venue'],
             'opponent' => $m['opponent'],
             'opponent_id' => self::idForName($m['opponent']),
+            'home' => $isHome ? $team : $m['opponent'],
+            'away' => $isHome ? $m['opponent'] : $team,
         ];
     }
 
     /** @return array<string, mixed> */
-    private static function playedRow(array $m): array
+    private static function playedRow(array $m, string $team): array
     {
-        return self::fixtureRow($m) + [
+        $isHome = $m['venue'] === 'home';
+
+        return self::fixtureRow($m, $team) + [
+            'home_score' => $isHome ? $m['gf'] : $m['ga'],
+            'away_score' => $isHome ? $m['ga'] : $m['gf'],
             'gf' => $m['gf'],
             'ga' => $m['ga'],
             'result' => [1 => 'В', 0 => 'Н', -1 => 'П'][$m['gf'] <=> $m['ga']],
@@ -458,8 +466,8 @@ class MockClub
         usort($upcoming, static fn (array $a, array $b) => $key($a) <=> $key($b));
 
         return [
-            'played' => array_map(self::playedRow(...), $played),
-            'upcoming' => array_map(self::fixtureRow(...), $upcoming),
+            'played' => array_map(static fn (array $m) => self::playedRow($m, $team), $played),
+            'upcoming' => array_map(static fn (array $m) => self::fixtureRow($m, $team), $upcoming),
         ];
     }
 

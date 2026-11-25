@@ -56,6 +56,10 @@ class ClubPageTest extends TestCase
                     ->whereType('result', 'string')
                     ->missing('match_id')
                     ->whereType('opponent_id', 'integer')
+                    ->whereType('home', 'string')
+                    ->whereType('away', 'string')
+                    ->whereType('home_score', 'integer')
+                    ->whereType('away_score', 'integer')
                     ->has('tournament')
                     ->has('tournament_name')
                     ->has('stage')
@@ -66,10 +70,14 @@ class ClubPageTest extends TestCase
                     ->whereType('time', 'string')
                     ->missing('match_id')
                     ->whereType('opponent_id', 'integer')
+                    ->whereType('home', 'string')
+                    ->whereType('away', 'string')
                     ->has('tournament')
                     ->has('tournament_name')
                     ->has('stage')
                     ->has('venue')
+                    ->missing('home_score')
+                    ->missing('away_score')
                     ->missing('gf')));
     }
 
@@ -142,6 +150,10 @@ class ClubPageTest extends TestCase
         $this->assertStringNotContainsString('Link', $fixtures);
         $this->assertStringNotContainsString('<a ', $fixtures);
         $this->assertStringNotContainsString('matches.show', $fixtures);
+        $this->assertStringContainsString('{{ m.home }}', $fixtures);
+        $this->assertStringContainsString('{{ m.away }}', $fixtures);
+        $this->assertStringContainsString('{{ m.home_score }} : {{ m.away_score }}', $fixtures);
+        $this->assertStringContainsString('– : –', $fixtures);
     }
 
     public function test_calendar_and_results_props_split_rpl_and_cup_fixtures(): void
@@ -154,10 +166,14 @@ class ClubPageTest extends TestCase
                     ->whereType('date', 'string')
                     ->whereType('time', 'string')
                     ->whereType('opponent_id', 'integer')
+                    ->whereType('home', 'string')
+                    ->whereType('away', 'string')
                     ->has('tournament')
                     ->has('tournament_name')
                     ->has('stage')
                     ->has('venue')
+                    ->missing('home_score')
+                    ->missing('away_score')
                     ->missing('gf')
                     ->missing('result')
                     ->missing('match_id'))
@@ -168,6 +184,10 @@ class ClubPageTest extends TestCase
                     ->whereType('result', 'string')
                     ->whereType('date', 'string')
                     ->whereType('opponent_id', 'integer')
+                    ->whereType('home', 'string')
+                    ->whereType('away', 'string')
+                    ->whereType('home_score', 'integer')
+                    ->whereType('away_score', 'integer')
                     ->has('tournament')
                     ->has('tournament_name')
                     ->has('stage')
@@ -204,9 +224,16 @@ class ClubPageTest extends TestCase
 
             foreach ($results as $m) {
                 $this->assertSame(['В', 'Н', 'П'][1 - ($m['gf'] <=> $m['ga'])], $m['result'], $team);
+                $this->assertSame($m['venue'] === 'home' ? $team : $m['opponent'], $m['home'], $team);
+                $this->assertSame($m['venue'] === 'home' ? $m['opponent'] : $team, $m['away'], $team);
+                $this->assertSame($m['venue'] === 'home' ? $m['gf'] : $m['ga'], $m['home_score'], $team);
+                $this->assertSame($m['venue'] === 'home' ? $m['ga'] : $m['gf'], $m['away_score'], $team);
             }
             foreach ($calendar as $m) {
                 $this->assertContains($m['venue'], ['home', 'away'], $team);
+                $this->assertSame($m['venue'] === 'home' ? $team : $m['opponent'], $m['home'], $team);
+                $this->assertSame($m['venue'] === 'home' ? $m['opponent'] : $team, $m['away'], $team);
+                $this->assertArrayNotHasKey('home_score', $m, $team);
                 $this->assertArrayNotHasKey('gf', $m, $team);
             }
         }
