@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     /** { home: { formation, coach, players[11], substitutes[] }, away: {...} } */
@@ -10,10 +10,19 @@ const props = defineProps({
 
 const LINES = { gk: 'ВРТ', def: 'ЗАЩ', mid: 'ПЗ', fwd: 'НАП' };
 
+const TABS = [
+    { id: 'starters', label: 'Стартовый состав' },
+    { id: 'bench', label: 'Запасные' },
+];
+
+const tab = ref('starters');
+
 const teams = computed(() => [
     { side: 'home', name: props.home, lineup: props.lineups.home },
     { side: 'away', name: props.away, lineup: props.lineups.away },
 ]);
+
+const count = (id) => props.lineups.home[id === 'starters' ? 'players' : 'substitutes']?.length ?? 0;
 </script>
 
 <template>
@@ -23,6 +32,22 @@ const teams = computed(() => [
             <p class="text-[11px] font-medium text-miq-muted">старт · запасные · тренер</p>
         </div>
 
+        <div class="miq-mc-tabs" role="tablist" aria-label="Состав команд">
+            <button
+                v-for="t in TABS"
+                :key="t.id"
+                type="button"
+                role="tab"
+                class="miq-mc-tab"
+                :class="{ 'is-active': tab === t.id }"
+                :aria-selected="tab === t.id"
+                @click="tab = t.id"
+            >
+                {{ t.label }}
+                <span class="miq-mc-tab-count tabular-nums">{{ count(t.id) }}</span>
+            </button>
+        </div>
+
         <div class="miq-mc-squads">
             <div v-for="team in teams" :key="team.side" class="miq-mc-squad" :class="`is-${team.side}`">
                 <div class="miq-mc-squad-head">
@@ -30,8 +55,7 @@ const teams = computed(() => [
                     <span class="text-xs opacity-80">{{ team.lineup.formation }}</span>
                 </div>
 
-                <p class="miq-mc-bench-title">Стартовый состав</p>
-                <ul>
+                <ul v-if="tab === 'starters'" role="tabpanel" aria-label="Стартовый состав">
                     <li v-for="p in team.lineup.players" :key="`s-${p.number}`" class="miq-mc-bench-row">
                         <span class="miq-mc-best-num tabular-nums">{{ p.number }}</span>
                         <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-miq-ink">{{ p.name }}</span>
@@ -42,8 +66,7 @@ const teams = computed(() => [
                     </li>
                 </ul>
 
-                <p class="miq-mc-bench-title">Запасные</p>
-                <ul>
+                <ul v-else role="tabpanel" aria-label="Запасные">
                     <li v-for="p in team.lineup.substitutes" :key="`b-${p.number}`" class="miq-mc-bench-row">
                         <span class="miq-mc-best-num tabular-nums">{{ p.number }}</span>
                         <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-miq-ink">{{ p.name }}</span>

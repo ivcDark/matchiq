@@ -4110,6 +4110,17 @@
         border-top: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
     }
 
+    .miq-mc-tab-count {
+        @apply ml-1 rounded-full px-1.5 py-px text-[10px] font-bold;
+        background: color-mix(in srgb, var(--miq-line) 45%, white);
+        color: var(--miq-muted);
+    }
+
+    .miq-mc-tab.is-active .miq-mc-tab-count {
+        background: var(--miq-lime);
+        color: var(--miq-ink);
+    }
+
     .miq-mc-squads {
         @apply grid grid-cols-1 sm:grid-cols-2;
     }
