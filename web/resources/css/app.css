@@ -3770,6 +3770,345 @@
             transition: none;
         }
     }
+
+    /* Матч live / finished: подменю, хроника, статистика, лучшие, составы */
+    .miq-mc-tabs {
+        @apply flex gap-1 overflow-x-auto px-2;
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+        background: color-mix(in srgb, var(--miq-mist-deep) 45%, white);
+    }
+
+    .miq-mc-tab {
+        @apply relative whitespace-nowrap px-3 py-2.5 text-[13px] font-semibold text-miq-muted transition-colors;
+    }
+
+    .miq-mc-tab:hover {
+        color: var(--miq-ink);
+    }
+
+    .miq-mc-tab:focus-visible {
+        outline: 2px solid var(--miq-pitch);
+        outline-offset: -2px;
+    }
+
+    .miq-mc-tab.is-active {
+        color: var(--miq-ink);
+    }
+
+    .miq-mc-tab.is-active::after {
+        content: '';
+        @apply absolute inset-x-2 bottom-0 h-[3px] rounded-t;
+        background: var(--miq-pitch);
+        box-shadow: 0 -1px 0 var(--miq-lime);
+    }
+
+    .miq-mc-minute-live {
+        @apply mt-1 inline-flex items-center gap-1 text-xs font-bold tabular-nums;
+        color: var(--miq-live);
+    }
+
+    .miq-mc-minute-live::before {
+        content: '';
+        @apply inline-block h-1.5 w-1.5 rounded-full;
+        background: var(--miq-live);
+        animation: miq-mc-pulse 1.4s ease-in-out infinite;
+    }
+
+    .miq-mc-chron {
+        --row-bg: color-mix(in srgb, white 78%, var(--miq-chalk));
+    }
+
+    .miq-mc-chron-row {
+        @apply grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 py-1.5 text-[13px];
+        background: var(--row-bg);
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+        transition: background-color 120ms ease;
+    }
+
+    .miq-mc-chron-row:last-child {
+        border-bottom: 0;
+    }
+
+    .miq-mc-chron-row:nth-child(even) {
+        --row-bg: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-mc-chron-row:hover {
+        background: color-mix(in srgb, var(--miq-lime) 18%, white);
+    }
+
+    .miq-mc-minute {
+        @apply min-w-[2.6rem] rounded px-1.5 py-0.5 text-center text-[11px] font-bold text-white;
+        background: var(--miq-ink);
+    }
+
+    .miq-mc-chron-side {
+        @apply flex min-w-0 flex-col gap-1;
+    }
+
+    .miq-mc-chron-side.is-home {
+        @apply items-end text-right;
+    }
+
+    .miq-mc-event {
+        @apply flex min-w-0 flex-wrap items-center gap-1.5 text-miq-ink-soft;
+    }
+
+    .miq-mc-chron-side.is-home .miq-mc-event {
+        @apply justify-end;
+    }
+
+    .miq-mc-event.is-goal .miq-mc-player {
+        @apply font-bold text-miq-ink;
+    }
+
+    .miq-mc-score {
+        @apply text-xs font-bold;
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-mc-goal {
+        color: var(--miq-pitch);
+        opacity: 1;
+    }
+
+    .miq-mc-assist {
+        @apply inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white;
+        background: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-mc-assist-name {
+        @apply text-xs text-miq-muted;
+    }
+
+    .miq-mc-card {
+        @apply inline-block h-3.5 w-2.5 rounded-[2px];
+    }
+
+    .miq-mc-card.is-yellow,
+    .miq-mc-dot-card.is-yellow {
+        background: var(--miq-card-yellow);
+    }
+
+    .miq-mc-card.is-red,
+    .miq-mc-dot-card.is-red {
+        background: var(--miq-card-red);
+    }
+
+    .miq-mc-arrow {
+        @apply text-sm font-bold leading-none;
+    }
+
+    .miq-mc-arrow.is-in {
+        color: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-mc-arrow.is-out {
+        color: var(--miq-cmp-trail-ink);
+    }
+
+    .miq-mc-out {
+        @apply text-xs text-miq-muted;
+    }
+
+    .miq-mc-stats-head {
+        @apply grid grid-cols-2 gap-3 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider;
+        color: color-mix(in srgb, white 80%, transparent);
+        background: var(--miq-ink);
+    }
+
+    .miq-mc-stats-cols {
+        @apply grid grid-cols-1 lg:grid-cols-2;
+    }
+
+    .miq-mc-stats-col + .miq-mc-stats-col {
+        @apply lg:border-l;
+        border-color: color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-mc-stats-title {
+        @apply px-3.5 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider;
+        color: var(--miq-pitch-deep);
+        background: color-mix(in srgb, var(--miq-pitch) 14%, white);
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-mc-stat-row {
+        @apply grid grid-cols-[4.25rem_minmax(0,1fr)_4.25rem] items-center gap-2 px-3 py-1 text-[13px];
+        background: color-mix(in srgb, white 78%, var(--miq-chalk));
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+        transition: background-color 120ms ease;
+    }
+
+    .miq-mc-stat-row:nth-child(even) {
+        background: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-mc-stat-row:hover {
+        background: color-mix(in srgb, var(--miq-lime) 18%, white);
+    }
+
+    .miq-mc-stat-label {
+        @apply truncate text-center text-xs text-miq-muted;
+    }
+
+    .miq-mc-stat-val {
+        @apply inline-flex min-w-[2.75rem] items-center justify-center justify-self-start rounded-full px-2 py-0.5 text-[13px] font-semibold text-miq-ink-soft;
+    }
+
+    .miq-mc-stat-val.is-away {
+        @apply justify-self-end;
+    }
+
+    .miq-mc-stat-val.is-best {
+        @apply font-bold;
+        color: #fff;
+        background: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-mc-stat-val.is-best.is-away {
+        background: var(--miq-cmp-trail-ink);
+    }
+
+    .miq-mc-best {
+        @apply grid grid-cols-1 sm:grid-cols-2;
+    }
+
+    .miq-mc-best-col + .miq-mc-best-col {
+        @apply sm:border-l;
+        border-color: color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-mc-best-title,
+    .miq-mc-bench-title {
+        @apply px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-white;
+        background: var(--miq-ink);
+    }
+
+    .miq-mc-best-row,
+    .miq-mc-bench-row {
+        @apply flex items-center gap-2 px-3.5 py-1.5;
+        background: color-mix(in srgb, white 78%, var(--miq-chalk));
+        border-bottom: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
+        transition: background-color 120ms ease;
+    }
+
+    .miq-mc-best-row:nth-child(even),
+    .miq-mc-bench-row:nth-child(even) {
+        background: color-mix(in srgb, var(--miq-mist-deep) 40%, white);
+    }
+
+    .miq-mc-best-row:hover,
+    .miq-mc-bench-row:hover {
+        background: color-mix(in srgb, var(--miq-lime) 18%, white);
+    }
+
+    .miq-mc-best-num {
+        @apply w-5 shrink-0 text-center text-xs font-semibold text-miq-muted;
+    }
+
+    .miq-mc-rating {
+        @apply shrink-0 rounded-md px-1.5 py-0.5 text-[13px] font-bold leading-none text-white;
+    }
+
+    .miq-mc-rating.is-high,
+    .miq-mc-dot-rating.is-high {
+        background: #1f7a4c;
+    }
+
+    .miq-mc-rating.is-mid,
+    .miq-mc-dot-rating.is-mid {
+        background: #a16207;
+    }
+
+    .miq-mc-rating.is-low,
+    .miq-mc-dot-rating.is-low {
+        background: #b91c1c;
+    }
+
+    .miq-mc-pitch-wrap {
+        @apply mx-auto w-full max-w-[34rem];
+    }
+
+    .miq-mc-pitch-team {
+        @apply flex items-center gap-2 px-3.5 py-2 text-sm;
+        background: color-mix(in srgb, var(--miq-mist-deep) 45%, white);
+    }
+
+    .miq-mc-pitch {
+        @apply relative w-full overflow-hidden;
+        aspect-ratio: 3 / 4.1;
+        background: repeating-linear-gradient(
+            0deg,
+            color-mix(in srgb, var(--miq-pitch) 88%, white) 0 8.33%,
+            var(--miq-pitch) 8.33% 16.66%
+        );
+    }
+
+    .miq-mc-pitch-mid {
+        @apply absolute inset-x-0 top-1/2 h-px bg-white/55;
+    }
+
+    .miq-mc-pitch-circle {
+        @apply absolute left-1/2 top-1/2 h-[22%] w-[29%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/55;
+    }
+
+    .miq-mc-pitch-box {
+        @apply absolute left-[22%] right-[22%] h-[13%] border border-white/55;
+    }
+
+    .miq-mc-pitch-box.is-top {
+        @apply top-0 border-t-0;
+    }
+
+    .miq-mc-pitch-box.is-bottom {
+        @apply bottom-0 border-b-0;
+    }
+
+    .miq-mc-player-dot {
+        @apply absolute flex w-[18%] -translate-x-1/2 -translate-y-1/2 flex-col items-center;
+    }
+
+    .miq-mc-dot {
+        @apply relative flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-[11px] font-bold text-white sm:h-8 sm:w-8;
+        box-shadow: 0 1px 3px color-mix(in srgb, var(--miq-ink) 40%, transparent);
+    }
+
+    .miq-mc-dot.is-home {
+        background: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-mc-dot.is-away {
+        background: var(--miq-cmp-trail-ink);
+    }
+
+    .miq-mc-dot-rating {
+        @apply absolute -bottom-2 left-1/2 -translate-x-1/2 rounded px-1 text-[9px] font-bold leading-[13px] text-white;
+    }
+
+    .miq-mc-dot-badge {
+        @apply absolute -right-2 -top-1.5 rounded-full bg-white px-0.5 text-[9px] font-bold leading-[14px];
+        color: var(--miq-ink);
+    }
+
+    .miq-mc-dot-card {
+        @apply absolute -left-1.5 -top-1 h-2.5 w-2 rounded-[1px];
+    }
+
+    .miq-mc-dot-sub {
+        @apply absolute -left-2 bottom-0 text-[11px] font-bold leading-none;
+        color: #ffd2c4;
+    }
+
+    .miq-mc-dot-name {
+        @apply mt-2.5 max-w-full truncate text-[10px] font-semibold text-white sm:text-[11px];
+        text-shadow: 0 1px 2px color-mix(in srgb, var(--miq-ink) 70%, transparent);
+    }
+
+    .miq-mc-bench {
+        @apply grid grid-cols-1 sm:grid-cols-2;
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
 }
 
 @layer utilities {
@@ -3806,6 +4145,10 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+@keyframes miq-mc-pulse {
+    50% { opacity: 0.25; }
 }
 
 @keyframes miq-fade {

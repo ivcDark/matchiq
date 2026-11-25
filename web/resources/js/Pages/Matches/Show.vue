@@ -1,6 +1,10 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
+import MatchBestPlayers from '@/Components/MatchBestPlayers.vue';
+import MatchChronicle from '@/Components/MatchChronicle.vue';
+import MatchLineups from '@/Components/MatchLineups.vue';
 import MatchStatIcon from '@/Components/MatchStatIcon.vue';
+import MatchStatRows from '@/Components/MatchStatRows.vue';
 import PlayerAvatar from '@/Components/PlayerAvatar.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
@@ -54,6 +58,8 @@ const props = defineProps({
         default: () => ({ averages: null, ht_ft: [], halves: [] }),
     },
     comments: { type: Array, default: () => [] },
+    /** Только live / finished: { minute, events, stats, best_players, lineups }; у предстоящих — null */
+    matchCenter: { type: Object, default: null },
     /** Статистика судьи за сезон: { name, place, season, tabs, samples } */
     refereeStats: {
         type: Object,
@@ -182,6 +188,14 @@ const backHref = computed(() => {
     }
     return route('matches.index');
 });
+
+const centerTabs = [
+    { id: 'summary', label: 'Сводка' },
+    { id: 'stats', label: 'Статистика' },
+    { id: 'analytics', label: 'Прогноз и аналитика' },
+];
+const centerTab = ref('summary');
+const showAnalytics = computed(() => !props.matchCenter || centerTab.value === 'analytics');
 
 const pickClosed = computed(() => {
     const status = props.match?.status;
@@ -830,6 +844,15 @@ function loginHref() {
                             >
                                 vs
                             </p>
+                            <p v-if="match.status === 'live' && match.minute" class="miq-mc-minute-live">
+                                {{ match.minute }}'
+                            </p>
+                            <p
+                                v-else-if="match.status === 'finished'"
+                                class="mt-1 text-[11px] font-bold uppercase tracking-wider text-miq-muted"
+                            >
+                                Матч завершён
+                            </p>
                             <p class="mt-1.5 text-xs font-medium tabular-nums text-miq-ink-soft sm:text-sm">
                                 {{ formatKickoff(match.kickoff_at) }}
                             </p>
@@ -881,6 +904,48 @@ function loginHref() {
                 </div>
             </section>
 
+            <!-- Live / finished: подменю + сводка / статистика -->
+            <template v-if="matchCenter">
+                <div class="miq-panel animate-miq-fade-up" style="animation-delay: 50ms">
+                    <div class="miq-mc-tabs" role="tablist" aria-label="Разделы матча">
+                        <button
+                            v-for="tab in centerTabs"
+                            :key="tab.id"
+                            type="button"
+                            role="tab"
+                            class="miq-mc-tab"
+                            :class="{ 'is-active': centerTab === tab.id }"
+                            :aria-selected="centerTab === tab.id"
+                            @click="centerTab = tab.id"
+                        >
+                            {{ tab.label }}
+                        </button>
+                    </div>
+                </div>
+
+                <template v-if="centerTab === 'summary'">
+                    <MatchChronicle :events="matchCenter.events" :live="match.status === 'live'" />
+                    <MatchBestPlayers
+                        :players="matchCenter.best_players"
+                        :home="match.home"
+                        :away="match.away"
+                    />
+                    <MatchLineups
+                        :lineups="matchCenter.lineups"
+                        :home="match.home"
+                        :away="match.away"
+                    />
+                </template>
+
+                <MatchStatRows
+                    v-else-if="centerTab === 'stats'"
+                    :sections="matchCenter.stats"
+                    :home="match.home"
+                    :away="match.away"
+                />
+            </template>
+
+            <template v-if="showAnalytics">
             <!-- 2. Forecast 1X2 + correct score -->
             <section
                 v-if="forecast"
@@ -2178,6 +2243,8 @@ function loginHref() {
                     </div>
                 </article>
             </section>
+
+            </template>
 
             <!-- 10. Comments -->
             <section class="miq-panel" aria-label="Комментарии">

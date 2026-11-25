@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Support\MockClub;
+use App\Support\MockMatchCenter;
 use App\Support\MockTournament;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -207,6 +208,7 @@ class MatchController extends Controller
             'goalProfile' => $detail['goalProfile'],
             'refereeStats' => $detail['refereeStats'],
             'comments' => $detail['comments'],
+            'matchCenter' => $detail['matchCenter'],
             'userPickEventId' => null,
             'returnLeague' => is_string($returnLeague) && $returnLeague !== '' ? $returnLeague : null,
         ]);
@@ -241,6 +243,7 @@ class MatchController extends Controller
             'referee' => $meta['referee'],
             'round' => $meta['round'],
             'weather' => $this->demoWeather($id, $league['id'] ?? 'rpl'),
+            'minute' => $isLive ? MockMatchCenter::LIVE_MINUTE : null,
         ]);
 
         $markets = $this->demoMarketsForMatch($id, $status, $match);
@@ -278,6 +281,7 @@ class MatchController extends Controller
             ),
             'refereeStats' => $this->demoRefereeStats($meta['referee'], $id),
             'comments' => $this->demoComments($home, $away, $id, $isFinished || $isLive),
+            'matchCenter' => MockMatchCenter::build($match),
         ];
     }
 
