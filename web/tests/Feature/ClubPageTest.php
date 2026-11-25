@@ -54,7 +54,7 @@ class ClubPageTest extends TestCase
                     ->whereType('date', 'string')
                     ->whereType('time', 'string')
                     ->whereType('result', 'string')
-                    ->where('match_id', null)
+                    ->missing('match_id')
                     ->whereType('opponent_id', 'integer')
                     ->has('tournament')
                     ->has('tournament_name')
@@ -64,7 +64,7 @@ class ClubPageTest extends TestCase
                     ->whereType('opponent', 'string')
                     ->whereType('date', 'string')
                     ->whereType('time', 'string')
-                    ->where('match_id', null)
+                    ->missing('match_id')
                     ->whereType('opponent_id', 'integer')
                     ->has('tournament')
                     ->has('tournament_name')
@@ -119,10 +119,97 @@ class ClubPageTest extends TestCase
         $this->assertStringContainsString('<ClubLastNext :last="last_match" :next="next_match"', $show);
 
         $component = file_get_contents(resource_path('js/Components/ClubLastNext.vue'));
-        $this->assertStringContainsString("route('matches.show', last.match_id)", $component);
-        $this->assertStringContainsString("route('matches.show', next.match_id)", $component);
+        $this->assertStringNotContainsString('matches.show', $component);
+        $this->assertStringNotContainsString('Link', $component);
+        $this->assertStringNotContainsString('match_id', $component);
         $this->assertStringNotContainsString('context', $component);
         $this->assertStringNotContainsString('tournament.value', $component);
+    }
+
+    public function test_club_nav_has_only_summary_calendar_results_without_statistics_tab(): void
+    {
+        $show = file_get_contents(resource_path('js/Pages/Clubs/Show.vue'));
+        $this->assertStringContainsString("{ id: 'summary', label: 'Сводка' }", $show);
+        $this->assertStringContainsString("{ id: 'calendar', label: 'Календарь' }", $show);
+        $this->assertStringContainsString("{ id: 'results', label: 'Результаты' }", $show);
+        $this->assertStringNotContainsString("id: 'stats'", $show);
+        $this->assertStringNotContainsString("label: 'Статистика'", $show);
+        $this->assertStringNotContainsString('PLACEHOLDERS', $show);
+        $this->assertStringContainsString('<ClubFixtures title="Календарь" mode="calendar" :matches="calendar"', $show);
+        $this->assertStringContainsString('<ClubFixtures title="Результаты" mode="results" :matches="results"', $show);
+
+        $fixtures = file_get_contents(resource_path('js/Components/ClubFixtures.vue'));
+        $this->assertStringNotContainsString('Link', $fixtures);
+        $this->assertStringNotContainsString('<a ', $fixtures);
+        $this->assertStringNotContainsString('matches.show', $fixtures);
+    }
+
+    public function test_calendar_and_results_props_split_rpl_and_cup_fixtures(): void
+    {
+        $this->get('/clubs/1')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('calendar', 17, fn ($m) => $m
+                    ->whereType('opponent', 'string')
+                    ->whereType('date', 'string')
+                    ->whereType('time', 'string')
+                    ->whereType('opponent_id', 'integer')
+                    ->has('tournament')
+                    ->has('tournament_name')
+                    ->has('stage')
+                    ->has('venue')
+                    ->missing('gf')
+                    ->missing('result')
+                    ->missing('match_id'))
+                ->has('results', 19, fn ($m) => $m
+                    ->whereType('opponent', 'string')
+                    ->whereType('gf', 'integer')
+                    ->whereType('ga', 'integer')
+                    ->whereType('result', 'string')
+                    ->whereType('date', 'string')
+                    ->whereType('opponent_id', 'integer')
+                    ->has('tournament')
+                    ->has('tournament_name')
+                    ->has('stage')
+                    ->has('venue')
+                    ->has('time')
+                    ->missing('match_id')));
+    }
+
+    public function test_calendar_is_ascending_upcoming_and_results_descending_played_for_every_club(): void
+    {
+        foreach (MockClub::TEAMS as $id => $team) {
+            $data = MockClub::find($id);
+            $calendar = $data['calendar'];
+            $results = $data['results'];
+
+            $rpl = collect(MockTournament::teamFixtures($team));
+            $this->assertCount($rpl->whereNull('gf')->count() + 2, $calendar, "$team: календарь = 15 туров РПЛ + 2 тура Кубка");
+            $this->assertCount($rpl->whereNotNull('gf')->count() + 4, $results, "$team: результаты = 15 туров РПЛ + 4 тура Кубка");
+
+            $when = static fn (array $m): string => $m['date'].' '.$m['time'];
+            $dates = array_map($when, $calendar);
+            $sorted = $dates;
+            sort($sorted);
+            $this->assertSame($sorted, $dates, "$team: календарь по возрастанию даты");
+            $dates = array_map($when, $results);
+            $sorted = $dates;
+            rsort($sorted);
+            $this->assertSame($sorted, $dates, "$team: результаты по убыванию даты");
+            $this->assertLessThan($when($calendar[0]), $when($results[0]), "$team: сыгранные раньше предстоящих");
+
+            $this->assertEquals($data['next_match'], $calendar[0], $team);
+            $this->assertEquals($data['last_match'], $results[0], $team);
+            $this->assertSame(['cup', 'rpl'], collect([...$calendar, ...$results])->pluck('tournament')->unique()->sort()->values()->all(), $team);
+
+            foreach ($results as $m) {
+                $this->assertSame(['В', 'Н', 'П'][1 - ($m['gf'] <=> $m['ga'])], $m['result'], $team);
+            }
+            foreach ($calendar as $m) {
+                $this->assertContains($m['venue'], ['home', 'away'], $team);
+                $this->assertArrayNotHasKey('gf', $m, $team);
+            }
+        }
     }
 
     public function test_goals_block_has_opened_scoring_market_instead_of_scored(): void

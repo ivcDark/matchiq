@@ -157,7 +157,7 @@ class MockClub
             $goals[self::ALL_KEY][$context] = self::goalSplit([...$rpl, ...$cup], $team, self::ALL_KEY);
         }
 
-        [$lastMatch, $nextMatch] = self::lastAndNext($id, $team);
+        $fixtures = self::playedAndUpcoming($id, $team);
 
         return [
             'club' => [
@@ -176,8 +176,10 @@ class MockClub
                 ['key' => self::CUP_KEY, 'name' => 'Кубок России'],
                 ['key' => self::ALL_KEY, 'name' => 'Все матчи'],
             ],
-            'last_match' => $lastMatch,
-            'next_match' => $nextMatch,
+            'last_match' => $fixtures['played'][0] ?? null,
+            'next_match' => $fixtures['upcoming'][0] ?? null,
+            'calendar' => $fixtures['upcoming'],
+            'results' => $fixtures['played'],
             'stats' => self::statsTable($team, $rows, $cupMatches),
             'goals' => $goals,
             'players' => $players,
@@ -236,9 +238,9 @@ class MockClub
     // ───────────────────────── Кубок России ─────────────────────────
 
     /**
-     * Сыгранные матчи групп (туры 1–4) и ближайший тур: те же результаты при каждом запросе.
+     * Сыгранные матчи групп (туры 1–4), ближайший тур 5 и оставшиеся туры (`later`, для календаря клуба): те же результаты при каждом запросе.
      *
-     * @return array{played: list<array<string, mixed>>, next: list<array<string, mixed>>, groups: array<string, list<string>>}
+     * @return array{played: list<array<string, mixed>>, next: list<array<string, mixed>>, later: list<array<string, mixed>>, groups: array<string, list<string>>}
      */
     private static function cupFixtures(): array
     {
@@ -248,6 +250,7 @@ class MockClub
 
         $played = [];
         $next = [];
+        $later = [];
         $groups = [];
         foreach (self::CUP_GROUPS as $letter => $ids) {
             $groups[$letter] = array_map(static fn (int $id) => self::TEAMS[$id], $ids);
@@ -263,12 +266,14 @@ class MockClub
                         ];
                     } elseif ($round === self::CUP_ROUNDS_PLAYED + 1) {
                         $next[] = $fixture;
+                    } else {
+                        $later[] = $fixture;
                     }
                 }
             }
         }
 
-        return self::$cupCache = ['played' => $played, 'next' => $next, 'groups' => $groups];
+        return self::$cupCache = ['played' => $played, 'next' => $next, 'later' => $later, 'groups' => $groups];
     }
 
     private static function cupGoals(string $seed): int
@@ -387,17 +392,15 @@ class MockClub
         return Carbon::create($startYear + 1, 3, 4)->addWeeks($round - self::CUP_ROUNDS_PLAYED - 1);
     }
 
-    // ───────────────────────── Последний и следующий матч ─────────────────────────
+    // ───────────────────────── Последний и следующий матч, календарь, результаты ─────────────────────────
 
     /**
-     * Последний сыгранный и ближайший несыгранный матч клуба по всем турнирам (РПЛ + Кубок России),
-     * независимо от фильтров страницы. Источник: матчи `MockTournament::teamFixtures` и группа Кубка (`cupFixtures`).
-     * Сыгранный — тот, у которого есть счёт; последний = самый поздний по дате, следующий = самый ранний по дате.
-     * У матчей в моках нет id страницы `/matches/{id}`, поэтому `match_id` = null (ссылки нет).
+     * Все матчи клуба по всем турнирам (РПЛ + Кубок России): сыгранные — со счётом, остальные — без.
+     * Единый источник для «Последний/следующий матч», календаря и результатов. Ссылок на страницу матча нет.
      *
-     * @return array{0: ?array<string, mixed>, 1: ?array<string, mixed>}
+     * @return list<array<string, mixed>>
      */
-    private static function lastAndNext(int $id, string $team): array
+    private static function clubFixtures(int $id, string $team): array
     {
         $fixtures = [];
         foreach (MockTournament::teamFixtures($team) as $m) {
@@ -411,7 +414,13 @@ class MockClub
             $fixtures[] = $m + ['tournament' => self::CUP_KEY, 'tournament_name' => 'Кубок России'];
         }
 
-        $format = static fn (array $m): array => [
+        return $fixtures;
+    }
+
+    /** @return array<string, mixed> */
+    private static function fixtureRow(array $m): array
+    {
+        return [
             'tournament' => $m['tournament'],
             'tournament_name' => $m['tournament_name'],
             'stage' => $m['stage'],
@@ -420,25 +429,37 @@ class MockClub
             'venue' => $m['venue'],
             'opponent' => $m['opponent'],
             'opponent_id' => self::idForName($m['opponent']),
-            'match_id' => null,
         ];
+    }
 
+    /** @return array<string, mixed> */
+    private static function playedRow(array $m): array
+    {
+        return self::fixtureRow($m) + [
+            'gf' => $m['gf'],
+            'ga' => $m['ga'],
+            'result' => [1 => 'В', 0 => 'Н', -1 => 'П'][$m['gf'] <=> $m['ga']],
+        ];
+    }
+
+    /**
+     * Сыгранные матчи (есть счёт) по убыванию даты и предстоящие по возрастанию, по всем турнирам клуба.
+     * Последний матч = первый из сыгранных, следующий = первый из предстоящих.
+     *
+     * @return array{played: list<array<string, mixed>>, upcoming: list<array<string, mixed>>}
+     */
+    private static function playedAndUpcoming(int $id, string $team): array
+    {
+        $fixtures = self::clubFixtures($id, $team);
         $key = static fn (array $m): string => $m['date'].' '.$m['time'];
         $played = array_values(array_filter($fixtures, static fn (array $m) => $m['gf'] !== null));
         $upcoming = array_values(array_filter($fixtures, static fn (array $m) => $m['gf'] === null));
         usort($played, static fn (array $a, array $b) => $key($b) <=> $key($a));
         usort($upcoming, static fn (array $a, array $b) => $key($a) <=> $key($b));
 
-        $last = $played[0] ?? null;
-        $next = $upcoming[0] ?? null;
-
         return [
-            $last === null ? null : $format($last) + [
-                'gf' => $last['gf'],
-                'ga' => $last['ga'],
-                'result' => [1 => 'В', 0 => 'Н', -1 => 'П'][$last['gf'] <=> $last['ga']],
-            ],
-            $next === null ? null : $format($next),
+            'played' => array_map(self::playedRow(...), $played),
+            'upcoming' => array_map(self::fixtureRow(...), $upcoming),
         ];
     }
 

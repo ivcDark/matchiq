@@ -1,12 +1,11 @@
 <script setup>
 import { shortDate } from '@/lib/matchDates';
-import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const props = defineProps({
-    /** { tournament, tournament_name, stage, date, time, venue, opponent, opponent_id, match_id, gf, ga, result } | null */
+    /** { tournament, tournament_name, stage, date, time, venue, opponent, opponent_id, gf, ga, result } | null */
     last: { type: Object, default: null },
-    /** { tournament, tournament_name, stage, date, time, venue, opponent, opponent_id, match_id } | null */
+    /** { tournament, tournament_name, stage, date, time, venue, opponent, opponent_id } | null */
     next: { type: Object, default: null },
     team: { type: String, required: true },
 });
@@ -34,16 +33,11 @@ const pair = (match) => (match.venue === 'home' ? [props.team, match.opponent] :
                 <template v-if="last">
                     <p class="miq-club-ln-main">
                         <span class="miq-form-chip" :class="RESULT_CLASSES[last.result]" :title="RESULT_TITLES[last.result]">{{ last.result }}</span>
-                        <component
-                            :is="last.match_id ? Link : 'span'"
-                            v-bind="last.match_id ? { href: route('matches.show', last.match_id) } : {}"
-                            class="miq-club-ln-teams"
-                            :class="{ 'miq-club-link': last.match_id }"
-                        >
+                        <span class="miq-club-ln-teams">
                             {{ pair(last)[0] }}
                             <span class="num-display miq-club-ln-score">{{ lastScore }}</span>
                             {{ pair(last)[1] }}
-                        </component>
+                        </span>
                     </p>
                     <p class="miq-club-ln-meta">
                         {{ shortDate(last.date) }} · {{ last.tournament_name }} · {{ last.stage }} ·
@@ -58,14 +52,7 @@ const pair = (match) => (match.venue === 'home' ? [props.team, match.opponent] :
                 <template v-if="next">
                     <p class="miq-club-ln-main">
                         <span class="miq-club-ln-venue" :title="next.venue === 'home' ? 'Дома' : 'В гостях'">{{ next.venue === 'home' ? 'дома' : 'в гостях' }}</span>
-                        <component
-                            :is="next.match_id ? Link : 'span'"
-                            v-bind="next.match_id ? { href: route('matches.show', next.match_id) } : {}"
-                            class="miq-club-ln-teams"
-                            :class="{ 'miq-club-link': next.match_id }"
-                        >
-                            {{ pair(next)[0] }} — {{ pair(next)[1] }}
-                        </component>
+                        <span class="miq-club-ln-teams">{{ pair(next)[0] }} — {{ pair(next)[1] }}</span>
                     </p>
                     <p class="miq-club-ln-meta">
                         {{ shortDate(next.date) }}, {{ next.time }} · {{ next.tournament_name }} · {{ next.stage }}

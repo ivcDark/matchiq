@@ -1,6 +1,7 @@
 <script setup>
 import ClubBestPlayers from '@/Components/ClubBestPlayers.vue';
 import ClubCupStatus from '@/Components/ClubCupStatus.vue';
+import ClubFixtures from '@/Components/ClubFixtures.vue';
 import ClubGoalsSplit from '@/Components/ClubGoalsSplit.vue';
 import ClubLastNext from '@/Components/ClubLastNext.vue';
 import ClubPlayersTable from '@/Components/ClubPlayersTable.vue';
@@ -20,6 +21,8 @@ const props = defineProps({
     tournaments: { type: Array, default: () => [] },
     last_match: { type: Object, default: null },
     next_match: { type: Object, default: null },
+    calendar: { type: Array, default: () => [] },
+    results: { type: Array, default: () => [] },
     stats: { type: Object, required: true },
     goals: { type: Object, required: true },
     players: { type: Object, required: true },
@@ -29,15 +32,8 @@ const SECTIONS = [
     { id: 'summary', label: 'Сводка' },
     { id: 'calendar', label: 'Календарь' },
     { id: 'results', label: 'Результаты' },
-    { id: 'stats', label: 'Статистика' },
 ];
 const DEFAULT_SECTION = SECTIONS[0].id;
-
-const PLACEHOLDERS = {
-    calendar: 'Календарь матчей клуба появится позже.',
-    results: 'Результаты сыгранных матчей клуба появятся позже.',
-    stats: 'Расширенная статистика клуба появится позже.',
-};
 
 function sectionFromHash() {
     if (typeof window === 'undefined') {
@@ -123,13 +119,16 @@ const tablesStats = computed(() => props.stats[context.value]);
             </div>
 
             <div
-                v-else
-                :id="`club-panel-${section}`"
-                class="miq-panel"
+                v-else-if="section === 'calendar'"
+                id="club-panel-calendar"
                 role="tabpanel"
-                :aria-labelledby="`club-tab-${section}`"
+                aria-labelledby="club-tab-calendar"
             >
-                <p class="miq-club-placeholder">{{ PLACEHOLDERS[section] }}</p>
+                <ClubFixtures title="Календарь" mode="calendar" :matches="calendar" empty-text="Предстоящих матчей нет." />
+            </div>
+
+            <div v-else id="club-panel-results" role="tabpanel" aria-labelledby="club-tab-results">
+                <ClubFixtures title="Результаты" mode="results" :matches="results" empty-text="Сыгранных матчей пока нет." />
             </div>
         </div>
     </AppLayout>
