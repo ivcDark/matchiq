@@ -4109,6 +4109,33 @@
         @apply grid grid-cols-1 sm:grid-cols-2;
         border-top: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
     }
+
+    .miq-mc-squads {
+        @apply grid grid-cols-1 sm:grid-cols-2;
+    }
+
+    .miq-mc-squad + .miq-mc-squad {
+        @apply border-t sm:border-l sm:border-t-0;
+        border-color: color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
+    .miq-mc-squad-head {
+        @apply flex items-center justify-between gap-2 px-3.5 py-2 text-sm text-white;
+        background: var(--miq-cmp-lead-ink);
+    }
+
+    .miq-mc-squad.is-away .miq-mc-squad-head {
+        background: var(--miq-cmp-trail-ink);
+    }
+
+    .miq-mc-squad-line {
+        @apply w-8 shrink-0 text-right text-[10px] font-semibold uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-mc-squad-coach {
+        @apply px-3.5 py-2 text-[13px] font-semibold text-miq-ink;
+        background: color-mix(in srgb, white 78%, var(--miq-chalk));
+    }
 }
 
 @layer utilities {

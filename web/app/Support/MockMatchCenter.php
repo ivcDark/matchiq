@@ -35,6 +35,26 @@ class MockMatchCenter
     ];
 
     /**
+     * Дальние запасные (вратарь, защитник, полузащитник, нападающий) и главный тренер.
+     *
+     * @var array<string, array{coach: string, reserves: list<string>}>
+     */
+    private const STAFF = [
+        'ЦСКА' => ['coach' => 'Ф. Челестини', 'reserves' => ['В. Червяков', 'Д. Глушенков', 'К. Кисляков', 'Я. Хаккарайнен']],
+        'Динамо' => ['coach' => 'В. Карпин', 'reserves' => ['А. Шунин', 'В. Тюкавин', 'Д. Гарсия', 'Э. Кахриманович']],
+        'Торпедо' => ['coach' => 'И. Черевченко', 'reserves' => ['Д. Мирошниченко', 'Р. Рыков', 'А. Сергеев', 'Н. Дорохов']],
+        'Динамо Мх' => ['coach' => 'Х. Гаджиев', 'reserves' => ['Р. Гусейнов', 'Т. Муртазалиев', 'А. Алиев', 'Ш. Ахмедов']],
+        'Пари НН' => ['coach' => 'С. Нерестюк', 'reserves' => ['Е. Вялов', 'М. Коротков', 'Д. Власов', 'К. Дроздов']],
+        'Факел' => ['coach' => 'Р. Шарипов', 'reserves' => ['М. Волков', 'А. Козлов', 'Н. Романов', 'Д. Соколов']],
+        'Оренбург' => ['coach' => 'В. Слышков', 'reserves' => ['А. Бобров', 'И. Власов', 'Е. Сидоров', 'М. Рыбаков']],
+        'Химки' => ['coach' => 'С. Потапов', 'reserves' => ['Н. Васильев', 'К. Орлов', 'А. Ермаков', 'Д. Назаров']],
+        'Inter' => ['coach' => 'К. Киву', 'reserves' => ['Ю. Мартинес', 'А. Ауровер', 'Р. Фрозиннони', 'А. Коррея']],
+        'Arsenal' => ['coach' => 'М. Артета', 'reserves' => ['К. Хэнкок', 'Б. Уайт мл.', 'Э. Смит-Роу', 'Л. Мартинелли']],
+    ];
+
+    private const RESERVE_SHIRTS = [13, 15, 17, 22];
+
+    /**
      * @param  array<string, mixed>  $match  демо-матч (id, home, away, status, score_home, score_away)
      * @return array<string, mixed>|null
      */
@@ -82,7 +102,7 @@ class MockMatchCenter
     }
 
     /**
-     * @return array{formation: string, players: list<array{number: int, name: string, line: string}>, bench: list<array{number: int, name: string, line: string}>}
+     * @return array{formation: string, players: list<array{number: int, name: string, line: string}>, bench: list<array{number: int, name: string, line: string}>, reserves: list<array{number: int, name: string, line: string}>, coach: string}
      */
     private static function squad(string $team, int $seed, string $side): array
     {
@@ -111,7 +131,23 @@ class MockMatchCenter
             $bench[] = ['number' => self::SHIRTS[$i], 'name' => $names[$i], 'line' => ['mid', 'fwd', 'def'][$k]];
         }
 
-        return ['formation' => $formation, 'players' => $players, 'bench' => $bench];
+        $staff = self::STAFF[$team] ?? null;
+        $reserves = [];
+        foreach (['gk', 'def', 'mid', 'fwd'] as $k => $line) {
+            $reserves[] = [
+                'number' => self::RESERVE_SHIRTS[$k],
+                'name' => $staff['reserves'][$k] ?? 'Запасной '.($k + 1),
+                'line' => $line,
+            ];
+        }
+
+        return [
+            'formation' => $formation,
+            'players' => $players,
+            'bench' => $bench,
+            'reserves' => $reserves,
+            'coach' => $staff['coach'] ?? 'Главный тренер',
+        ];
     }
 
     /**
@@ -288,8 +324,26 @@ class MockMatchCenter
                 }
             }
 
+            $substitutes = [];
+            foreach (array_merge($squads[$side]['bench'], $squads[$side]['reserves']) as $p) {
+                $subIn = null;
+                foreach ($events as $e) {
+                    if ($e['side'] === $side && $e['type'] === 'sub' && $e['player_in'] === $p['name']) {
+                        $subIn = $e['minute'];
+                    }
+                }
+                $substitutes[] = [
+                    'number' => $p['number'],
+                    'name' => $p['name'],
+                    'line' => $p['line'],
+                    'sub_in' => $subIn,
+                ];
+            }
+
             $played = array_merge($rows, $bench);
             $result[$side] = [
+                'coach' => $squads[$side]['coach'],
+                'substitutes' => $substitutes,
                 'formation' => $squads[$side]['formation'],
                 'rating' => round(array_sum(array_column($rows, 'rating')) / count($rows), 2),
                 'players' => $rows,

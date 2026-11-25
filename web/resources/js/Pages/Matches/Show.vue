@@ -3,6 +3,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import MatchBestPlayers from '@/Components/MatchBestPlayers.vue';
 import MatchChronicle from '@/Components/MatchChronicle.vue';
 import MatchLineups from '@/Components/MatchLineups.vue';
+import MatchSquads from '@/Components/MatchSquads.vue';
 import MatchStatIcon from '@/Components/MatchStatIcon.vue';
 import MatchStatRows from '@/Components/MatchStatRows.vue';
 import PlayerAvatar from '@/Components/PlayerAvatar.vue';
@@ -192,7 +193,7 @@ const backHref = computed(() => {
 const centerTabs = [
     { id: 'summary', label: 'Сводка' },
     { id: 'stats', label: 'Статистика' },
-    { id: 'analytics', label: 'Прогноз и аналитика' },
+    { id: 'analytics', label: 'Прогноз' },
 ];
 const centerTab = ref('summary');
 const showAnalytics = computed(() => !props.matchCenter || centerTab.value === 'analytics');
@@ -935,6 +936,11 @@ function loginHref() {
                         :home="match.home"
                         :away="match.away"
                     />
+                    <MatchSquads
+                        :lineups="matchCenter.lineups"
+                        :home="match.home"
+                        :away="match.away"
+                    />
                 </template>
 
                 <MatchStatRows
@@ -1188,11 +1194,11 @@ function loginHref() {
                                         <p class="miq-outcome-meta">
                                             <span>выбрали {{ outcome.popular_pct }}%</span>
                                             <span
-                                                v-if="outcome.hit === true"
+                                                v-if="!matchCenter && outcome.hit === true"
                                                 class="miq-outcome-hit is-yes"
                                             >· зашло</span>
                                             <span
-                                                v-else-if="outcome.hit === false"
+                                                v-else-if="!matchCenter && outcome.hit === false"
                                                 class="miq-outcome-hit"
                                             >· мимо</span>
                                         </p>
@@ -1225,6 +1231,8 @@ function loginHref() {
                     Вероятности пока считаются
                 </div>
             </section>
+
+            <template v-if="!matchCenter">
 
             <!-- Trends / streaks -->
             <section
@@ -2243,6 +2251,8 @@ function loginHref() {
                     </div>
                 </article>
             </section>
+
+            </template>
 
             </template>
 

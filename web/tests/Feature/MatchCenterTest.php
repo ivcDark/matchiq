@@ -62,6 +62,9 @@ class MatchCenterTest extends TestCase
                 ->has('matchCenter.best_players.away', 3)
                 ->has('matchCenter.lineups.home.players', 11)
                 ->has('matchCenter.lineups.away.players', 11)
+                ->has('matchCenter.lineups.home.substitutes', 7)
+                ->has('matchCenter.lineups.away.substitutes', 7)
+                ->where('matchCenter.lineups.home.coach', 'Ф. Челестини')
                 ->has('forecast'));
     }
 
@@ -152,7 +155,33 @@ class MatchCenterTest extends TestCase
             $this->assertSame(10, array_sum(array_map('intval', explode('-', $lineup['formation']))));
             $this->assertSame('gk', $lineup['players'][0]['line']);
             $this->assertGreaterThan(4, $lineup['rating']);
+
+            $this->assertNotSame('', $lineup['coach']);
+            $this->assertCount(7, $lineup['substitutes']);
+            $this->assertSame(['gk'], array_values(array_unique(array_column(
+                array_filter($lineup['substitutes'], fn (array $p): bool => $p['line'] === 'gk'),
+                'line',
+            ))));
+
+            $starters = array_column($lineup['players'], 'name');
+            $bench = array_column($lineup['substitutes'], 'name');
+            $this->assertSame([], array_intersect($starters, $bench), 'Запасные не пересекаются со стартовым составом.');
+            $this->assertCount(18, array_unique(array_merge($starters, $bench)));
+
+            $numbers = array_merge(array_column($lineup['players'], 'number'), array_column($lineup['substitutes'], 'number'));
+            $this->assertCount(count($numbers), array_unique($numbers), 'Номера не повторяются.');
+
+            $cameOn = array_column(array_filter($lineup['substitutes'], fn (array $p): bool => $p['sub_in'] !== null), 'name');
+            $this->assertEqualsCanonicalizing(array_column($lineup['bench'], 'name'), $cameOn);
         }
+    }
+
+    public function test_known_teams_have_named_coach(): void
+    {
+        $center = $this->center(102);
+
+        $this->assertSame('Ф. Челестини', $center['lineups']['home']['coach']);
+        $this->assertSame('В. Карпин', $center['lineups']['away']['coach']);
     }
 
     public function test_started_match_keeps_prematch_analytics_props(): void

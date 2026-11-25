@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 const props = defineProps({
-    /** { home: { formation, rating, players: [...11, GK first, then by lines], bench }, away: {...} } */
+    /** { home: { formation, rating, players: [...11, GK first, then by lines] }, away: {...} } */
     lineups: { type: Object, required: true },
     home: { type: String, required: true },
     away: { type: String, required: true },
@@ -85,21 +85,6 @@ const teams = computed(() => [
                 <span class="font-semibold text-miq-ink">{{ teams[1].name }}</span>
                 <span class="text-xs text-miq-muted">{{ teams[1].lineup.formation }}</span>
                 <span class="miq-mc-rating tabular-nums" :class="tone(teams[1].lineup.rating)">{{ teams[1].lineup.rating.toFixed(2) }}</span>
-            </div>
-        </div>
-
-        <div class="miq-mc-bench">
-            <div v-for="team in teams" :key="team.side">
-                <p class="miq-mc-bench-title">Вышли на замену · {{ team.name }}</p>
-                <p v-if="!team.lineup.bench.length" class="px-3.5 py-2 text-xs text-miq-muted">Замен не было.</p>
-                <ul v-else>
-                    <li v-for="p in team.lineup.bench" :key="p.number" class="miq-mc-bench-row">
-                        <span class="miq-mc-best-num tabular-nums">{{ p.number }}</span>
-                        <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-miq-ink">{{ p.name }}</span>
-                        <span class="text-[11px] font-semibold text-miq-pitch tabular-nums">▲ {{ p.sub_in }}'</span>
-                        <span class="miq-mc-rating tabular-nums" :class="tone(p.rating)">{{ p.rating.toFixed(1) }}</span>
-                    </li>
-                </ul>
             </div>
         </div>
     </section>
