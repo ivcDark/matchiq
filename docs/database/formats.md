@@ -10,7 +10,7 @@
 | Кубок на вылет (только плей-офф) | `cup` | `knockout` | `knockout_round` (R64 … F) | да, `legs = 1` | нет |
 | Кубок с группами (Кубок России в макете) | `cup` | `group` → `knockout` | `matchday` в группах, затем `knockout_round` | в плей-офф | в группах |
 | Чемпионат + стыковые матчи | `league` | `league` → `playoff` | `matchday`, затем раунд `PO` | да, обычно `legs = 2` | только на `league` |
-| Товарищеские матчи | `friendly` | `friendly` | нет (`round_id = NULL`) | нет | нет |
+| Товарищеские матчи (**вне MVP**, задел) | `friendly` | `friendly` | нет (`round_id = NULL`) | нет | нет |
 | Лига чемпионов (с 2024/25) | `tournament` | `league` (`matches_per_team = 8`) → `knockout` | 8 `matchday`, затем R24, R16, QF, SF, F | да: `legs = 2`, финал `legs = 1` | на лиговой фазе |
 | Лига чемпионов (до 2024/25) | `tournament` | `group` (8 групп) → `knockout` | `matchday` 1–6, затем R16 … F | да: `legs = 2`, финал `legs = 1` | в группах |
 | ЧМ | `tournament` | `group` → `knockout` | `matchday` 1–3, затем R16 … F + `THIRD` | да, `legs = 1` | в группах |
@@ -86,10 +86,12 @@ season 2026/27
       └─ ties: пара 13–14 места РПЛ против 3–4 места ФНЛ (source_a/source_b = standing_position)
 ```
 
-- Стыковой этап — часть сезона **РПЛ** (матчи пишутся с `competition_id = РПЛ`), в `stage_teams` могут быть команды, играющие в другой лиге (участник ФНЛ) — связь команды с `stage` независима от её «домашней» лиги.
+- **Принятое решение:** стыки — этап `playoff` **внутри сезона** турнира, а не отдельное соревнование. Матчи пишутся с `competition_id = РПЛ`, в `stage_teams` могут быть команды, играющие в другой лиге (участник ФНЛ) — связь команды с `stage` независима от её «домашней» лиги.
 - Результаты стыков **не влияют** на `standings` этапа `league`.
 
-### 4. Товарищеские матчи
+### 4. Товарищеские матчи (вне MVP)
+
+> **Вне MVP.** В первых миграциях не создаём; тип `friendly` остаётся в модели как задел, чтобы позже добавить без перестройки схемы. Прогнозы по товарищеским в будущем считать можно; правило picks/рейтинга пользователь ещё уточняет — не фиксируем ([open-questions.md](open-questions.md)).
 
 ```
 competition friendly_national (type=friendly, scope=world, participant_type=national)
@@ -98,7 +100,7 @@ competition friendly_national (type=friendly, scope=world, participant_type=nati
          └─ matches: round_id = NULL, tie_id = NULL
 ```
 
-Для клубных товарищеских — отдельная марка (`participant_type = club`). Без таблицы, без туров, без пар. Вопрос, нужны ли вероятности/picks на товарищеских, — в [open-questions.md](open-questions.md).
+Для клубных товарищеских — отдельная марка (`participant_type = club`). Без таблицы, без туров, без пар. Вопрос про picks/рейтинг на товарищеских открыт — в [open-questions.md](open-questions.md).
 
 ### 5. Лига чемпионов
 
