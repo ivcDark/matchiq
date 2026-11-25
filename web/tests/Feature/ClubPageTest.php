@@ -23,7 +23,9 @@ class ClubPageTest extends TestCase
                 ->has('cup.stage')
                 ->has('cup.group')
                 ->has('cup.table', 4)
-                ->has('tournaments', 2)
+                ->has('tournaments', 3)
+                ->where('tournaments.2.key', 'all')
+                ->where('tournaments.2.name', 'Все матчи')
                 ->has('stats.overall.rows', 2)
                 ->has('stats.home.total')
                 ->has('stats.away.total')
@@ -32,7 +34,12 @@ class ClubPageTest extends TestCase
                 ->has('players.rpl.overall')
                 ->has('players.rpl.home')
                 ->has('players.rpl.away')
-                ->has('players.cup.overall'));
+                ->has('players.cup.overall')
+                ->has('goals.all.overall.markets')
+                ->has('goals.all.away.markets')
+                ->has('players.all.overall')
+                ->has('players.all.home')
+                ->has('players.all.away'));
     }
 
     public function test_goals_block_has_opened_scoring_market_instead_of_scored(): void
@@ -167,5 +174,56 @@ class ClubPageTest extends TestCase
                 );
             }
         }
+    }
+
+    public function test_all_matches_option_aggregates_rpl_and_cup(): void
+    {
+        foreach (MockClub::TEAMS as $id => $team) {
+            $data = MockClub::find($id);
+
+            foreach (['overall', 'home', 'away'] as $context) {
+                $total = $data['stats'][$context]['total'];
+                $all = $data['goals']['all'][$context];
+                $rpl = $data['goals']['rpl'][$context];
+                $cup = $data['goals']['cup'][$context];
+
+                $this->assertSame($rpl['matches'] + $cup['matches'], $all['matches'], "$team $context матчи");
+                $this->assertSame($total['apps'], $all['matches'], "$team $context матчи = итог таблицы");
+                $this->assertSame($total['goals'], $all['scored'], "$team $context забито = итог таблицы");
+                $this->assertSame($total['conceded'], $all['conceded'], "$team $context пропущено = итог таблицы");
+
+                foreach ($all['markets'] as $i => $market) {
+                    $this->assertSame(
+                        $rpl['markets'][$i]['left'] + $cup['markets'][$i]['left'],
+                        $market['left'],
+                        "$team $context {$market['key']}",
+                    );
+                    $this->assertSame($all['matches'], $market['left'] + $market['right']);
+                }
+
+                $this->assertSame($total['goals'], array_sum(array_column($data['players']['all'][$context], 'goals')), "$team $context голы игроков");
+                foreach (['goals', 'assists', 'yellow', 'red', 'minutes', 'apps'] as $field) {
+                    $this->assertGreaterThanOrEqual(
+                        array_sum(array_column($data['players']['rpl'][$context], $field))
+                            + array_sum(array_column($data['players']['cup'][$context], $field)),
+                        array_sum(array_column($data['players']['all'][$context], $field)),
+                        "$team $context игроки: $field",
+                    );
+                }
+            }
+
+            $this->assertSame(
+                $data['goals']['all']['overall']['matches'],
+                $data['goals']['all']['home']['matches'] + $data['goals']['all']['away']['matches'],
+            );
+        }
+    }
+
+    public function test_tournament_switch_has_all_matches_without_duplicate_venue_hint(): void
+    {
+        $show = file_get_contents(resource_path('js/Pages/Clubs/Show.vue'));
+        $this->assertStringContainsString("overall: ''", $show);
+        $this->assertStringNotContainsString("'все матчи'", $show);
+        $this->assertSame(3, substr_count($show, '<ClubTournamentSwitch v-model="tournament"'));
     }
 }

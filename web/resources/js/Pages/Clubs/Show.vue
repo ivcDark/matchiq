@@ -55,7 +55,7 @@ watch(section, (id) => {
 const context = ref('overall');
 const tournament = ref(props.tournaments[0]?.key ?? 'rpl');
 
-const CONTEXT_HINTS = { overall: 'все матчи', home: 'домашние матчи', away: 'гостевые матчи' };
+const CONTEXT_HINTS = { overall: '', home: 'только дома', away: 'только в гостях' };
 
 const squad = computed(() => props.players[tournament.value]?.[context.value] ?? []);
 const goalSplit = computed(() => props.goals[tournament.value][context.value]);

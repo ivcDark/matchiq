@@ -16,6 +16,9 @@ class MockClub
 
     public const CUP_KEY = 'cup';
 
+    /** Агрегат РПЛ + Кубок России: сумма матчей, голов, карточек, средние взвешены по числу матчей. */
+    public const ALL_KEY = 'all';
+
     /** id клуба → название (как в турнирных моках). */
     public const TEAMS = [
         1 => 'Зенит',
@@ -130,13 +133,28 @@ class MockClub
         }
 
         $squad = self::squad($id, $team, $rows['overall']);
-        $players = [self::RPL_KEY => [], self::CUP_KEY => []];
         $cupBase = self::cupSquad($squad, $team, $cupMatches);
+        $raw = [];
         foreach ([self::RPL_KEY => $squad, self::CUP_KEY => $cupBase] as $key => $base) {
             $split = $key === self::RPL_KEY
                 ? self::splitContexts($base, $team, $rows)
                 : self::splitCupContexts($base, $team, $cupMatches);
-            $players[$key] = ['overall' => self::visible($base)] + array_map(self::visible(...), $split);
+            $raw[$key] = ['overall' => $base] + $split;
+        }
+        $raw[self::ALL_KEY] = [];
+        foreach ($contexts as $context) {
+            $raw[self::ALL_KEY][$context] = self::mergePlayers($raw[self::RPL_KEY][$context], $raw[self::CUP_KEY][$context]);
+        }
+        $players = array_map(static fn (array $byContext) => array_map(self::visible(...), $byContext), $raw);
+
+        $tag = static fn (array $matches, string $key): array => array_map(static fn (array $m) => $m + ['tournament' => $key], $matches);
+        $goals = [];
+        foreach ($contexts as $context) {
+            $rpl = $tag($rplMatches[$context], self::RPL_KEY);
+            $cup = $tag(self::filterVenue($cupMatches, $context), self::CUP_KEY);
+            $goals[self::RPL_KEY][$context] = self::goalSplit($rpl, $team, self::RPL_KEY);
+            $goals[self::CUP_KEY][$context] = self::goalSplit($cup, $team, self::CUP_KEY);
+            $goals[self::ALL_KEY][$context] = self::goalSplit([...$rpl, ...$cup], $team, self::ALL_KEY);
         }
 
         return [
@@ -154,15 +172,10 @@ class MockClub
             'tournaments' => [
                 ['key' => self::RPL_KEY, 'name' => 'РПЛ'],
                 ['key' => self::CUP_KEY, 'name' => 'Кубок России'],
+                ['key' => self::ALL_KEY, 'name' => 'Все матчи'],
             ],
             'stats' => self::statsTable($team, $rows, $cupMatches),
-            'goals' => [
-                self::RPL_KEY => array_map(static fn (array $m) => self::goalSplit($m, $team, 'rpl'), $rplMatches),
-                self::CUP_KEY => array_combine($contexts, array_map(
-                    static fn (string $c) => self::goalSplit(self::filterVenue($cupMatches, $c), $team, 'cup'),
-                    $contexts,
-                )),
-            ],
+            'goals' => $goals,
             'players' => $players,
         ];
     }
@@ -544,7 +557,7 @@ class MockClub
 
         $chance = $match['gf'] <=> $match['ga'];
         $threshold = [-1 => 30, 0 => 50, 1 => 70][$chance];
-        $roll = crc32(implode('|', ['first-goal', $tournament, $team, $match['round'], $match['venue'], $match['opponent']])) % 100;
+        $roll = crc32(implode('|', ['first-goal', $match['tournament'] ?? $tournament, $team, $match['round'], $match['venue'], $match['opponent']])) % 100;
 
         return $roll < $threshold;
     }
@@ -888,6 +901,50 @@ class MockClub
         }
 
         return $sides;
+    }
+
+    /**
+     * Игроки РПЛ и Кубка в одном срезе: счётные показатели складываются, «за матч» (удары, пасы, воздух, рейтинг)
+     * усредняются с весом по числу матчей. Списки идут в одном порядке (один состав).
+     *
+     * @param  list<array<string, mixed>>  $rpl
+     * @param  list<array<string, mixed>>  $cup
+     * @return list<array<string, mixed>>
+     */
+    private static function mergePlayers(array $rpl, array $cup): array
+    {
+        $merged = [];
+        foreach ($rpl as $k => $a) {
+            $b = $cup[$k];
+            $weight = $a['apps'] + $b['apps'];
+            $average = static function (string $field, int $digits) use ($a, $b, $weight): ?float {
+                $parts = array_filter([$a, $b], static fn (array $p) => $p[$field] !== null && $p['apps'] > 0);
+                if ($weight === 0 || $parts === []) {
+                    return null;
+                }
+                $apps = array_sum(array_column($parts, 'apps'));
+
+                return round(array_sum(array_map(static fn (array $p) => $p[$field] * $p['apps'], $parts)) / $apps, $digits);
+            };
+
+            $merged[] = [
+                'apps' => $weight,
+                'starts' => $a['starts'] + $b['starts'],
+                'subs' => $a['subs'] + $b['subs'],
+                'minutes' => $a['minutes'] + $b['minutes'],
+                'goals' => $a['goals'] + $b['goals'],
+                'assists' => $a['assists'] + $b['assists'],
+                'yellow' => $a['yellow'] + $b['yellow'],
+                'red' => $a['red'] + $b['red'],
+                'mom' => $a['mom'] + $b['mom'],
+                'shots' => $average('shots', 1),
+                'passing' => $a['apps'] + $b['apps'] === 0 ? $a['passing'] : $average('passing', 1),
+                'aerial' => $average('aerial', 1),
+                'rating' => $average('rating', 2),
+            ] + $a;
+        }
+
+        return $merged;
     }
 
     /**
