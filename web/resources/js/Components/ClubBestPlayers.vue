@@ -86,7 +86,10 @@ function barWidth(block, row) {
     <section class="miq-panel" aria-label="Лучшие игроки клуба">
         <div class="miq-panel-head">
             <h2 class="miq-panel-title">Лучшие игроки</h2>
-            <p v-if="hint" class="text-xs text-miq-muted">{{ hint }}</p>
+            <div class="miq-club-head-ctl">
+                <slot name="controls" />
+                <p v-if="hint" class="text-xs text-miq-muted">{{ hint }}</p>
+            </div>
         </div>
 
         <div class="miq-club-best-grid">

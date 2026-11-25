@@ -77,7 +77,10 @@ const ariaSort = (column) => (sortKey.value === column.key ? (sortDir.value === 
     <section class="miq-panel" aria-label="Игроки клуба">
         <div class="miq-panel-head">
             <h2 class="miq-panel-title">Игроки</h2>
-            <p v-if="hint" class="text-xs text-miq-muted">{{ hint }}</p>
+            <div class="miq-club-head-ctl">
+                <slot name="controls" />
+                <p v-if="hint" class="text-xs text-miq-muted">{{ hint }}</p>
+            </div>
         </div>
 
         <div v-if="rows.length" class="overflow-x-auto">

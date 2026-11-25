@@ -3399,6 +3399,39 @@
         @apply pr-3;
     }
 
+    .miq-club-head-ctl {
+        @apply flex min-w-0 flex-wrap items-center justify-end gap-x-2.5 gap-y-1;
+    }
+
+    .miq-club-tsw {
+        @apply inline-flex shrink-0 overflow-hidden rounded-md border;
+        border-color: var(--miq-line);
+        background: white;
+    }
+
+    .miq-club-tsw-btn {
+        @apply px-2.5 py-0.5 text-xs font-semibold text-miq-ink-soft transition-colors;
+        transition-duration: 160ms;
+    }
+
+    .miq-club-tsw-btn + .miq-club-tsw-btn {
+        border-left: 1px solid var(--miq-line);
+    }
+
+    .miq-club-tsw-btn:hover {
+        background: color-mix(in srgb, var(--miq-lime) 14%, white);
+    }
+
+    .miq-club-tsw-btn:focus-visible {
+        outline: 2px solid var(--miq-pitch);
+        outline-offset: -2px;
+    }
+
+    .miq-club-tsw-btn.is-active {
+        @apply text-miq-ink;
+        background: color-mix(in srgb, var(--miq-lime) 32%, white);
+    }
+
     .miq-club-kpis {
         @apply grid grid-cols-3 gap-px border-b sm:grid-cols-6;
         border-color: color-mix(in srgb, var(--miq-line) 80%, transparent);

@@ -4,6 +4,7 @@ import ClubCupStatus from '@/Components/ClubCupStatus.vue';
 import ClubGoalsSplit from '@/Components/ClubGoalsSplit.vue';
 import ClubPlayersTable from '@/Components/ClubPlayersTable.vue';
 import ClubStandingSpot from '@/Components/ClubStandingSpot.vue';
+import ClubTournamentSwitch from '@/Components/ClubTournamentSwitch.vue';
 import ClubTournamentStats from '@/Components/ClubTournamentStats.vue';
 import TournamentContextTabs from '@/Components/TournamentContextTabs.vue';
 import TournamentSectionNav from '@/Components/TournamentSectionNav.vue';
@@ -56,8 +57,6 @@ const tournament = ref(props.tournaments[0]?.key ?? 'rpl');
 
 const CONTEXT_HINTS = { overall: 'все матчи', home: 'домашние матчи', away: 'гостевые матчи' };
 
-const tournamentName = computed(() => props.tournaments.find((t) => t.key === tournament.value)?.name ?? '');
-const sliceHint = computed(() => `${tournamentName.value} · ${CONTEXT_HINTS[context.value]}`);
 const squad = computed(() => props.players[tournament.value]?.[context.value] ?? []);
 const goalSplit = computed(() => props.goals[tournament.value][context.value]);
 const tablesStats = computed(() => props.stats[context.value]);
@@ -100,22 +99,22 @@ const tablesStats = computed(() => props.stats[context.value]);
 
                 <div class="miq-club-filters">
                     <TournamentContextTabs v-model="context" label="Матчи" />
-                    <label class="miq-tt-season">
-                        <span class="miq-tt-season-label">Турнир</span>
-                        <select v-model="tournament" class="miq-tt-season-select" aria-label="Турнир для игроков и голов">
-                            <option v-for="t in tournaments" :key="t.key" :value="t.key">{{ t.name }}</option>
-                        </select>
-                    </label>
                 </div>
 
                 <ClubTournamentStats :stats="tablesStats" :hint="CONTEXT_HINTS[context]" />
 
                 <div class="miq-club-grid-wide">
-                    <ClubGoalsSplit :goals="goalSplit" :hint="sliceHint" />
-                    <ClubBestPlayers :players="squad" :hint="sliceHint" />
+                    <ClubGoalsSplit :goals="goalSplit" :hint="CONTEXT_HINTS[context]">
+                        <template #controls><ClubTournamentSwitch v-model="tournament" :tournaments="tournaments" /></template>
+                    </ClubGoalsSplit>
+                    <ClubBestPlayers :players="squad" :hint="CONTEXT_HINTS[context]">
+                        <template #controls><ClubTournamentSwitch v-model="tournament" :tournaments="tournaments" /></template>
+                    </ClubBestPlayers>
                 </div>
 
-                <ClubPlayersTable :players="squad" :hint="sliceHint" />
+                <ClubPlayersTable :players="squad" :hint="CONTEXT_HINTS[context]">
+                    <template #controls><ClubTournamentSwitch v-model="tournament" :tournaments="tournaments" /></template>
+                </ClubPlayersTable>
             </div>
 
             <div
