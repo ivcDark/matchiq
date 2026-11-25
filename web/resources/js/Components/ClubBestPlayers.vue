@@ -27,6 +27,7 @@ const blocks = computed(() => {
     return [
         {
             key: 'goals',
+            tone: 'sage',
             title: 'Голы',
             kind: 'bar',
             rows: top(players.filter((p) => p.goals > 0), (a, b) => b.goals - a.goals || a.minutes - b.minutes),
@@ -35,6 +36,7 @@ const blocks = computed(() => {
         },
         {
             key: 'assists',
+            tone: 'coral',
             title: 'Голевые передачи',
             kind: 'bar',
             rows: top(players.filter((p) => p.assists > 0), (a, b) => b.assists - a.assists || a.minutes - b.minutes),
@@ -43,6 +45,7 @@ const blocks = computed(() => {
         },
         {
             key: 'aerial',
+            tone: 'teal',
             title: 'Борьба в воздухе (за матч)',
             kind: 'bar',
             rows: top(fieldPlayers, (a, b) => b.aerial - a.aerial),
@@ -51,13 +54,15 @@ const blocks = computed(() => {
         },
         {
             key: 'rating',
+            tone: 'gold',
             title: 'Рейтинг',
-            kind: 'pill-coral',
+            kind: 'pill',
             rows: top(regular.filter((p) => p.rating !== null), (a, b) => b.rating - a.rating || b.minutes - a.minutes),
             label: (p) => dec2.format(p.rating),
         },
         {
             key: 'aggression',
+            tone: 'slate',
             title: 'Агрессивность (ЖК / КК)',
             kind: 'cards',
             rows: top(
@@ -67,8 +72,9 @@ const blocks = computed(() => {
         },
         {
             key: 'apps',
+            tone: 'mist',
             title: 'Выступления',
-            kind: 'pill-muted',
+            kind: 'pill',
             rows: top(players, (a, b) => b.apps - a.apps || b.minutes - a.minutes),
             label: (p) => String(p.apps),
         },
@@ -93,13 +99,13 @@ function barWidth(block, row) {
         </div>
 
         <div class="miq-club-best-grid">
-            <div v-for="block in blocks" :key="block.key" class="miq-club-best-block">
+            <div v-for="block in blocks" :key="block.key" class="miq-club-best-block" :data-tone="block.tone">
                 <h3 class="miq-club-best-title">{{ block.title }}</h3>
                 <ol v-if="block.rows.length">
                     <li v-for="row in block.rows" :key="row.name" class="miq-club-best-row">
                         <span class="truncate font-medium text-miq-ink" :title="row.name">{{ row.name }}</span>
 
-                        <span v-if="block.kind === 'bar'" class="miq-club-bar" :class="{ 'is-coral': block.key === 'assists' }">
+                        <span v-if="block.kind === 'bar'" class="miq-club-bar">
                             <span class="miq-club-bar-fill" :style="{ width: barWidth(block, row) }" />
                             <span class="miq-club-bar-num">{{ block.label(row) }}</span>
                         </span>
@@ -108,7 +114,7 @@ function barWidth(block, row) {
                             <span class="miq-tt-card-chip is-red !ml-0">{{ row.red }}</span>
                         </span>
                         <span v-else class="flex justify-end">
-                            <span class="miq-club-pill" :class="block.kind === 'pill-coral' ? 'is-coral' : 'is-muted'">{{ block.label(row) }}</span>
+                            <span class="miq-club-pill is-tone">{{ block.label(row) }}</span>
                         </span>
                     </li>
                 </ol>
