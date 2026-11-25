@@ -3381,6 +3381,52 @@
         @apply grid grid-cols-1 gap-4 lg:grid-cols-2;
     }
 
+    .miq-club-ln {
+        @apply grid grid-cols-1 sm:grid-cols-2;
+    }
+
+    .miq-club-ln-cell {
+        @apply min-w-0 px-3.5 py-2.5;
+    }
+
+    .miq-club-ln-cell + .miq-club-ln-cell {
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+    }
+
+    @media (min-width: 640px) {
+        .miq-club-ln-cell + .miq-club-ln-cell {
+            border-top: 0;
+            border-left: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+        }
+    }
+
+    .miq-club-ln-label {
+        @apply text-[10px] font-semibold uppercase tracking-[0.14em] text-miq-muted;
+    }
+
+    .miq-club-ln-main {
+        @apply mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm font-bold text-miq-ink;
+    }
+
+    .miq-club-ln-main .miq-form-chip {
+        @apply h-5 w-5 text-[11px];
+    }
+
+    .miq-club-ln-score {
+        @apply mx-1 rounded px-1.5 py-0.5 text-[15px];
+        background: color-mix(in srgb, var(--miq-lime) 24%, white);
+    }
+
+    .miq-club-ln-venue {
+        @apply rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-miq-ink-soft;
+        border-color: color-mix(in srgb, var(--miq-line) 90%, transparent);
+        background: color-mix(in srgb, var(--miq-mist-deep) 55%, white);
+    }
+
+    .miq-club-ln-meta {
+        @apply mt-0.5 text-xs text-miq-muted;
+    }
+
     .miq-club-grid-wide {
         @apply grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)];
     }

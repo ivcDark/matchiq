@@ -42,6 +42,89 @@ class ClubPageTest extends TestCase
                 ->has('players.all.away'));
     }
 
+    public function test_club_page_has_last_and_next_match_across_all_tournaments(): void
+    {
+        $this->get('/clubs/1')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('last_match', fn ($m) => $m
+                    ->whereType('opponent', 'string')
+                    ->whereType('gf', 'integer')
+                    ->whereType('ga', 'integer')
+                    ->whereType('date', 'string')
+                    ->whereType('time', 'string')
+                    ->whereType('result', 'string')
+                    ->where('match_id', null)
+                    ->whereType('opponent_id', 'integer')
+                    ->has('tournament')
+                    ->has('tournament_name')
+                    ->has('stage')
+                    ->has('venue'))
+                ->has('next_match', fn ($m) => $m
+                    ->whereType('opponent', 'string')
+                    ->whereType('date', 'string')
+                    ->whereType('time', 'string')
+                    ->where('match_id', null)
+                    ->whereType('opponent_id', 'integer')
+                    ->has('tournament')
+                    ->has('tournament_name')
+                    ->has('stage')
+                    ->has('venue')
+                    ->missing('gf')));
+    }
+
+    public function test_last_and_next_match_come_from_rpl_and_cup_mocks(): void
+    {
+        $tournaments = [];
+        foreach (MockClub::TEAMS as $id => $team) {
+            $data = MockClub::find($id);
+            $last = $data['last_match'];
+            $next = $data['next_match'];
+
+            $this->assertContains($last['tournament'], ['rpl', 'cup'], $team);
+            $this->assertContains($next['tournament'], ['rpl', 'cup'], $team);
+            $this->assertContains($last['result'], ['В', 'Н', 'П'], $team);
+            $this->assertContains($last['venue'], ['home', 'away'], $team);
+            $this->assertLessThan($next['date'].' '.$next['time'], $last['date'].' '.$last['time'], "$team: последний раньше следующего");
+            $tournaments[$last['tournament']] = true;
+
+            $rpl = collect(MockTournament::teamFixtures($team));
+            $lastRpl = $rpl->whereNotNull('gf')->last();
+            $nextRpl = $rpl->whereNull('gf')->first();
+            $this->assertSame(MockTournament::ROUNDS_PLAYED, $lastRpl['round'], $team);
+            $this->assertSame(MockTournament::ROUNDS_PLAYED + 1, $nextRpl['round'], $team);
+
+            if ($last['tournament'] === 'rpl') {
+                $this->assertSame($lastRpl['opponent'], $last['opponent'], $team);
+                $this->assertSame([$lastRpl['gf'], $lastRpl['ga']], [$last['gf'], $last['ga']], $team);
+                $this->assertSame($lastRpl['date'], $last['date'], $team);
+            } else {
+                $this->assertGreaterThan($lastRpl['date'], $last['date'], $team);
+                $this->assertSame($data['cup']['group'], mb_substr($last['stage'], 7, 1), $team);
+            }
+            if ($next['tournament'] === 'rpl') {
+                $this->assertSame($nextRpl['opponent'], $next['opponent'], $team);
+                $this->assertSame($nextRpl['date'], $next['date'], $team);
+            }
+            $this->assertLessThanOrEqual($nextRpl['date'], $next['date'], $team);
+        }
+
+        $this->assertArrayHasKey('rpl', $tournaments);
+        $this->assertArrayHasKey('cup', $tournaments, 'в моках у части клубов последний матч — кубковый');
+    }
+
+    public function test_last_and_next_match_ignore_page_filters_and_are_rendered_in_vue(): void
+    {
+        $show = file_get_contents(resource_path('js/Pages/Clubs/Show.vue'));
+        $this->assertStringContainsString('<ClubLastNext :last="last_match" :next="next_match"', $show);
+
+        $component = file_get_contents(resource_path('js/Components/ClubLastNext.vue'));
+        $this->assertStringContainsString("route('matches.show', last.match_id)", $component);
+        $this->assertStringContainsString("route('matches.show', next.match_id)", $component);
+        $this->assertStringNotContainsString('context', $component);
+        $this->assertStringNotContainsString('tournament.value', $component);
+    }
+
     public function test_goals_block_has_opened_scoring_market_instead_of_scored(): void
     {
         $this->get('/clubs/1')

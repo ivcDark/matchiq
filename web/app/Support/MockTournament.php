@@ -355,6 +355,35 @@ class MockTournament
         return $rows;
     }
 
+    /**
+     * Все матчи РПЛ команды (сыгранные с голами и предстоящие с `null`) с датой и временем начала,
+     * в хронологическом порядке: тур, дата, время, дома/в гостях, соперник, голы.
+     *
+     * @return list<array{round: int, date: string, time: string, venue: string, opponent: string, gf: ?int, ga: ?int}>
+     */
+    public static function teamFixtures(string $team, ?CarbonInterface $date = null): array
+    {
+        $rows = [];
+        foreach (self::allMatches(self::startYear($date ?? Carbon::now()), self::ROUNDS_PLAYED) as $m) {
+            foreach (['home' => 'away', 'away' => 'home'] as $side => $other) {
+                if ($m[$side] === $team) {
+                    $rows[] = [
+                        'round' => $m['round'],
+                        'date' => $m['date'],
+                        'time' => $m['time'],
+                        'venue' => $side,
+                        'opponent' => $m[$other],
+                        'gf' => $m[$side.'_goals'],
+                        'ga' => $m[$other.'_goals'],
+                    ];
+                }
+            }
+        }
+        usort($rows, static fn (array $a, array $b) => [$a['date'], $a['time']] <=> [$b['date'], $b['time']]);
+
+        return $rows;
+    }
+
     public static function idForLeague(?string $leagueId): ?int
     {
         return $leagueId !== null ? (self::LEAGUE_TOURNAMENTS[$leagueId] ?? null) : null;
@@ -565,7 +594,7 @@ class MockTournament
         return $fixtures;
     }
 
-    private static function saturday(int $startYear, int $round): CarbonInterface
+    public static function saturday(int $startYear, int $round): CarbonInterface
     {
         return $round <= 18
             ? Carbon::create($startYear, 8, 14)->next(CarbonInterface::SATURDAY)->addWeeks($round - 1)

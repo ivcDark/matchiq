@@ -157,6 +157,8 @@ class MockClub
             $goals[self::ALL_KEY][$context] = self::goalSplit([...$rpl, ...$cup], $team, self::ALL_KEY);
         }
 
+        [$lastMatch, $nextMatch] = self::lastAndNext($id, $team);
+
         return [
             'club' => [
                 'id' => $id,
@@ -174,6 +176,8 @@ class MockClub
                 ['key' => self::CUP_KEY, 'name' => 'Кубок России'],
                 ['key' => self::ALL_KEY, 'name' => 'Все матчи'],
             ],
+            'last_match' => $lastMatch,
+            'next_match' => $nextMatch,
             'stats' => self::statsTable($team, $rows, $cupMatches),
             'goals' => $goals,
             'players' => $players,
@@ -381,6 +385,103 @@ class MockClub
         $startYear = $now->month >= 7 ? $now->year : $now->year - 1;
 
         return Carbon::create($startYear + 1, 3, 4)->addWeeks($round - self::CUP_ROUNDS_PLAYED - 1);
+    }
+
+    // ───────────────────────── Последний и следующий матч ─────────────────────────
+
+    /**
+     * Последний сыгранный и ближайший несыгранный матч клуба по всем турнирам (РПЛ + Кубок России),
+     * независимо от фильтров страницы. Источник: матчи `MockTournament::teamFixtures` и группа Кубка (`cupFixtures`).
+     * Сыгранный — тот, у которого есть счёт; последний = самый поздний по дате, следующий = самый ранний по дате.
+     * У матчей в моках нет id страницы `/matches/{id}`, поэтому `match_id` = null (ссылки нет).
+     *
+     * @return array{0: ?array<string, mixed>, 1: ?array<string, mixed>}
+     */
+    private static function lastAndNext(int $id, string $team): array
+    {
+        $fixtures = [];
+        foreach (MockTournament::teamFixtures($team) as $m) {
+            $fixtures[] = $m + [
+                'tournament' => self::RPL_KEY,
+                'tournament_name' => 'РПЛ',
+                'stage' => $m['round'].'-й тур',
+            ];
+        }
+        foreach (self::cupTeamFixtures($id, $team) as $m) {
+            $fixtures[] = $m + ['tournament' => self::CUP_KEY, 'tournament_name' => 'Кубок России'];
+        }
+
+        $format = static fn (array $m): array => [
+            'tournament' => $m['tournament'],
+            'tournament_name' => $m['tournament_name'],
+            'stage' => $m['stage'],
+            'date' => $m['date'],
+            'time' => $m['time'],
+            'venue' => $m['venue'],
+            'opponent' => $m['opponent'],
+            'opponent_id' => self::idForName($m['opponent']),
+            'match_id' => null,
+        ];
+
+        $key = static fn (array $m): string => $m['date'].' '.$m['time'];
+        $played = array_values(array_filter($fixtures, static fn (array $m) => $m['gf'] !== null));
+        $upcoming = array_values(array_filter($fixtures, static fn (array $m) => $m['gf'] === null));
+        usort($played, static fn (array $a, array $b) => $key($b) <=> $key($a));
+        usort($upcoming, static fn (array $a, array $b) => $key($a) <=> $key($b));
+
+        $last = $played[0] ?? null;
+        $next = $upcoming[0] ?? null;
+
+        return [
+            $last === null ? null : $format($last) + [
+                'gf' => $last['gf'],
+                'ga' => $last['ga'],
+                'result' => [1 => 'В', 0 => 'Н', -1 => 'П'][$last['gf'] <=> $last['ga']],
+            ],
+            $next === null ? null : $format($next),
+        ];
+    }
+
+    /**
+     * Матчи клуба в группе Кубка с датой и временем. Сыгранные туры 1–4 идут по вторникам после тура РПЛ
+     * (группы A и B — после 3·N+3-го, C и D — после 3·N+2-го), чтобы в моках последним бывал и кубковый матч.
+     * Дата тура 5 — после зимнего перерыва (`cupRoundDate`), у предстоящих голов нет.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function cupTeamFixtures(int $id, string $team): array
+    {
+        $letter = (string) collect(self::CUP_GROUPS)->search(static fn (array $ids) => in_array($id, $ids, true));
+        $now = Carbon::now();
+        $startYear = $now->month >= 7 ? $now->year : $now->year - 1;
+        $rows = [];
+
+        foreach (self::cupFixtures() as $kind => $list) {
+            if ($kind === 'groups') {
+                continue;
+            }
+            foreach ($list as $m) {
+                if ($m['group'] !== $letter || ($m['home'] !== $team && $m['away'] !== $team)) {
+                    continue;
+                }
+                $isHome = $m['home'] === $team;
+                $date = $kind === 'played'
+                    ? MockTournament::saturday($startYear, 3 * $m['round'] + (in_array($letter, ['A', 'B'], true) ? 3 : 2))->addDays(3)
+                    : self::cupRoundDate($m['round']);
+                $rows[] = [
+                    'round' => $m['round'],
+                    'stage' => 'Группа '.$letter.' · '.$m['round'].'-й тур',
+                    'date' => $date->format('Y-m-d'),
+                    'time' => '19:00',
+                    'venue' => $isHome ? 'home' : 'away',
+                    'opponent' => $isHome ? $m['away'] : $m['home'],
+                    'gf' => $kind === 'played' ? $m[$isHome ? 'home_goals' : 'away_goals'] : null,
+                    'ga' => $kind === 'played' ? $m[$isHome ? 'away_goals' : 'home_goals'] : null,
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     // ───────────────────────── Статистика по турнирам и голы ─────────────────────────

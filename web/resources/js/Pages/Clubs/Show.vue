@@ -2,6 +2,7 @@
 import ClubBestPlayers from '@/Components/ClubBestPlayers.vue';
 import ClubCupStatus from '@/Components/ClubCupStatus.vue';
 import ClubGoalsSplit from '@/Components/ClubGoalsSplit.vue';
+import ClubLastNext from '@/Components/ClubLastNext.vue';
 import ClubPlayersTable from '@/Components/ClubPlayersTable.vue';
 import ClubStandingSpot from '@/Components/ClubStandingSpot.vue';
 import ClubTournamentSwitch from '@/Components/ClubTournamentSwitch.vue';
@@ -17,6 +18,8 @@ const props = defineProps({
     standing: { type: Object, required: true },
     cup: { type: Object, required: true },
     tournaments: { type: Array, default: () => [] },
+    last_match: { type: Object, default: null },
+    next_match: { type: Object, default: null },
     stats: { type: Object, required: true },
     goals: { type: Object, required: true },
     players: { type: Object, required: true },
@@ -96,6 +99,8 @@ const tablesStats = computed(() => props.stats[context.value]);
                     <ClubStandingSpot :standing="standing" :round="club.round" />
                     <ClubCupStatus :cup="cup" :team="club.name" />
                 </div>
+
+                <ClubLastNext :last="last_match" :next="next_match" :team="club.name" />
 
                 <div class="miq-club-filters">
                     <TournamentContextTabs v-model="context" label="Матчи" />
