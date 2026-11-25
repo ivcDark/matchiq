@@ -10,6 +10,10 @@ export default {
         './resources/js/**/*.vue',
     ],
 
+    // Компонентные классы страницы клуба из @layer components: без safelist они
+    // выпадают из CSS, если dev-сервер Vite отдал кеш до появления новых .vue.
+    safelist: [{ pattern: /^miq-club-/ }],
+
     theme: {
         extend: {
             colors: {

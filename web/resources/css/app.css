@@ -3406,16 +3406,16 @@
     }
 
     .miq-club-kpi {
-        @apply min-w-0 px-3 py-1.5;
+        @apply min-w-0 px-2.5 py-1.5;
         background: color-mix(in srgb, white 78%, var(--miq-chalk));
     }
 
     .miq-club-kpi dt {
-        @apply text-[10px] font-semibold uppercase tracking-[0.1em] text-miq-muted;
+        @apply whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.1em] text-miq-muted;
     }
 
     .miq-club-kpi dd {
-        @apply num-display mt-0.5 text-base leading-none text-miq-ink;
+        @apply num-display mt-0.5 whitespace-nowrap text-[15px] leading-none text-miq-ink;
     }
 
     .miq-club-table {
