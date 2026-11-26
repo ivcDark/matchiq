@@ -1,11 +1,11 @@
 # MatchIQ collector (stub)
 
-Go-сервис ingestion. Сейчас только HTTP-заглушка:
+Go-сервис сбора данных (ingestion). Сейчас только HTTP-заглушка:
 
 - `GET /` — текст-placeholder
 - `GET /healthz` — JSON health
 
-Позже: адаптеры `provider` + `league` (`FetchSchedule` / `FetchMatchStats` / `FetchLineup`), запись в Postgres.
+Позже: consumer команд из RabbitMQ, сборщики по типу джобы (расписание, результаты, статистика…), клиент SStats.net, публикация результата (канон DTO) в RabbitMQ. **В PostgreSQL коллектор не пишет** — только Laravel. Схема и контракт сообщений: [../docs/architecture/ingestion.md](../docs/architecture/ingestion.md).
 
 ```bash
 go run ./cmd/collector

@@ -3,9 +3,9 @@
 **Статус:** правила согласованы с пользователем (2026-11-25). Код под них создаётся по мере появления функциональности — пустых каталогов «на вырост» не заводим.  
 **Принцип:** архитектура **не сложнее, чем нужно**, но чистая, понятная и легко расширяемая. Новый слой/абстракцию вводим, когда есть второй потребитель или дублирование, а не «на всякий случай».
 
-Связанные документы: [ingestion.md](ingestion.md) — загрузка данных (парсер / API) и наблюдаемость; [../database/](../database/README.md) — схема БД.
+Связанные документы: [ingestion.md](ingestion.md) — загрузка данных (Laravel ↔ RabbitMQ ↔ Go, SStats.net) и наблюдаемость; [../database/](../database/README.md) — схема БД.
 
-**Ingestion (решение № 36, 2026-11-25):** Laravel только стартует прогоны (`artisan` + scheduler) и оркестрирует итоги в `ingestion_runs` / `ingestion_run_errors` / `external_ids`. Fetch и parse — Go-коллектор (`collector/`): он пишет нормализованные данные в ту же PostgreSQL. Парсер в `web/app` не живёт.
+**Ingestion (решение № 36, уточнено 2026-11-26):** с БД работает **только Laravel**. Laravel (`artisan` + scheduler; позже админка) создаёт `ingestion_runs` и кладёт **команду** в RabbitMQ; Go-коллектор (`collector/`) читает команду, ходит в SStats.net, нормализует в канон DTO и возвращает **результат** в RabbitMQ — в PostgreSQL Go не пишет; Laravel consumer сохраняет результат через репозитории и ведёт `ingestion_runs` / `ingestion_run_errors` / `external_ids`. Парсера/клиента источника в `web/app` нет. Подробности — [ingestion.md](ingestion.md).
 
 ## Слои и их ответственность
 
@@ -13,8 +13,8 @@
 |------|----------------------|------------|----------------|
 | **Controllers** | `Http/Controllers/` | **Только REST-методы** (`index`, `show`, `store`, `update`, `destroy`; для одиночных действий — invokable). Принимает Form Request, зовёт сервис/репозиторий, отдаёт Response/DTO | Бизнес-логика, запросы к БД, форматирование, приватные helper-методы, моки |
 | **Form Requests** | `Http/Requests/` | Валидация и авторизация входа (`rules()`, `authorize()`); при необходимости `toDto()` | Бизнес-логика, обращения к БД кроме валидационных правил |
-| **Responses / DTO** | `Http/Responses/`, `Data/` | `Http/Responses` — сборка ответа для Inertia/JSON (props страницы, API-ресурсы); `Data/` — неизменяемые DTO для передачи между слоями Laravel | Логика, обращения к БД. Запись сущностей из источника сюда не входит: её делает Go-коллектор |
-| **Services** | `Services/` | Сценарии приложения («use case»): оркестрируют домены, репозитории, события. Один класс — один сценарий или связный набор (`Ingestion/…` — старт прогона и итог, без парсинга; `Predictions/…`) | HTTP (`Request`/`Response`), прямая вёрстка ответа, fetch/parse источника |
+| **Responses / DTO** | `Http/Responses/`, `Data/` | `Http/Responses` — сборка ответа для Inertia/JSON (props страницы, API-ресурсы); `Data/` — неизменяемые DTO для передачи между слоями Laravel | Логика, обращения к БД. Канон DTO результата ingest (зеркало контракта Go) здесь допустим |
+| **Services** | `Services/` | Сценарии приложения («use case»): оркестрируют домены, репозитории, события. Один класс — один сценарий или связный набор (`Ingestion/…` — старт прогона, применение результата из RabbitMQ, итог; без fetch/parse источника; `Predictions/…`) | HTTP (`Request`/`Response`), прямая вёрстка ответа, fetch/parse источника |
 | **Domains** | `Domains/` | Чистая предметная логика без фреймворка: правила начисления очков, расчёт таблицы, тай-брейки, нормализация названий. Работает с DTO/значениями | БД, HTTP, очереди, `Auth` |
 | **Repositories** | `Repositories/` | Все нетривиальные чтения/записи БД: сложные запросы, upsert, keyset-пагинация, срезы для горячих страниц ([performance.md](../database/performance.md)). Возвращают модели/коллекции/DTO | Бизнес-правила, HTTP |
 | **Models** | `Models/` | Eloquent: связи, касты, scope'ы. Без тяжёлой логики | Сценарии, сложные запросы (они в репозиториях) |
@@ -40,8 +40,8 @@ Service → DTO / Model → Response (Inertia / JSON)
 
 ```
 web/app/
-├── Console/Commands/              # artisan-команды (тонкие): старт ingest (вызов Go), standings:rebuild
-├── Data/                          # DTO (readonly) между слоями Laravel; запись источника — в Go
+├── Console/Commands/              # artisan-команды (тонкие): ingest:dispatch, ingest:consume, ingest:reap-stuck, standings:rebuild
+├── Data/                          # DTO (readonly) между слоями Laravel, в т.ч. канон DTO результата ingest
 ├── Domains/                       # чистая предметная логика, без БД и HTTP
 │   ├── Standings/                 #   TieBreakers, StandingsCalculator
 │   ├── Rating/                    #   правила очков (сейчас Support/RatingRules → перенос по мере роста)
@@ -53,14 +53,14 @@ web/app/
 │   ├── Middleware/
 │   ├── Requests/                  # Form Requests (по ресурсам: Admin/, Auth/)
 │   └── Responses/                 # сборка Inertia-props / JSON (MatchPageResponse, IngestionRunResponse)
-├── Jobs/                          # очереди: запуск прогона (вызов Go-коллектора), RebuildStandings
+├── Jobs/                          # очереди Laravel: RebuildStandings и др. (команды/результаты ingest идут через RabbitMQ, см. ingestion.md)
 ├── Models/
 │   └── Concerns/                  # HasExternalIds, HasI18nNames
 ├── Policies/
 ├── Providers/
-├── Repositories/                  # MatchRepository, StandingsRepository, IngestionRunRepository
+├── Repositories/                  # MatchRepository, StandingsRepository, IngestionRunRepository, ExternalIdRepository (вся запись ingest — здесь)
 ├── Services/
-│   ├── Ingestion/                 # оркестрация: создать ingestion_runs, вызвать Go, записать итог. Парсер — в collector/
+│   ├── Ingestion/                 # создать ingestion_runs и команду в RabbitMQ, применить результат (resolve + upsert), закрыть прогон. Fetch/parse источника — в collector/
 │   └── Predictions/               # позже
 └── Support/                       # мелкие утилиты (RatingSeason, OAuthProviders, Database/PgSchema)
     └── Concerns/                  # общие traits (если понадобятся)
@@ -77,7 +77,7 @@ web/app/
 ## Именование и мелочи
 
 - Классы — `PascalCase`, один класс на файл; сервис — глагол/сценарий (`RunIngestion`, `ResolveExternalEntity`), репозиторий — `<Сущность>Repository`, DTO — существительное (`NormalizedMatch`), Form Request — `<Действие><Сущность>Request`.
-- Внешний мир кроме источников данных (платёжки, ML) — за интерфейсами в `Services/…`, привязка в `AppServiceProvider`/отдельном провайдере. Источники данных — Go-коллектор: смена источника = новый адаптер в `collector/` без смены домена ([ingestion.md](ingestion.md)).
+- Внешний мир кроме источников данных (платёжки, ML) — за интерфейсами в `Services/…`, привязка в `AppServiceProvider`/отдельном провайдере. Источники данных — Go-коллектор (общение с Laravel только через RabbitMQ): смена источника = новый адаптер в `collector/` без смены домена ([ingestion.md](ingestion.md)).
 - Enum'ы вместо «магических строк» везде, где значения хранятся в БД; каст — в модели.
 - Тесты: Feature — маршруты/БД (`tests/Feature`), Unit — `Domains` и `Support` (`tests/Unit`). Число запросов на горячих страницах проверяем тестами ([performance.md](../database/performance.md)).
 - Миграции — как в [../database/](../database/README.md); «позже»-таблицы заранее не создаём.
@@ -85,5 +85,5 @@ web/app/
 ## Что сознательно НЕ вводим
 
 - Абстрактные базовые репозитории/сервисы, generic CRUD-обёртки, CQRS, Event Sourcing, пакеты модульного монолита.
-- Интерфейс на каждый класс: интерфейсы — только на границе с внешним миром (платёжки, ML) и там, где реально будет вторая реализация. Адаптер источника — в Go-коллекторе, не интерфейс в `web/app`.
+- Интерфейс на каждый класс: интерфейсы — только на границе с внешним миром (платёжки, ML) и там, где реально будет вторая реализация. Адаптер источника — в Go-коллекторе, не интерфейс в `web/app`; Go не получает доступа к БД.
 - Отдельный слой «Actions» поверх сервисов — сервис с одним публичным методом выполняет эту роль.

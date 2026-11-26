@@ -86,13 +86,10 @@ services:
     environment:
       COLLECTOR_ADDR: ":8081"
       COLLECTOR_LEAGUE: rpl
-      DATABASE_URL: postgres://${POSTGRES_USER:-matchiq}:${POSTGRES_PASSWORD:-matchiq}@postgres:5432/${POSTGRES_DB:-matchiq}?sslmode=disable
       REDIS_ADDR: redis:6379
     ports:
       - "${COLLECTOR_PORT:-8081}:8081"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_started
     networks:
