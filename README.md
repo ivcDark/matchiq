@@ -1,7 +1,7 @@
 # MatchIQ
 
 Футбольная статистика с вероятностями событий по матчу (MVP: **РПЛ**).  
-Стек: **Laravel + Vue + Inertia**, **PostgreSQL**, **Redis**. Сбор данных: **Laravel** стартует прогоны (`artisan` + scheduler) и оркестрирует итоги, **Go-коллектор** парсит источник и пишет нормализованные данные в ту же БД.
+Стек: **Laravel + Vue + Inertia**, **PostgreSQL**, **Redis**. Сбор данных: **Laravel** создаёт джобы и **единственный пишет в БД**; **Go-коллектор** получает команды из **RabbitMQ**, собирает данные **SStats.net**, нормализует и возвращает результат в RabbitMQ (схема — [docs/architecture/ingestion.md](docs/architecture/ingestion.md)).
 
 > Это каркас репозитория: маршруты и заглушки страниц, Docker Compose, stub collector.  
 > Парсинг, ML/скоринг и продакшен-дизайн — отдельно, позже.
@@ -11,7 +11,7 @@
 ```
 .
 ├── web/                 # Laravel + Vue + Inertia
-├── collector/           # Go collector (заглушка /healthz)
+├── collector/           # Go collector (заглушка /healthz; в БД не пишет — RabbitMQ ↔ SStats.net)
 ├── docker/              # Dockerfiles для app и collector
 ├── docker-compose.yml
 └── .env.example         # переменные Compose (секреты не коммитить)
@@ -20,24 +20,26 @@
 ## Архитектура (заложено с дня 1)
 
 ```
-[Laravel scheduler / artisan] --старт прогона--> [Go collectors]
-                                                      |
-                                              normalize + запись
-                                                      |
-                                                [PostgreSQL]
-                                                      |
-                                               [Laravel / Inertia]
-                                                      |
-                                                  [Vue UI]
+[Laravel scheduler / artisan] --команда--> [RabbitMQ] --> [Go collector] --> SStats.net
+        |                                                        |
+   ingestion_runs                                    normalize в канон DTO
+        ^                                                        |
+        |                                                        v
+ [Laravel consumer] <------------ результат ------------ [RabbitMQ]
+        |
+        v
+  [PostgreSQL]  (пишет только Laravel)
+        |
+ [Laravel / Inertia] --> [Vue UI]
 ```
 
-- **Laravel:** расписание и оркестрация ingestion. Artisan-команда создаёт `ingestion_runs`, вызывает Go, пишет и читает итоги (`ingestion_runs`, `ingestion_run_errors`, `external_ids`). Парсера в PHP нет.
-- **Collectors (Go):** fetch и parse. Адаптеры по `provider` + `league`. Пишут нормализованные данные в ту же PostgreSQL по контракту [docs/architecture/ingestion.md](docs/architecture/ingestion.md). MVP = scraper; позже — платный API тем же контрактом.
+- **Laravel:** все модели, репозитории и миграции. Artisan по расписанию создаёт `ingestion_runs` и кладёт команду в RabbitMQ; consumer забирает результат и сохраняет его через репозитории, обновляя `ingestion_runs`, `ingestion_run_errors`, `external_ids`. Клиента источника в PHP нет.
+- **Collectors (Go):** читают команды из RabbitMQ, по типу джобы запускают сборщик, ходят в **SStats.net** (primary API, [обзор](docs/ingestion/README.md)), нормализуют в канон DTO и публикуют результат в RabbitMQ. **В PostgreSQL не пишут.** Смена источника — новый адаптер с тем же контрактом.
 - **Domain в Postgres:** лиги, сезоны, команды, матчи, события — нейтрально к источнику. Мульти-лиговость: `leagues` (`rpl`, …), `providers`, маппинг внешних ID.
 - **Схема БД (черновик):** [docs/database/](docs/database/README.md) — ER-диаграммы, таблицы по доменам, открытые вопросы.
 - **Архитектура приложения и ingestion:** [docs/architecture/](docs/architecture/README.md) — слои Laravel (Services / Domains / Repositories / Form Requests / DTO / Enums, контроллеры только REST), [загрузка данных и наблюдаемость](docs/architecture/ingestion.md) (прогоны, ошибки по сущностям, смена источника).
 - **Predictions:** пишутся отдельным job/сервисом; веб читает готовые вероятности.
-- **Redis:** кэш, сессии, очереди.
+- **Redis:** кэш, сессии, очереди Laravel. **RabbitMQ:** команды и результаты ingest между Laravel и Go.
 - **MVP-лига:** РПЛ; UI и схема готовы к другим лигам без ветвления монолита.
 
 ## Как запустить (Docker / WSL)

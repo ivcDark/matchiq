@@ -1,67 +1,217 @@
 # Загрузка данных (ingestion) и наблюдаемость
 
-**Статус:** правила согласованы (2026-11-25). **Кто исполняет прогон — решено** ([№ 36](../database/open-questions.md), принято пользователем 2026-11-25): Laravel стартует и оркестрирует, Go парсит и пишет нормализованные данные в ту же БД. Код конкретного парсера/адаптера **не пишем** — источник ещё выбирается. Здесь — контракт, которому подчиняется любой источник (парсер сайта, платный API, ручной ввод).  
-Слои и каталоги — [README.md](README.md). Таблицы — [../database/schema.md](../database/schema.md#7-источники-данных-и-маппинг).
+**Статус:** схема ingest **принята пользователем 2026-11-26** (уточняет [№ 36](../database/open-questions.md), заменяет формулировку «Go пишет в ту же БД»): **с PostgreSQL работает только Laravel**; Laravel и Go общаются **через RabbitMQ** — команды туда, результаты обратно. Primary-источник — **SStats.net** ([обзор и OpenAPI](../ingestion/README.md)). Код сборщиков Go здесь не приводим — только структура и контракт.  
+Слои и каталоги Laravel — [README.md](README.md). Таблицы — [../database/schema.md](../database/schema.md#7-источники-данных-и-маппинг).
 
 ## Цели
 
-1. **Источник сменяем:** парсер → платный API → другой парсер без смены внутренних `id`, URL и доменных таблиц.
+1. **Источник сменяем:** SStats.net → другой API/парсер без смены внутренних `id`, URL и доменных таблиц. Единственное место, знающее источник, — Go-сборщик; наружу он отдаёт канонические DTO.
 2. **Прозрачность в будущей админке:** для любой сущности видно, из какого источника она пришла, когда и каким прогоном обновлялась; для любого прогона — счётчики и **ошибки по конкретным сущностям**.
-3. **Идемпотентность:** повторный прогон тех же данных не создаёт дублей и не меняет БД.
+3. **Идемпотентность:** повторный прогон тех же данных не создаёт дублей и не меняет БД; повторная доставка сообщения из очереди безопасна.
+4. **Одна точка записи:** все модели, репозитории и миграции — в Laravel; Go не знает схему БД и не получает `DATABASE_URL`.
 
-## Кто что делает (№ 36)
+## Кто что делает
 
 | Роль | Кто | Что делает |
 |------|-----|------------|
-| Старт по расписанию | **Laravel** (`artisan`-команды и scheduler) | Создаёт строку `ingestion_runs` (`status = running`) и вызывает Go-коллектор. Команда и job тонкие: парсинга в них нет |
-| Оркестрация итогов | **Laravel** | Создаёт `ingestion_runs`, вызывает Go, дописывает финальный `status` / `finished_at` / `error` прогона. Читает итоги в `ingestion_runs`, `ingestion_run_errors`, `external_ids` (админка — через репозиторий) |
-| Fetch, parse и запись сущностей | **Go-коллектор** (`collector/`) | Собирает и разбирает источник (быстрее PHP). В ту же PostgreSQL пишет нормализованные строки и наблюдаемость этой записи (`external_ids`, `ingestion_runs.stats`, `ingestion_run_errors`) по контракту ниже |
+| Создание джобы | **Laravel** (`artisan` по расписанию; позже — админка) | Берёт lock, создаёт `ingestion_runs` (`status = running`), публикует **команду** в RabbitMQ. Команда/job тонкие: ни HTTP-запросов к источнику, ни парсинга |
+| Сбор | **Go-сборщик** (`collector/`) | Читает команду из RabbitMQ, по `job_type` запускает нужный сборщик (расписание, результаты, статистика, составы, live…), ходит в **SStats.net**, нормализует ответ в **канонические DTO**, публикует **результат** в RabbitMQ (батчи сущностей + ошибки по сущностям + финальное сообщение). **В PostgreSQL не пишет и не читает** |
+| Сохранение | **Laravel consumer** (`artisan`-воркер, очередь результатов) | Читает результат, резолвит сущности (`external_ids` → `team_aliases` → ревью), сохраняет через репозитории/модели, обновляет `external_ids`, пишет `ingestion_run_errors`, считает `stats` и закрывает `ingestion_runs` |
+| Чтение итогов | Laravel (админка позже) | `IngestionRunRepository` по `ingestion_runs`, `ingestion_run_errors`, `external_ids` |
 
-Контракт таблиц, статусов, счётчиков и ошибок один. Коллектор **пишет в ту же БД сам** — и доменные строки, и наблюдаемость этой записи (`external_ids`, `ingestion_runs.stats`, `ingestion_run_errors`). Отдельного пути «Go возвращает сущности в Laravel, Laravel перекладывает их в БД» нет. Laravel создаёт прогон, вызывает коллектор и дописывает жизненный цикл вызова (старт, финальный `status` / `finished_at`); админка эти таблицы читает.
+Всё, что требует знания БД (resolve, сравнение с текущими значениями, upsert, транзакции, `name_i18n`, очередь несматченных), живёт в Laravel. Всё, что требует знания источника (URL, пагинация, лимиты, формат ответа, ретраи HTTP), — в Go. Граница — контракт сообщений ниже.
 
-Смена источника — новый адаптер в Go-коллекторе (единственное место, которое знает сайт или API) плюс строки `source_providers` и `competition_sources`. Доменные таблицы, репозиторий админки и Laravel-оркестрация не меняются. Нормализация имён, сравнение и тай-брейки для веба остаются в Laravel `Domains/` и к записи коллектора не привязаны.
+Смена источника — новый сборщик/адаптер в Go плюс строки `source_providers` и `competition_sources` (создаёт Laravel). Доменные таблицы, репозитории и Laravel-консьюмер не меняются, пока адаптер отдаёт тот же канон DTO.
 
 ## Поток данных
 
 ```
-Laravel (artisan / scheduler)
-        │  создать ingestion_runs (running), вызвать Go
-        ▼
-Go-коллектор
-        │  fetch          ← адаптер источника (единственная часть, знающая источник)
-        ▼
- сырые записи
-        │  parse + normalize   ← поля домена, нейтральные к источнику
-        ▼
- нормализованные данные
-        │  resolve        ← external_ids → (нет) team_aliases / естественные ключи → (нет) очередь ревью
-        ▼
- наш entity_id
-        │  upsert         ← транзакция на сущность; запись только изменившихся полей
-        ▼
- доменные таблицы  +  external_ids (last_seen_at, last_ingestion_run_id)
+Laravel (artisan / scheduler; позже админка)
+   │ 1. lock + INSERT ingestion_runs (running)
+   │ 2. publish command ───────────────►  RabbitMQ: ingest.commands
+   │                                              │
+   │                                              ▼
+   │                                      Go collector (consumer)
+   │                                        job_type → сборщик
+   │                                        fetch  ← SStats.net (apikey, лимиты, ретраи)
+   │                                        normalize → канон DTO
+   │                                              │ publish batch / entity errors / done
+   │                                              ▼
+   │                                      RabbitMQ: ingest.results
+   │                                              │
+   ▼                                              ▼
+Laravel consumer (artisan ingest:consume)  ◄──────┘
+   resolve → upsert через репозитории → external_ids (last_seen_at, last_ingestion_run_id)
+   ingestion_run_errors, ingestion_runs.stats / status / finished_at
         │
         ▼
- итог в тех же таблицах (пишет Go по контракту, жизненный цикл прогона дописывает Laravel)
- ingestion_runs (статус, stats)  +  ingestion_run_errors (ошибки по сущностям)
+   PostgreSQL  (пишет только Laravel)
 ```
+
+### Топология RabbitMQ (набросок)
+
+| Объект | Тип / имя | Назначение |
+|--------|-----------|------------|
+| Exchange | `matchiq.ingest` (direct, durable) | Единая точка публикации |
+| Очередь команд | `ingest.commands` (durable), routing key `command` | Laravel → Go. Prefetch у Go-консьюмера ограничен (по умолчанию 1–4 команды параллельно, чтобы не превысить лимиты SStats) |
+| Очередь результатов | `ingest.results` (durable), routing key `result` | Go → Laravel |
+| DLQ | `ingest.commands.dlq`, `ingest.results.dlq` | Сообщения, которые не удалось обработать после N попыток (по умолчанию 3); разбираются вручную/админкой |
+
+Правила: сообщения persistent, ручной `ack` только после обработки (Go — после публикации результата; Laravel — после коммита транзакции), формат — JSON UTF-8, `content_type = application/json`. Один прогон = одна команда = несколько сообщений результата (батчи). Порядок батчей внутри прогона не гарантируем — поэтому у сообщений есть `seq`, а завершение определяется финальным сообщением с `batches_total`.
+
+Размер сообщения ограничен (по умолчанию ≤ 1 МБ, ~сотни сущностей на батч): сезон РПЛ режется на несколько батчей. Сырые ответы SStats в очередь **не** кладём (см. «Что НЕ делаем»).
+
+## Контракт сообщений (набросок)
+
+Общий конверт — для команд и результатов:
+
+| Поле | Смысл |
+|------|-------|
+| `schema_version` | версия контракта (целое, сейчас `1`); несовместимое изменение — новая версия, консьюмеры отвергают неизвестную в DLQ |
+| `message_id` | UUID сообщения (идемпотентность консьюмера, трассировка) |
+| `run_id` | `ingestion_runs.id` — сквозной id прогона |
+| `job_type` | тип джобы = `ingestion_runs.kind`: `schedule` \| `match_stats` \| `lineups` \| `live` (новые типы, например `results`, добавляются вместе с enum/CHECK в Laravel) |
+| `provider` | `source_providers.code` (например `sstats`) |
+| `sent_at` | ISO-8601 UTC |
+
+### Команда (Laravel → Go)
+
+```json
+{
+  "schema_version": 1,
+  "message_id": "b6f1…",
+  "run_id": 4812,
+  "job_type": "schedule",
+  "provider": "sstats",
+  "sent_at": "2026-11-26T12:00:00Z",
+  "payload": {
+    "competition": { "id": 1, "external_id": "310", "season_external_id": "2025" },
+    "window": { "from": "2026-11-01", "to": "2027-05-31" },
+    "match_external_ids": [],
+    "context": { "trigger": "schedule", "requested_by": null }
+  }
+}
+```
+
+`payload` зависит от `job_type`: для `schedule` — лига + окно дат; для `match_stats`/`lineups`/`live` — `match_external_ids`. Внешние id для Go берёт Laravel из `competition_sources.settings` и `external_ids` — Go справочников БД не читает. `context` копируется в `ingestion_runs.stats.context`.
+
+### Результат (Go → Laravel)
+
+Три вида сообщений (поле `kind`):
+
+**`batch`** — пачка нормализованных сущностей и ошибок этой пачки:
+
+```json
+{
+  "schema_version": 1,
+  "message_id": "9d20…",
+  "run_id": 4812,
+  "job_type": "schedule",
+  "provider": "sstats",
+  "kind": "batch",
+  "seq": 1,
+  "entities": [
+    {
+      "entity_type": "match",
+      "external_id": "1415356",
+      "external_url": null,
+      "data": {
+        "competition_external_id": "310",
+        "season_external_id": "2025",
+        "round": "15",
+        "home_team": { "external_id": "4021", "name": "Zenit", "name_local": "Зенит" },
+        "away_team": { "external_id": "4033", "name": "Spartak Moscow", "name_local": "Спартак" },
+        "kickoff_at": "2026-11-29T16:30:00Z",
+        "status": "scheduled",
+        "home_goals": null,
+        "away_goals": null
+      }
+    }
+  ],
+  "errors": [
+    {
+      "entity_type": "match",
+      "external_id": "1415999",
+      "phase": "normalize",
+      "message": "не распознан статус матча",
+      "context": { "raw_status": "Xyz" }
+    }
+  ]
+}
+```
+
+- `entities[].data` — **канонические DTO**, нейтральные к источнику: ссылки между сущностями только через внешние id (`*_external_id`) либо вложенные объекты с `external_id`; наши `id` Go не знает. Типы `entity_type` — значения `ExternalEntityType` (`team`, `match`, `player`, …) плюс дочерние (`match_event`, `lineup`, `match_team_stats`, `match_player_stats`) внутри `data` родителя.
+- Статусы, периоды, типы событий — уже наши enum-значения (нормализация в Go); неизвестное значение источника — ошибка сущности (`phase = normalize`), а не падение прогона.
+- `errors[]` — **ошибки по сущностям на стороне Go** (`phase` = `fetch` \| `parse` \| `normalize`). Без секретов и сырых HTML.
+
+**`done`** — финал сборки (ровно одно на прогон, после всех `batch`):
+
+```json
+{ "kind": "done", "batches_total": 5, "entities_total": 412, "errors_total": 3,
+  "source": { "requests": 7, "rate_limited": 0 } }
+```
+
+**`failed`** — прогон не состоялся целиком (SStats недоступен, неверный `apikey`, исчерпан лимит запросов, неверная команда): `{ "kind": "failed", "message": "…", "retryable": false }`. Laravel ставит `ingestion_runs.status = failed`, `error = message`.
+
+### Обработка в Laravel consumer
+
+1. Сообщение валидируется (схема, `schema_version`, существование `run_id` и `status = running`); невалидное — в DLQ.
+2. `batch`: для каждой сущности — resolve (`external_ids` → `team_aliases`/естественные ключи → очередь ревью, `unmatched`), сравнение с текущими полями, upsert в транзакции **на сущность**; `external_ids.last_seen_at` и `last_ingestion_run_id` обновляются всегда. Ошибки Go из `errors[]` и свои (`match`, `upsert`) пишутся в `ingestion_run_errors`. Счётчики добавляются в `stats`.
+3. `done`/`failed`: Laravel сверяет число принятых батчей с `batches_total`, считает итоговый `status`, ставит `finished_at`. Если батчи не пришли (потеря/таймаут) — работает уборщик (см. ниже).
+4. Повторная доставка того же `batch` безопасна: upsert идемпотентен (ключ — `external_ids`), счётчики прогона не удваиваются благодаря учёту `seq` (принятые `seq` хранятся в `stats.context.batches_seen` либо в Redis по `run_id`; точная реализация — при кодировании).
+
+## Структура Go-сборщика (без кода)
+
+```
+collector/
+├── cmd/collector/            # точка входа: конфиг, подключение к RabbitMQ, graceful shutdown, /healthz
+└── internal/
+    ├── mq/                   # consumer команд, publisher результатов, конверт, ретраи/DLQ
+    ├── contract/             # DTO сообщений и канонические DTO (Team, Match, Event…) — единый источник контракта в Go
+    ├── jobs/                 # реестр: job_type → обработчик (schedule, results, match_stats, lineups, live)
+    ├── sources/
+    │   └── sstats/           # клиент SStats.net: apikey (из env), rate limit, ретраи, маппинг ответов
+    ├── normalize/            # SStats → канон DTO (статусы, периоды, события), без БД
+    └── config/               # env: RABBITMQ_URL, SSTATS_API_KEY, лимиты, prefetch
+```
+
+- **Сборщик на тип джобы:** реестр `job_type → Collector`. Новый тип (например, статистика игроков) = новый сборщик + строка реестра + новый `kind` в Laravel; mq-слой не меняется.
+- **Адаптер источника изолирован** в `sources/<provider>`; `normalize` и `contract` не импортируют клиентов API.
+- Секреты (`SSTATS_API_KEY`) — только env; в сообщения и логи не попадают. У сервиса `collector` в Compose нет `DATABASE_URL` и зависимости от `postgres`.
+- Rate limit SStats (без ключа 30 запросов/мин на IP, с ключом — по аккаунту; `GET /Account/Info`) соблюдается внутри клиента; превышение → `failed` с `retryable = true` или отложенный повтор.
+
+## Роль Laravel (код — в `web/app`)
+
+| Слой | Что |
+|------|-----|
+| `Console/Commands` | `ingest:dispatch {type} {--competition=}` — создаёт прогон и публикует команду; `ingest:consume` — воркер очереди результатов; `ingest:reap-stuck` — уборщик; расписание — scheduler |
+| `Services/Ingestion` | `StartIngestionRun` (lock → `ingestion_runs` → publish), `ApplyIngestionResult` (батч → репозитории), `FinishIngestionRun` (статус, `finished_at`) |
+| `Repositories` | upsert сущностей, `ExternalIdRepository`, `IngestionRunRepository`; вся запись в БД только здесь |
+| `Data/` | readonly DTO канона на стороне PHP (зеркало `contract/` в Go; соответствие проверяется контрактными тестами на общих JSON-фикстурах) |
+| `Domains/Naming` | нормализация названий для `team_aliases` |
+| Админка (позже) | `POST /admin/ingestion-runs` → тот же `StartIngestionRun` |
+
+Брокер для PHP — отдельный драйвер/клиент AMQP (выбор пакета — при реализации); очередь Laravel `redis` для обычных job'ов остаётся как есть и с RabbitMQ-обменом ingest не смешивается.
 
 ## Жизненный цикл прогона (`ingestion_runs`)
 
-1. **Старт (Laravel):** строка `ingestion_runs` со `status = running`, `started_at`, `source_provider_id`, `competition_id` (если прогон по лиге), `kind` (`schedule` | `match_stats` | `lineups` | `live`). Сразу после этого — вызов Go.
-2. **Обработка (Go):** сбой одной сущности изолирован (своя транзакция) и **не прерывает** прогон. Успех — счётчик `created` / `updated` / `unchanged`; пропуск по правилу — `skipped`; сбой — строка в `ingestion_run_errors` и счётчик `failed`.
-3. **Финиш (Laravel):** по итогам, которые Go записал в те же таблицы, выставляет `finished_at` и итоговый статус:
+1. **Старт (Laravel):** строка `ingestion_runs` со `status = running`, `started_at`, `source_provider_id`, `competition_id` (если прогон по лиге), `kind` = `job_type`. Сразу после этого — публикация команды в RabbitMQ (если публикация упала — прогон сразу `failed`).
+2. **Сборка (Go):** сбой одной сущности изолирован и **не прерывает** сборку: уходит в `errors[]` батча. Сбой целиком — сообщение `failed`.
+3. **Сохранение (Laravel):** по каждой сущности — своя транзакция; успех — `created` / `updated` / `unchanged`; пропуск по правилу — `skipped`; сбой — строка в `ingestion_run_errors` и счётчик `failed`.
+4. **Финиш (Laravel):** после `done` (или `failed`) выставляет `finished_at` и итоговый статус:
 
 | `status` | Когда |
 |----------|-------|
-| `running` | идёт |
+| `running` | идёт (команда в очереди, Go собирает или Laravel ещё применяет результат) |
 | `ok` | завершён, `failed = 0` |
 | `partial` | завершён, есть и успешные сущности, и ошибки (`failed > 0`) |
-| `failed` | прогон не состоялся целиком: источник недоступен, ошибка авторизации, исключение вне обработки сущностей, либо ни одной успешной при `failed > 0`; причина — `ingestion_runs.error` |
+| `failed` | прогон не состоялся целиком: источник недоступен, ошибка авторизации, сообщение `failed` от Go, ошибка публикации команды, либо ни одной успешной при `failed > 0`; причина — `ingestion_runs.error` |
 
-Зависшие прогоны (`running` дольше порога, по умолчанию 1 час) помечает `failed` artisan-команда-«уборщик» с `error = 'timeout'`.
+Зависшие прогоны (`running` дольше порога, по умолчанию 1 час — команда не взята Go, результат не дошёл или `done` не пришёл) помечает `failed` artisan-«уборщик» с `error = 'timeout'`. Поздние сообщения по уже закрытому `run_id` консьюмер отбрасывает (ack + лог).
 
 ### Счётчики — `ingestion_runs.stats` (jsonb, фиксированный контракт)
+
+Счётчики считает **Laravel** (он один знает created/updated/unchanged).
 
 ```json
 {
@@ -86,7 +236,7 @@ Go-коллектор
 
 ### Ошибки по сущностям — `ingestion_run_errors`
 
-Одна строка = одна сбойная сущность в прогоне.
+Одна строка = одна сбойная сущность в прогоне. Пишет **Laravel consumer**: ошибки Go (`fetch`/`parse`/`normalize`) — из `errors[]` результата, свои (`match`/`upsert`) — по месту.
 
 | Поле | Смысл |
 |------|-------|
@@ -103,20 +253,20 @@ Go-коллектор
 
 ## Идемпотентность
 
-- **Ключ маппинга:** `external_ids` UNIQUE (`source_provider_id`, `entity_type`, `external_id`). Прогон ищет сущность по нему; нашлась — `UPDATE`, нет — резолв и `INSERT` (+ новая строка `external_ids`). Повтор того же прогона всегда приходит к той же строке.
+- **Ключ маппинга:** `external_ids` UNIQUE (`source_provider_id`, `entity_type`, `external_id`). Laravel ищет сущность по нему; нашлась — `UPDATE`, нет — резолв и `INSERT` (+ новая строка `external_ids`). Повтор того же прогона или повторная доставка сообщения всегда приходит к той же строке.
 - **Естественные ключи** как страховка от дублей (матч: пара команд + `kickoff_at` в окне; игрок: имя + дата рождения + страна) используются только на этапе резолва нового `external_id`, не в горячем пути.
-- **Только реальные изменения:** коллектор сравнивает нормализованные поля с текущими; если нечего менять — `unchanged`, `updated_at` сущности не трогаем, но `external_ids.last_seen_at` и `last_ingestion_run_id` обновляем (сущность «жива» в источнике).
-- **Атомарность:** одна сущность (с дочерними — например матч с событиями) — одна транзакция; прогон целиком — **не** в одной транзакции.
-- **Порядок зависимостей:** справочники → команды/игроки → матчи → события/составы/статистика. Ссылки на ещё не загруженную сущность — ошибка `match` по этой строке, а не падение прогона; следующий прогон подхватит.
-- **Конкурентность:** на пару (`source_provider_id`, `competition_id`, `kind`) одновременно один `running`. Lock берёт Laravel до вызова Go (`Cache::lock` или advisory lock); второй запуск пропускается и логируется.
-- Поля `name_i18n` коллектор/адаптер **не перезаписывает** (кроме правила № 29 для источника без EN-имён) — см. [i18n.md](../database/i18n.md).
+- **Только реальные изменения:** Laravel сравнивает нормализованные поля с текущими; если нечего менять — `unchanged`, `updated_at` сущности не трогаем, но `external_ids.last_seen_at` и `last_ingestion_run_id` обновляем (сущность «жива» в источнике).
+- **Атомарность:** одна сущность (с дочерними — например матч с событиями) — одна транзакция; батч и прогон целиком — **не** в одной транзакции.
+- **Порядок зависимостей:** справочники → команды/игроки → матчи → события/составы/статистика. Go кладёт в батчи сущности в таком порядке; Laravel при ссылке на ещё не загруженную сущность фиксирует ошибку `match` по этой строке, а не падение прогона; следующий прогон подхватит.
+- **Конкурентность:** на пару (`source_provider_id`, `competition_id`, `kind`) одновременно один `running`. Lock берёт Laravel до публикации команды (`Cache::lock` или advisory lock); второй запуск пропускается и логируется.
+- Поля `name_i18n` Laravel **не перезаписывает** из источника (кроме правила № 29 для источника без EN-имён) — см. [i18n.md](../database/i18n.md).
 
 ## Смена источника без смены внутренних id
 
 Внутренние `id` наши и никогда не равны внешним; доменные таблицы про источники ничего не знают.
 
-1. Добавить строку `source_providers` (`code`, `kind`) и `competition_sources` (`priority`, `is_enabled`, `settings`).
-2. Новый провайдер сначала работает в «теневом» режиме (`is_enabled = true`, но его `priority` ниже текущего): резолвер сопоставляет его записи с нашими сущностями через `team_aliases` и естественные ключи и создаёт **вторые** строки `external_ids` (`matched_by = auto | alias | manual`) с тем же `entity_id`. Несопоставленное уходит в очередь ревью ([№ 14](../database/open-questions.md)), а не создаёт дубли.
+1. Добавить строку `source_providers` (`code`, `kind`) и `competition_sources` (`priority`, `is_enabled`, `settings`) и реализовать сборщик/адаптер в Go под новый `provider`.
+2. Новый провайдер сначала работает в «теневом» режиме (`is_enabled = true`, но его `priority` ниже текущего): Laravel сопоставляет его записи с нашими сущностями через `team_aliases` и естественные ключи и создаёт **вторые** строки `external_ids` (`matched_by = auto | alias | manual`) с тем же `entity_id`. Несопоставленное уходит в очередь ревью ([№ 14](../database/open-questions.md)), а не создаёт дубли.
 3. После проверки доли `unmatched` и отчётов прогонов — поменять `priority` (новый — меньше число): он становится основным источником записи фактов, старый — запасным или выключается (`is_enabled = false`). Строки старого провайдера в `external_ids` не удаляем (история и откат).
 4. URL (`/matches/{id}`, `/clubs/{id}`), picks, прогнозы и рейтинг остаются нетронутыми — они ссылаются на наши `id`.
 
@@ -124,7 +274,7 @@ Go-коллектор
 
 ## Что показывает админка (будущая)
 
-Админки пока нет; данные для неё уже есть в схеме. Экраны — по REST-ресурсам (`Admin\IngestionRunController`, `Admin\SourceProviderController`, …), чтение через `IngestionRunRepository`; доступ — `users.role = admin`.
+Админки пока нет; данные для неё уже есть в схеме. Экраны — по REST-ресурсам (`Admin\IngestionRunController`, `Admin\SourceProviderController`, …), чтение через `IngestionRunRepository`; запуск прогона из админки — тот же `StartIngestionRun`, что и у artisan; доступ — `users.role = admin`.
 
 | Экран | Содержимое | Откуда |
 |-------|------------|--------|
@@ -138,7 +288,15 @@ Go-коллектор
 
 ## Что сознательно НЕ делаем
 
-- Код адаптера/парсера конкретного сайта — до выбора источника.
-- Хранение сырых payload'ов (`raw_payloads`) — позже, вне основной БД или с retention ([schema.md](../database/schema.md#7-источники-данных-и-маппинг)).
+- Запись из Go в PostgreSQL (прямая или через staging-таблицы) — только Laravel.
+- Код сборщиков SStats и consumer'а Laravel — этот документ фиксирует только схему и контракт; реализация — отдельными задачами.
+- Хранение сырых payload'ов (`raw_payloads`) в БД и в очереди — позже, вне основной БД или с retention ([schema.md](../database/schema.md#7-источники-данных-и-маппинг)).
 - Таблицу «статус по каждой сущности в каждом прогоне» (успехи пишем только счётчиком; построчно — лишь ошибки): иначе объём растёт как число сущностей × число прогонов.
-- Полевую provenance, очередь/воркеры под live-поток, UI админки.
+- Полевую provenance, UI админки.
+
+## Открытые вопросы схемы (пересмотр при реализации)
+
+- Набор `job_type` сверх `schedule` / `match_stats` / `lineups` / `live` (в частности отдельный `results` для обновления счетов завершённых матчей) — добавляется в enum/CHECK `ingestion_runs.kind` миграцией Laravel.
+- Клиент AMQP для PHP (пакет/драйвер) и способ дедупликации `seq`.
+- Политика ретраев и backoff при лимитах SStats; размеры батчей и prefetch — подбираются на реальных прогонах.
+- Live-режим: частота команд и нагрузка на очереди — отдельное решение, когда дойдём до live ([schema.md](../database/schema.md)).

@@ -87,7 +87,7 @@
 
 Отдельный широкий индекс `(status, kickoff_at)` из черновика **заменяется** partial-индексами выше: статус низкоселективен, и индекс по нему целиком — пустая трата записи.
 
-HOT-обновления: в таблицу `matches` часто пишет live-коллектор (`minute`, `period`, счёт). Эти колонки **не индексируем**, `fillfactor = 85–90` — тогда большинство обновлений остаются HOT и не раздувают индексы.
+HOT-обновления: в таблицу `matches` часто пишет Laravel (live-результаты из Go через RabbitMQ) (`minute`, `period`, счёт). Эти колонки **не индексируем**, `fillfactor = 85–90` — тогда большинство обновлений остаются HOT и не раздувают индексы.
 
 ### Остальные горячие таблицы
 
@@ -104,7 +104,7 @@ HOT-обновления: в таблицу `matches` часто пишет live
 | `squad_memberships` | (`team_id`, `left_on`); (`player_id`, `joined_on DESC`) | состав клуба, карьера игрока |
 | `picks` | partial UNIQUE (`user_id`, `match_id`) `WHERE superseded_at IS NULL`; (`user_id`, `picked_at DESC`); (`match_id`) `WHERE status = 'pending'` | pick пользователя, профиль/история, резолв после матча |
 | `leaderboard_entries` | UNIQUE (`period_type`, `period_key`, `competition_id`, `user_id`); (`period_type`, `period_key`, `competition_id`, `rank`) `INCLUDE (points, picks_count, correct_count, streak)`; (`user_id`, `period_type`, `period_key`) | топ-N по рангу без сортировки; место пользователя |
-| `external_ids` | UNIQUE (`source_provider_id`, `entity_type`, `external_id`) | upsert коллектора (самый частый запрос на запись) |
+| `external_ids` | UNIQUE (`source_provider_id`, `entity_type`, `external_id`) | upsert Laravel consumer'а ingest (самый частый запрос на запись) |
 
 Индексы по jsonb (`extra`, `details`, `rules`, `facts`) **не создаём**: в запросах UI их нет. GIN — только по факту появившегося фильтра.
 

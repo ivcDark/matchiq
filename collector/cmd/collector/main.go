@@ -11,7 +11,7 @@ import (
 )
 
 // Placeholder Go collector service for MatchIQ.
-// Later: provider adapters (scraper → paid API), normalize into Postgres.
+// Later: RabbitMQ command consumer, SStats.net collectors, publish normalized results to RabbitMQ (no direct DB writes).
 func main() {
 	addr := envOr("COLLECTOR_ADDR", ":8081")
 	league := envOr("COLLECTOR_LEAGUE", "rpl")
