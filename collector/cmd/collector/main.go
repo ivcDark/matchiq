@@ -1,6 +1,9 @@
+// Collector: читает команды ingest из RabbitMQ, собирает данные SStats.net и публикует
+// канонические результаты обратно в RabbitMQ. В PostgreSQL не пишет.
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -8,43 +11,83 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/ivcDark/matchiq/collector/internal/amqp"
+	"github.com/ivcDark/matchiq/collector/internal/config"
+	"github.com/ivcDark/matchiq/collector/internal/jobs"
+	"github.com/ivcDark/matchiq/collector/internal/sstats"
 )
 
-// Placeholder Go collector service for MatchIQ.
-// Later: RabbitMQ command consumer, SStats.net collectors, publish normalized results to RabbitMQ (no direct DB writes).
 func main() {
-	addr := envOr("COLLECTOR_ADDR", ":8081")
-	league := envOr("COLLECTOR_LEAGUE", "rpl")
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if cfg.SStatsAPIKey == "" {
+		log.Println("warning: SSTATS_API_KEY is empty, requests go without apikey (strict anonymous limits)")
+	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	server := serveHealth(cfg.HTTPAddr)
+	defer server.Close()
+
+	conn := dialWithRetry(ctx, cfg)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+
+	client := sstats.NewClient(sstats.Options{
+		BaseURL:       cfg.SStatsBaseURL,
+		APIKey:        cfg.SStatsAPIKey,
+		HTTPClient:    &http.Client{Timeout: cfg.HTTPTimeout},
+		RatePerMinute: cfg.SStatsRatePM,
+	})
+	runner := &jobs.Runner{
+		Registry:  jobs.DefaultRegistry(),
+		Client:    client,
+		Publisher: conn,
+		BatchSize: cfg.BatchSize,
+	}
+
+	log.Printf("collector consuming %s (prefetch=%d)", amqp.QueueCommands, cfg.Prefetch)
+	if err := conn.Consume(ctx, runner); err != nil {
+		log.Fatalf("consume: %v", err)
+	}
+	log.Println("collector shutting down")
+}
+
+func dialWithRetry(ctx context.Context, cfg config.Config) *amqp.Conn {
+	for {
+		conn, err := amqp.Dial(cfg.RabbitMQURL, cfg.Prefetch)
+		if err == nil {
+			return conn
+		}
+		log.Printf("rabbitmq unavailable, retry in 5s: %v", err)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+func serveHealth(addr string) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"ok","service":"collector","league":%q,"ts":%q}`, league, time.Now().UTC().Format(time.RFC3339))
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprintln(w, "MatchIQ collector stub — ingestion not implemented yet")
+		fmt.Fprintf(w, `{"status":"ok","service":"collector","ts":%q}`, time.Now().UTC().Format(time.RFC3339))
 	})
 
 	server := &http.Server{Addr: addr, Handler: mux}
-
 	go func() {
-		log.Printf("collector stub listening on %s (league=%s)", addr, league)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal(err)
+			log.Printf("healthz: %v", err)
+			os.Exit(1)
 		}
 	}()
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
-	log.Println("collector shutting down")
-	_ = server.Close()
-}
-
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
+	return server
 }

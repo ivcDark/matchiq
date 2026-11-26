@@ -23,6 +23,11 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-null}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-matchiq}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-matchiq}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
       CACHE_STORE: redis
       QUEUE_CONNECTION: redis
       SESSION_DRIVER: redis
@@ -33,6 +38,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
     networks:
       - matchiq
 
@@ -79,6 +86,28 @@ services:
     networks:
       - matchiq
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    hostname: matchiq-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-matchiq}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-matchiq}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks:
+      - matchiq
+
+  # Collector: только RabbitMQ + SStats.net. Без DATABASE_URL и без зависимости от postgres.
   collector:
     build:
       context: .
@@ -86,12 +115,27 @@ services:
     environment:
       COLLECTOR_ADDR: ":8081"
       COLLECTOR_LEAGUE: rpl
-      REDIS_ADDR: redis:6379
+      RABBITMQ_URL: ${COLLECTOR_RABBITMQ_URL:-amqp://matchiq:matchiq@rabbitmq:5672/}
+      SSTATS_API_KEY: ${SSTATS_API_KEY:-}
+      SSTATS_BASE_URL: ${SSTATS_BASE_URL:-https://api.sstats.net}
+      COLLECTOR_PREFETCH: ${COLLECTOR_PREFETCH:-2}
     ports:
       - "${COLLECTOR_PORT:-8081}:8081"
     depends_on:
-      redis:
-        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - matchiq
+
+  # Go-проверки только в контейнере: docker compose --profile tools run --rm collector-test
+  collector-test:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: docker/collector/Dockerfile
+      target: test
+    entrypoint: ["true"]
     networks:
       - matchiq
 
@@ -102,3 +146,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  rabbitmq_data:

@@ -180,6 +180,31 @@ collector/
 - Секреты (`SSTATS_API_KEY`) — только env; в сообщения и логи не попадают. У сервиса `collector` в Compose нет `DATABASE_URL` и зависимости от `postgres`.
 - Rate limit SStats (без ключа 30 запросов/мин на IP, с ключом — по аккаунту; `GET /Account/Info`) соблюдается внутри клиента; превышение → `failed` с `retryable = true` или отложенный повтор.
 
+## Реализация первого среза (каталог и структура сезона)
+
+Реализовано в `collector/` и `web/`; остальные job types (`schedule`, `match_stats`, `lineups`, `live`) — следующие срезы.
+
+**Отличия от наброска выше (источник правды — код):**
+
+- `job_type` первого среза: `sync_catalog` (страны, лиги/соревнования, их сезоны) и `sync_structure` (стадии и команды сезона). Значения живут в `ingestion_runs.kind` (varchar, без CHECK) и в `App\Enums\IngestionKind`.
+- `payload` `sync_catalog`: `{"filters": {"country": "Russia", "league_name": "Premier League", "league_ids": []}, "context": {...}}`; `sync_structure`: `{"competition": {"id": 1, "external_id": "..."}, "season_external_id": "...", "context": {...}}` (сезон опционален: берётся текущий). `context` всегда JSON-объект.
+- Результат: сообщения `batch` содержат `entities[] = {entity_type, external_id, data}` для типов `country | competition | season | stage | team`, отсортированных по зависимостям (справочники → сезоны → стадии/команды); ошибки нормализации — `errors[]` в последнем батче; завершение — `done` с `batches_total` либо `failed` с `retryable`.
+- Очереди ошибок: отдельные `ingest.commands.dlq` / `ingest.results.dlq` (через `x-dead-letter-*`), а не единая `ingest.dlq`. Невалидное сообщение отвергается без requeue и попадает в DLQ; при сбое публикации результата команда один раз возвращается в очередь, затем — в DLQ.
+- Go-пакеты: `cmd/collector`, `internal/{config,dto,amqp,sstats,jobs}` (вместо `mq/contract/sources/normalize`; нормализация живёт в `internal/jobs`).
+- Go собирается, тестируется и запускается только в Docker (`docker/collector/Dockerfile`, multi-stage, Go 1.27): `docker compose --profile tools run --rm collector-test`, `docker compose build collector`.
+- Laravel: `php artisan ingest:dispatch {kind}` создаёт `ingestion_runs` и публикует команду; `php artisan ingest:consume` читает `ingest.results` и применяет батчи через репозитории (`App\Services\Ingestion\ApplyIngestionResult`). Повторная доставка батча безопасна (`stats.context.batches_seen`), на каждый прогон пишется не более 1000 строк `ingestion_run_errors`.
+
+**Запуск локально:**
+
+```bash
+docker compose up -d --build postgres redis rabbitmq app collector
+docker compose exec app php artisan ingest:dispatch sync_catalog --country=Russia --league="Premier League"
+docker compose exec app php artisan ingest:consume          # слушает ingest.results (Ctrl+C — выход)
+docker compose exec app php artisan ingest:dispatch sync_structure --competition=premier-league
+```
+
+Нужные env: `SSTATS_API_KEY` (collector), `RABBITMQ_HOST/PORT/USER/PASSWORD/VHOST` (web), `COLLECTOR_RABBITMQ_URL` (collector), опционально `SSTATS_RATE_PER_MINUTE`, `COLLECTOR_PREFETCH`, `COLLECTOR_BATCH_SIZE`. Формы ответов `/Ls/*` сверены с OpenAPI, но не проверялись вживую с реальным ключом.
+
 ## Роль Laravel (код — в `web/app`)
 
 | Слой | Что |

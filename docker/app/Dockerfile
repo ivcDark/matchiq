@@ -7,7 +7,7 @@ RUN apt-get update \
         libpq-dev \
         libzip-dev \
         libicu-dev \
-    && docker-php-ext-install -j$(nproc) pdo_pgsql pgsql zip intl bcmath pcntl \
+    && docker-php-ext-install -j$(nproc) pdo_pgsql pgsql zip intl bcmath pcntl sockets \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && rm -rf /var/lib/apt/lists/*

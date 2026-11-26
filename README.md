@@ -68,7 +68,8 @@ docker compose up --build
 | `vite`       | http://localhost:5173     | Vite HMR (`VITE_HOST_PORT`) |
 | `postgres`   | localhost:5432            | PostgreSQL                |
 | `redis`      | localhost:6379            | Redis                     |
-| `collector`  | http://localhost:8081     | Go stub (`/healthz`)      |
+| `rabbitmq`   | localhost:5672 / http://localhost:15672 | RabbitMQ (AMQP / management UI, `RABBITMQ_USER`/`RABBITMQ_PASSWORD`) |
+| `collector`  | http://localhost:8081     | Go collector: читает команды из RabbitMQ, ходит в SStats, кладёт результаты в `ingest.results` (`/healthz`); нужен `SSTATS_API_KEY` |
 
 Если `Bind for 0.0.0.0:5173 failed: port is already allocated` — остановите старый стек (`docker compose down`) или задайте свободный хост-порт, например `VITE_HOST_PORT=5174` в `.env`. Контейнер Vite по-прежнему слушает `5173` внутри сети; Laravel получает URL через `VITE_DEV_SERVER_URL`, HMR — через `clientPort`.
 
@@ -85,10 +86,10 @@ php artisan key:generate
 php artisan migrate
 npm install && npm run dev
 
-# collector
-cd collector
-go run ./cmd/collector
 ```
+
+Go собирается и тестируется только в Docker (последний Go в multi-stage `docker/collector/Dockerfile`): `docker compose --profile tools run --rm collector-test`, `docker compose build collector`.
+Запуск ingest: `php artisan ingest:dispatch` / `ingest:consume`, см. `docs/architecture/ingestion.md`.
 
 ## MVP-маршруты (Inertia)
 
