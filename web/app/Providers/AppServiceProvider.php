@@ -16,6 +16,8 @@ use App\Models\Stage;
 use App\Models\Team;
 use App\Models\Tie;
 use App\Models\Venue;
+use App\Services\Ingestion\Messaging\AmqpIngestionBroker;
+use App\Services\Ingestion\Messaging\CommandPublisher;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Vite;
@@ -30,7 +32,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(AmqpIngestionBroker::class);
+        $this->app->bind(CommandPublisher::class, AmqpIngestionBroker::class);
     }
 
     /**

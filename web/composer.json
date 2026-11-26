@@ -12,6 +12,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.33",
         "laravel/tinker": "^3.0",
+        "php-amqplib/php-amqplib": "^3.7",
         "socialiteproviders/vkontakte": "^5.1",
         "socialiteproviders/yandex": "^4.2",
         "tightenco/ziggy": "^2.0"
