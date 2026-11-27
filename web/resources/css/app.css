@@ -3392,11 +3392,15 @@
     }
 
     .miq-club-grid {
-        @apply grid grid-cols-1 gap-4 lg:grid-cols-2;
+        @apply grid grid-cols-1 items-start gap-4 lg:grid-cols-2;
+    }
+
+    .miq-club-side {
+        @apply grid min-w-0 grid-cols-1 gap-4;
     }
 
     .miq-club-ln {
-        @apply grid grid-cols-1 sm:grid-cols-2;
+        @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1;
     }
 
     .miq-club-ln-cell {
@@ -3411,6 +3415,13 @@
         .miq-club-ln-cell + .miq-club-ln-cell {
             border-top: 0;
             border-left: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
+        }
+    }
+
+    @media (min-width: 1024px) {
+        .miq-club-ln-cell + .miq-club-ln-cell {
+            border-left: 0;
+            border-top: 1px solid color-mix(in srgb, var(--miq-line) 80%, transparent);
         }
     }
 

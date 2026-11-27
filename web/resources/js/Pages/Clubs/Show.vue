@@ -98,10 +98,11 @@ const tablesStats = computed(() => props.stats[context.value]);
             >
                 <div class="miq-club-grid">
                     <ClubStandingSpot :standing="standing" :round="club.round" />
-                    <ClubCupStatus v-if="cup" :cup="cup" :team="club.name" />
+                    <div class="miq-club-side">
+                        <ClubLastNext :last="last_match" :next="next_match" :team="club.name" />
+                        <ClubCupStatus v-if="cup" :cup="cup" :team="club.name" />
+                    </div>
                 </div>
-
-                <ClubLastNext :last="last_match" :next="next_match" :team="club.name" />
 
                 <div class="miq-club-filters">
                     <TournamentContextTabs v-model="context" label="Матчи" />
