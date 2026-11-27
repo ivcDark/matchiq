@@ -408,6 +408,52 @@ class ClubPageTest extends TestCase
         ]);
     }
 
+    public function test_cup_club_in_playoffs_keeps_group_table_and_shows_knockout_after_it(): void
+    {
+        $this->playRounds();
+        $cup = $this->cupCompetition();
+        $group = $this->cupStage($cup, StageType::Group, 'Группы', 1);
+        $group->update(['rules' => ['points' => ['win' => 3, 'draw' => 1, 'loss' => 0, 'penalty_win' => 2, 'penalty_loss' => 1]]]);
+        $knockout = $this->cupStage($cup, StageType::Knockout, 'Play Offs', 2);
+        $a = StageGroup::create(['stage_id' => $group->id, 'name' => 'Группа A', 'group_order' => 1]);
+        foreach (['cska', 'spartak', 'zenit'] as $slug) {
+            StageTeam::create(['stage_id' => $group->id, 'team_id' => $this->teams[$slug]->id, 'stage_group_id' => $a->id]);
+        }
+        StandingZone::create(['stage_id' => $group->id, 'from_position' => 1, 'to_position' => 1, 'code' => 'playoff', 'label' => 'Плей-офф']);
+        $qf = Round::create(['stage_id' => $knockout->id, 'number' => 1, 'type' => 'knockout_round', 'code' => 'QF', 'legs' => 1]);
+
+        $this->stageMatch($cup, $group, 'cska', 'spartak', '2026-09-20 14:00:00', [2, 0], ['stage_group_id' => $a->id]);
+        $this->stageMatch($cup, $group, 'zenit', 'cska', '2026-10-03 14:00:00', [1, 1], ['stage_group_id' => $a->id, 'home_pens' => 3, 'away_pens' => 4]);
+        $this->stageMatch($cup, $knockout, 'cska', 'spartak', '2026-12-10 14:00:00', null, ['round_id' => $qf->id]);
+
+        $props = $this->props('cska');
+        $block = $this->competitionBlock($props, 'cup');
+
+        $this->assertSame('in_play', $block['status']);
+        $this->assertSame('В игре · Четвертьфинал', $block['status_label']);
+        $this->assertSame(['Групповой этап', 'Группа A', 1, 3, 5, 'playoff'], [
+            $block['group']['stage'], $block['group']['name'], $block['group']['place'], $block['group']['teams'], $block['group']['pts'], $block['group']['zone'],
+        ]);
+        $this->assertSame(['ЦСКА', 'Зенит', 'Спартак'], array_column($block['group']['table'], 'team'));
+        $this->assertSame([5, 1, 0], array_column($block['group']['table'], 'pts'));
+        $this->assertSame(['win' => 3, 'draw' => 1, 'loss' => 0, 'penalty_win' => 2, 'penalty_loss' => 1], $block['group']['rules']);
+        $this->assertSame(1, $block['group']['table'][0]['pen_wins']);
+        $this->assertSame(1, $block['group']['table'][1]['pen_losses']);
+        $this->assertSame(['Play Offs', 'in_play', 'Спартак'], [$block['knockout']['stage'], $block['knockout']['status'], $block['knockout']['tie']['opponent']]);
+        $this->assertSame($block['tie'], $block['knockout']['tie']);
+    }
+
+    public function test_club_cup_vue_renders_group_then_knockout_with_points_rules(): void
+    {
+        $vue = file_get_contents(resource_path('js/Components/ClubCupStatus.vue'));
+
+        $this->assertStringContainsString('data-part="group"', $vue);
+        $this->assertStringContainsString('data-part="knockout"', $vue);
+        $this->assertLessThan(strpos($vue, 'data-part="knockout"'), strpos($vue, 'data-part="group"'), 'группа — выше плей-офф');
+        $this->assertStringContainsString('Очки за матч: {{ rulesText }}', $vue);
+        $this->assertStringContainsString('победа по пенальти', $vue);
+    }
+
     public function test_two_leg_tie_is_not_decided_until_both_legs_are_played(): void
     {
         $cup = $this->cupCompetition();

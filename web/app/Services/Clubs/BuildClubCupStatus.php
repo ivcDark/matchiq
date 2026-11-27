@@ -18,7 +18,8 @@ use Illuminate\Support\Collection;
 
 /**
  * Статус клуба в нелиговом турнире сезона (кубок, турнир с группами и плей-офф) по этапам, группам и матчам БД.
- * Групповой этап — таблица группы и место клуба; плей-офф — текущая стадия и исход пары.
+ * Групповой этап — таблица группы, место клуба и очки по правилам этапа; плей-офф — текущая стадия и исход пары.
+ * Если у клуба есть оба этапа (вышел из группы), блок содержит и `group`, и `knockout`.
  */
 class BuildClubCupStatus
 {
@@ -39,6 +40,9 @@ class BuildClubCupStatus
         $stages = $matches->map(fn (FootballMatch $m) => $m->stage)
             ->merge($stageTeams->map(fn ($st) => $st->stage))
             ->filter()->unique('id');
+        $isGroup = fn (Stage $s) => $s->type->hasStandings() || $s->has_standings;
+        $groupStage = $stages->filter($isGroup)->sortByDesc('stage_order')->first();
+        $knockoutStage = $stages->reject($isGroup)->sortByDesc('stage_order')->first();
         $stage = $stages->sortByDesc('stage_order')->first();
 
         $block = [
@@ -50,6 +54,7 @@ class BuildClubCupStatus
             'status' => 'registered',
             'status_label' => 'Заявлен, матчей пока нет',
             'group' => null,
+            'knockout' => null,
             'tie' => null,
             'next' => $next,
         ];
@@ -58,13 +63,17 @@ class BuildClubCupStatus
             return $matches->isEmpty() ? $block : ['status' => 'in_play', 'status_label' => 'Участвует'] + $block;
         }
 
-        $inStage = $matches->where('stage_id', $stage->id)->values();
-
-        if ($stage->type->hasStandings() || $stage->has_standings) {
-            return $this->groupBlock($block, $team, $stage, $inStage, $stageTeams, $locale);
+        if ($groupStage !== null) {
+            $inGroupStage = $matches->where('stage_id', $groupStage->id)->values();
+            $block = $this->groupBlock($block, $team, $groupStage, $inGroupStage, $stageTeams, $locale);
         }
 
-        return $this->knockoutBlock($block, $team, $stage, $inStage, $locale);
+        if ($knockoutStage !== null) {
+            $inKnockout = $matches->where('stage_id', $knockoutStage->id)->values();
+            $block = $this->knockoutBlock($block, $team, $knockoutStage, $inKnockout, $locale);
+        }
+
+        return $block;
     }
 
     /**
@@ -80,11 +89,8 @@ class BuildClubCupStatus
         $groupName = $stageTeams->where('stage_group_id', $groupId)->first()?->group?->name
             ?? $inStage->where('stage_group_id', $groupId)->first()?->stageGroup?->name;
 
-        $table = LeagueTable::compute(
-            $this->catalog->finishedInStage($stage->id, $groupId),
-            null,
-            StandingRules::fromStageRules($stage->rules),
-        );
+        $rules = StandingRules::fromStageRules($stage->rules);
+        $table = LeagueTable::compute($this->catalog->finishedInStage($stage->id, $groupId), null, $rules);
         $index = null;
         foreach ($table as $i => $row) {
             if ($row['team_id'] === $team->id) {
@@ -93,12 +99,15 @@ class BuildClubCupStatus
         }
 
         $title = $groupId !== null && $groupName !== null ? $groupName : (string) $stage->name;
-        $block['stage'] = $stage->type === StageType::Group ? 'Групповой этап' : (string) $stage->name;
+        $stageLabel = $stage->type === StageType::Group ? 'Групповой этап' : (string) $stage->name;
+        $block['stage'] = $stageLabel;
         $block['status'] = 'group';
         $block['status_label'] = $stage->type === StageType::Group ? 'Групповой этап' : $title;
 
+        $base = ['stage' => $stageLabel, 'rules' => $rules->toArray()];
+
         if ($index === null) {
-            $block['group'] = ['name' => $title, 'place' => null, 'teams' => count($table), 'zone_label' => null, 'table' => []];
+            $block['group'] = $base + ['name' => $title, 'place' => null, 'teams' => count($table), 'zone_label' => null, 'table' => []];
 
             return $block;
         }
@@ -111,7 +120,7 @@ class BuildClubCupStatus
         $window = count($table) > self::WIDE_TABLE ? array_slice($table, $start, self::NEIGHBORS) : $table;
         $names = $this->catalog->teamsByIds(array_column($window, 'team_id'));
 
-        $block['group'] = [
+        $block['group'] = $base + [
             'name' => $title,
             'place' => $position,
             'teams' => count($table),
@@ -127,6 +136,8 @@ class BuildClubCupStatus
                 'wins' => $r['wins'],
                 'draws' => $r['draws'],
                 'losses' => $r['losses'],
+                'pen_wins' => $r['pen_wins'],
+                'pen_losses' => $r['pen_losses'],
                 'gd' => $r['gd'],
                 'pts' => $r['pts'],
                 'zone' => $zoneFor($r['pos'])?->code,
@@ -146,7 +157,9 @@ class BuildClubCupStatus
     {
         if ($inStage->isEmpty()) {
             $block['stage'] = (string) $stage->name;
+            $block['status'] = 'registered';
             $block['status_label'] = 'Заявлен на '.mb_strtolower((string) $stage->name).', матчей пока нет';
+            $block['knockout'] = ['stage' => (string) $stage->name, 'status' => 'registered', 'status_label' => $block['status_label'], 'tie' => null];
 
             return $block;
         }
@@ -202,7 +215,7 @@ class BuildClubCupStatus
         $block['stage'] = $round;
         $block['status'] = $status;
         $block['status_label'] = $label;
-        $block['tie'] = [
+        $tie = [
             'round' => $round,
             'opponent' => $opponent?->localized('name', $locale) ?? '',
             'opponent_id' => $opponentId,
@@ -210,6 +223,8 @@ class BuildClubCupStatus
             'penalties' => $pensFor !== null && $pensAgainst !== null ? $pensFor.':'.$pensAgainst : null,
             'result' => $won === null ? null : ($won ? 'won' : 'lost'),
         ];
+        $block['tie'] = $tie;
+        $block['knockout'] = ['stage' => (string) $stage->name, 'status' => $status, 'status_label' => $label, 'tie' => $tie];
 
         return $block;
     }

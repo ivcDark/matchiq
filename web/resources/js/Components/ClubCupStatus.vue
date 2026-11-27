@@ -4,7 +4,7 @@ import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const props = defineProps({
-    /** { name, competition_id, stage, status, status_label, group, tie, next } */
+    /** { name, competition_id, stage, status, status_label, group, knockout, tie, next } */
     cup: { type: Object, required: true },
     team: { type: String, required: true },
 });
@@ -20,7 +20,8 @@ const STATUS_CLASSES = {
 
 const signed = (n) => (n > 0 ? `+${n}` : String(n).replace('-', '−'));
 const group = computed(() => props.cup.group);
-const tie = computed(() => props.cup.tie);
+const knockout = computed(() => props.cup.knockout);
+const tie = computed(() => knockout.value?.tie ?? props.cup.tie);
 const tieScore = computed(() => {
     if (!tie.value?.aggregate) {
         return null;
@@ -28,6 +29,26 @@ const tieScore = computed(() => {
 
     return tie.value.penalties ? `${tie.value.aggregate} (пен. ${tie.value.penalties})` : tie.value.aggregate;
 });
+
+const rules = computed(() => group.value?.rules ?? null);
+const hasPens = computed(() => rules.value?.penalty_win != null && rules.value?.penalty_loss != null);
+const showDraws = computed(() => !hasPens.value || (group.value?.table ?? []).some((r) => r.draws > 0));
+const rulesText = computed(() => {
+    const r = rules.value;
+    if (!r) {
+        return '';
+    }
+    const parts = [`победа ${r.win}`];
+    if (hasPens.value) {
+        parts.push(`победа по пенальти ${r.penalty_win}`, `поражение по пенальти ${r.penalty_loss}`);
+    } else {
+        parts.push(`ничья ${r.draw}`);
+    }
+    parts.push(`поражение ${r.loss}`);
+
+    return parts.join(' · ');
+});
+const hasBoth = computed(() => !!group.value && !!knockout.value);
 </script>
 
 <template>
@@ -41,59 +62,91 @@ const tieScore = computed(() => {
             >О турнире</Link>
         </div>
 
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2.5">
-            <p v-if="group?.place" class="flex items-baseline gap-1.5">
-                <span class="num-display text-3xl leading-none text-miq-ink">{{ group.place }}</span>
-                <span class="text-sm text-miq-muted">место из {{ group.teams }} · {{ group.name }}</span>
-            </p>
-            <span class="miq-club-head-pos" :data-zone="group?.zone || undefined">{{ cup.status_label }}</span>
-            <p v-if="group?.zone_label" class="w-full text-xs" :class="STATUS_CLASSES[cup.status]">{{ group.zone_label }}</p>
-            <p v-if="tie" class="w-full text-xs" :class="STATUS_CLASSES[cup.status]">
-                {{ tie.round }} · против
-                <Link v-if="tie.opponent_id" :href="route('clubs.show', tie.opponent_id)" class="miq-club-link">{{ tie.opponent }}</Link>
-                <template v-else>{{ tie.opponent }}</template>
-                <template v-if="tieScore"> · {{ tieScore }}</template>
-            </p>
-            <p v-if="!group?.place && !tie" class="w-full text-xs text-miq-muted">Таблицы и сетки турнира появятся после первых матчей.</p>
-        </div>
+        <section v-if="group" class="miq-club-cup-part" data-part="group" :aria-label="group.stage">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2.5">
+                <p v-if="hasBoth" class="w-full text-[11px] font-semibold uppercase tracking-wider text-miq-muted">{{ group.stage }}</p>
+                <p v-if="group.place" class="flex items-baseline gap-1.5">
+                    <span class="num-display text-3xl leading-none text-miq-ink">{{ group.place }}</span>
+                    <span class="text-sm text-miq-muted">место из {{ group.teams }} · {{ group.name }}</span>
+                </p>
+                <span v-if="!hasBoth" class="miq-club-head-pos" :data-zone="group.zone || undefined">{{ cup.status_label }}</span>
+                <span v-else-if="group.zone_label" class="miq-club-head-pos" :data-zone="group.zone || undefined">{{ group.zone_label }}</span>
+                <p v-if="group.zone_label && !hasBoth" class="w-full text-xs" :class="STATUS_CLASSES[cup.status]">{{ group.zone_label }}</p>
+                <p v-if="!group.place" class="w-full text-xs text-miq-muted">Таблицы и сетки турнира появятся после первых матчей.</p>
+            </div>
 
-        <div v-if="group?.table?.length" class="overflow-x-auto">
-            <table class="miq-club-table">
-                <thead>
-                    <tr>
-                        <th class="is-left" title="Место в группе">#</th>
-                        <th class="is-left">{{ group.name }}</th>
-                        <th title="Игры">И</th>
-                        <th title="Победы">В</th>
-                        <th title="Ничьи">Н</th>
-                        <th title="Поражения">П</th>
-                        <th title="Разница мячей">+/−</th>
-                        <th title="Очки">Очки</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr
-                        v-for="row in group.table"
-                        :key="row.team_id"
-                        :class="{ 'is-current': row.is_current }"
-                        :data-zone="row.zone || undefined"
-                        :aria-current="row.is_current ? 'true' : undefined"
-                    >
-                        <td class="is-left">{{ row.pos }}</td>
-                        <td class="is-left">
-                            <span v-if="row.is_current" class="font-bold text-miq-ink">{{ row.team }}</span>
-                            <Link v-else-if="row.team_id" :href="route('clubs.show', row.team_id)" class="miq-club-link">{{ row.team }}</Link>
-                            <template v-else>{{ row.team }}</template>
-                        </td>
-                        <td>{{ row.played }}</td>
-                        <td>{{ row.wins }}</td>
-                        <td>{{ row.draws }}</td>
-                        <td>{{ row.losses }}</td>
-                        <td>{{ signed(row.gd) }}</td>
-                        <td class="is-strong">{{ row.pts }}</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div v-if="group.table?.length" class="overflow-x-auto">
+                <table class="miq-club-table">
+                    <thead>
+                        <tr>
+                            <th class="is-left" title="Место в группе">#</th>
+                            <th class="is-left">{{ group.name }}</th>
+                            <th title="Игры">И</th>
+                            <th title="Победы в основное время">В</th>
+                            <th v-if="hasPens" title="Победы по пенальти">ВП</th>
+                            <th v-if="showDraws" title="Ничьи">Н</th>
+                            <th v-if="hasPens" title="Поражения по пенальти">ПП</th>
+                            <th title="Поражения в основное время">П</th>
+                            <th title="Разница мячей">+/−</th>
+                            <th title="Очки">Очки</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="row in group.table"
+                            :key="row.team_id"
+                            :class="{ 'is-current': row.is_current }"
+                            :data-zone="row.zone || undefined"
+                            :aria-current="row.is_current ? 'true' : undefined"
+                        >
+                            <td class="is-left">{{ row.pos }}</td>
+                            <td class="is-left">
+                                <span v-if="row.is_current" class="font-bold text-miq-ink">{{ row.team }}</span>
+                                <Link v-else-if="row.team_id" :href="route('clubs.show', row.team_id)" class="miq-club-link">{{ row.team }}</Link>
+                                <template v-else>{{ row.team }}</template>
+                            </td>
+                            <td>{{ row.played }}</td>
+                            <td>{{ row.wins }}</td>
+                            <td v-if="hasPens">{{ row.pen_wins }}</td>
+                            <td v-if="showDraws">{{ row.draws }}</td>
+                            <td v-if="hasPens">{{ row.pen_losses }}</td>
+                            <td>{{ row.losses }}</td>
+                            <td>{{ signed(row.gd) }}</td>
+                            <td class="is-strong">{{ row.pts }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p v-if="rulesText && group.table?.length" class="px-3.5 py-2 text-[11px] text-miq-muted" aria-label="Очки за матч">
+                Очки за матч: {{ rulesText }}.
+                <template v-if="hasPens">ВП / ПП — ничья в основное время, решённая серией пенальти.</template>
+            </p>
+        </section>
+
+        <section
+            v-if="knockout"
+            class="miq-club-cup-part"
+            :class="{ 'border-t': hasBoth }"
+            data-part="knockout"
+            :aria-label="knockout.stage"
+            :style="hasBoth ? 'border-color: color-mix(in srgb, var(--miq-line) 60%, transparent)' : undefined"
+        >
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-3.5 py-2.5">
+                <p v-if="hasBoth" class="w-full text-[11px] font-semibold uppercase tracking-wider text-miq-muted">{{ knockout.stage }}</p>
+                <span class="miq-club-head-pos">{{ knockout.status_label }}</span>
+                <p v-if="tie" class="w-full text-xs" :class="STATUS_CLASSES[knockout.status]">
+                    {{ tie.round }} · против
+                    <Link v-if="tie.opponent_id" :href="route('clubs.show', tie.opponent_id)" class="miq-club-link">{{ tie.opponent }}</Link>
+                    <template v-else>{{ tie.opponent }}</template>
+                    <template v-if="tieScore"> · {{ tieScore }}</template>
+                </p>
+            </div>
+        </section>
+
+        <div v-if="!group && !knockout" class="px-3.5 py-2.5">
+            <span class="miq-club-head-pos">{{ cup.status_label }}</span>
+            <p class="mt-1 text-xs text-miq-muted">Таблицы и сетки турнира появятся после первых матчей.</p>
         </div>
 
         <p v-if="cup.next" class="border-t px-3.5 py-2 text-xs text-miq-ink-soft" style="border-color: color-mix(in srgb, var(--miq-line) 60%, transparent)">
