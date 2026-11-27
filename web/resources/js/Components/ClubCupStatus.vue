@@ -33,21 +33,6 @@ const tieScore = computed(() => {
 const rules = computed(() => group.value?.rules ?? null);
 const hasPens = computed(() => rules.value?.penalty_win != null && rules.value?.penalty_loss != null);
 const showDraws = computed(() => !hasPens.value || (group.value?.table ?? []).some((r) => r.draws > 0));
-const rulesText = computed(() => {
-    const r = rules.value;
-    if (!r) {
-        return '';
-    }
-    const parts = [`победа ${r.win}`];
-    if (hasPens.value) {
-        parts.push(`победа по пенальти ${r.penalty_win}`, `поражение по пенальти ${r.penalty_loss}`);
-    } else {
-        parts.push(`ничья ${r.draw}`);
-    }
-    parts.push(`поражение ${r.loss}`);
-
-    return parts.join(' · ');
-});
 const hasBoth = computed(() => !!group.value && !!knockout.value);
 </script>
 
@@ -117,11 +102,6 @@ const hasBoth = computed(() => !!group.value && !!knockout.value);
                     </tbody>
                 </table>
             </div>
-
-            <p v-if="rulesText && group.table?.length" class="px-3.5 py-2 text-[11px] text-miq-muted" aria-label="Очки за матч">
-                Очки за матч: {{ rulesText }}.
-                <template v-if="hasPens">ВП / ПП — ничья в основное время, решённая серией пенальти.</template>
-            </p>
         </section>
 
         <section

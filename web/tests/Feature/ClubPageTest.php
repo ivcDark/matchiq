@@ -443,15 +443,16 @@ class ClubPageTest extends TestCase
         $this->assertSame($block['tie'], $block['knockout']['tie']);
     }
 
-    public function test_club_cup_vue_renders_group_then_knockout_with_points_rules(): void
+    public function test_club_cup_vue_renders_group_then_knockout_without_points_footnote(): void
     {
         $vue = file_get_contents(resource_path('js/Components/ClubCupStatus.vue'));
 
         $this->assertStringContainsString('data-part="group"', $vue);
         $this->assertStringContainsString('data-part="knockout"', $vue);
         $this->assertLessThan(strpos($vue, 'data-part="knockout"'), strpos($vue, 'data-part="group"'), 'группа — выше плей-офф');
-        $this->assertStringContainsString('Очки за матч: {{ rulesText }}', $vue);
-        $this->assertStringContainsString('победа по пенальти', $vue);
+        $this->assertStringNotContainsString('Очки за матч', $vue);
+        $this->assertStringContainsString('group.value?.rules', $vue);
+        $this->assertStringContainsString('title="Победы по пенальти"', $vue);
     }
 
     public function test_two_leg_tie_is_not_decided_until_both_legs_are_played(): void

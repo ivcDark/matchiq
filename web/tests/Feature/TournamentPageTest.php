@@ -592,6 +592,7 @@ class TournamentPageTest extends TestCase
         $groups = file_get_contents(resource_path('js/Components/TournamentGroupStandings.vue'));
         $this->assertStringContainsString('v-for="group in groups"', $groups);
         $this->assertStringContainsString('title="Победы по пенальти"', $groups);
-        $this->assertStringContainsString('Очки за матч:', $groups);
+        $this->assertStringNotContainsString('Очки за матч', $groups);
+        $this->assertStringContainsString('props.stage.rules', $groups);
     }
 }

@@ -36,18 +36,6 @@ const groups = computed(() => props.stage.groups.map((group) => ({
     rows: rows.value.filter((r) => r.group_id === group.id),
 })));
 
-const rulesText = computed(() => {
-    const r = rules.value;
-    const parts = [`победа ${r.win}`];
-    if (hasPens.value) {
-        parts.push(`победа по пенальти ${r.penalty_win}`, `поражение по пенальти ${r.penalty_loss}`);
-    } else {
-        parts.push(`ничья ${r.draw}`);
-    }
-    parts.push(`поражение ${r.loss}`);
-    return parts.join(' · ');
-});
-
 function signed(n) {
     return n > 0 ? `+${n}` : String(n).replace('-', '−');
 }
@@ -120,10 +108,5 @@ function signed(n) {
                 </table>
             </div>
         </div>
-
-        <p class="miq-tt-legend text-miq-muted" aria-label="Очки за матч">
-            Очки за матч: {{ rulesText }}.
-            <template v-if="hasPens">ВП / ПП — ничья в основное время, решённая серией пенальти.</template>
-        </p>
     </section>
 </template>
