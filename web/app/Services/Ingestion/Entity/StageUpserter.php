@@ -7,6 +7,8 @@ use App\Data\Ingestion\UpsertContext;
 use App\Data\Ingestion\UpsertResult;
 use App\Enums\ExternalEntityType;
 use App\Enums\StageType;
+use App\Models\Season;
+use App\Models\Stage;
 use App\Repositories\ExternalIdRepository;
 use App\Repositories\StageRepository;
 use App\Services\Ingestion\Exceptions\IngestionEntityException;
@@ -57,8 +59,23 @@ class StageUpserter implements EntityUpserter
             (bool) ($entity->data['has_standings'] ?? $type->hasStandings()),
         );
 
+        $this->applyDefaultRules($stage, $seasonId);
+
         $this->externalIds->track($context->providerId, $this->type(), $entity->externalId, $stage->id, $context->runId, $entity->externalUrl);
 
         return new UpsertResult($outcome, $stage->id);
+    }
+
+    private function applyDefaultRules(Stage $stage, int $seasonId): void
+    {
+        if (! $stage->type->hasStandings() || ($stage->rules ?? []) !== []) {
+            return;
+        }
+
+        $slug = Season::with('competition:id,slug')->find($seasonId)?->competition?->slug;
+        $rules = $slug === null ? null : config('matchiq.stage_rules.'.$slug);
+        if (is_array($rules) && $rules !== []) {
+            $stage->forceFill(['rules' => $rules])->save();
+        }
     }
 }

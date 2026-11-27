@@ -99,7 +99,7 @@ class TournamentCatalogRepository
             ->whereNotNull('home_goals')
             ->whereNotNull('away_goals')
             ->when($groupId !== null, fn ($q) => $q->where('stage_group_id', $groupId))
-            ->get(['id', 'home_team_id', 'away_team_id', 'home_goals', 'away_goals', 'kickoff_at']);
+            ->get(['id', 'home_team_id', 'away_team_id', 'home_goals', 'away_goals', 'home_pens', 'away_pens', 'kickoff_at']);
     }
 
     /** @return Collection<int, StandingZone> */

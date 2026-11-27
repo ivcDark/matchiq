@@ -104,6 +104,18 @@ class StageStructureIngestionTest extends TestCase
         $this->assertSame(RoundType::KnockoutRound, $round->type);
     }
 
+    public function test_group_stage_gets_configured_competition_rules_and_keeps_them_on_repeat(): void
+    {
+        $rules = ['points' => ['win' => 3, 'draw' => 1, 'loss' => 0, 'penalty_win' => 2, 'penalty_loss' => 1]];
+        config(['matchiq.stage_rules.cup' => $rules]);
+        $this->seedCatalog();
+        $this->send($this->newRun(IngestionKind::SyncStructure), $this->structureEntities());
+        $this->send($this->newRun(IngestionKind::SyncStructure), $this->structureEntities());
+
+        $this->assertSame($rules, Stage::firstWhere('name', 'Group Stage')->rules);
+        $this->assertSame([], Stage::firstWhere('name', 'Play Offs')->rules);
+    }
+
     public function test_matches_get_group_and_named_round_and_repeat_is_idempotent(): void
     {
         $this->seedCatalog();

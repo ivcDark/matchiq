@@ -3,6 +3,7 @@
 namespace App\Services\Clubs;
 
 use App\Domains\Matches\LeagueTable;
+use App\Domains\Matches\StandingRules;
 use App\Domains\Tournaments\FinishedMatch;
 use App\Domains\Tournaments\RoundLabel;
 use App\Enums\MatchStatus;
@@ -79,7 +80,11 @@ class BuildClubCupStatus
         $groupName = $stageTeams->where('stage_group_id', $groupId)->first()?->group?->name
             ?? $inStage->where('stage_group_id', $groupId)->first()?->stageGroup?->name;
 
-        $table = LeagueTable::compute($this->catalog->finishedInStage($stage->id, $groupId));
+        $table = LeagueTable::compute(
+            $this->catalog->finishedInStage($stage->id, $groupId),
+            null,
+            StandingRules::fromStageRules($stage->rules),
+        );
         $index = null;
         foreach ($table as $i => $row) {
             if ($row['team_id'] === $team->id) {

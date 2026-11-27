@@ -7,7 +7,8 @@ use App\Models\FootballMatch;
 use Illuminate\Support\Collection;
 
 /**
- * Турнирная таблица, посчитанная по сыгранным матчам сезона (3-1-0, тай-брейки: разница, забитые).
+ * Турнирная таблица, посчитанная по сыгранным матчам сезона (по умолчанию 3-1-0, тай-брейки: разница, забитые).
+ * Очки за победу/ничью/пенальти задаёт `StandingRules` (из `stages.rules`); колонки В/Н/П считаются по счёту матча.
  * Пока таблица `standings` не заполняется загрузкой, это единственный источник мест в лиге.
  */
 final class LeagueTable
@@ -17,10 +18,12 @@ final class LeagueTable
     /**
      * @param  Collection<int, FootballMatch>  $finished  завершённые матчи одного сезона со счётом
      * @param  'home'|'away'|null  $side  только домашние или только гостевые матчи команд; null — все
+     * @param  StandingRules|null  $rules  очки за результат; null — 3-1-0
      * @return list<array{team_id: int, pos: int, played: int, wins: int, draws: int, losses: int, gf: int, ga: int, gd: int, pts: int, form: list<string>}>
      */
-    public static function compute(Collection $finished, ?string $side = null): array
+    public static function compute(Collection $finished, ?string $side = null, ?StandingRules $rules = null): array
     {
+        $rules ??= new StandingRules;
         $rows = [];
 
         $chronological = $finished->sortBy(
@@ -33,9 +36,9 @@ final class LeagueTable
             }
 
             foreach ([
-                ['home', $match->home_team_id, $match->home_goals, $match->away_goals],
-                ['away', $match->away_team_id, $match->away_goals, $match->home_goals],
-            ] as [$venue, $teamId, $for, $against]) {
+                ['home', $match->home_team_id, $match->home_goals, $match->away_goals, $match->home_pens, $match->away_pens],
+                ['away', $match->away_team_id, $match->away_goals, $match->home_goals, $match->away_pens, $match->home_pens],
+            ] as [$venue, $teamId, $for, $against, $pensFor, $pensAgainst]) {
                 if ($side !== null && $side !== $venue) {
                     continue;
                 }
@@ -49,9 +52,10 @@ final class LeagueTable
                 $row['played']++;
                 $row['gf'] += $for;
                 $row['ga'] += $against;
+                $row['pts'] += $rules->points($for, $against, $pensFor, $pensAgainst);
                 match (true) {
-                    $for > $against => [$row['wins']++, $row['pts'] += 3],
-                    $for === $against => [$row['draws']++, $row['pts']++],
+                    $for > $against => $row['wins']++,
+                    $for === $against => $row['draws']++,
                     default => $row['losses']++,
                 };
                 $row['form'][] = MatchResult::fromGoals($for, $against)->value;

@@ -362,6 +362,26 @@ class ClubPageTest extends TestCase
         $this->assertSame('Группа A', collect($props['calendar'])->firstWhere('tournament', 'cup')['stage']);
     }
 
+    public function test_cup_group_points_follow_stage_penalty_rules(): void
+    {
+        $this->playRounds();
+        $cup = $this->cupCompetition();
+        $stage = $this->cupStage($cup, StageType::Group, 'Группы');
+        $stage->update(['rules' => ['points' => ['win' => 3, 'draw' => 1, 'loss' => 0, 'penalty_win' => 2, 'penalty_loss' => 1]]]);
+        $a = StageGroup::create(['stage_id' => $stage->id, 'name' => 'Группа A', 'group_order' => 1]);
+        foreach (['zenit', 'spartak', 'cska'] as $slug) {
+            StageTeam::create(['stage_id' => $stage->id, 'team_id' => $this->teams[$slug]->id, 'stage_group_id' => $a->id]);
+        }
+
+        $this->stageMatch($cup, $stage, 'zenit', 'spartak', '2026-10-20 14:00:00', [1, 1], ['stage_group_id' => $a->id, 'home_pens' => 4, 'away_pens' => 5]);
+        $this->stageMatch($cup, $stage, 'cska', 'zenit', '2026-11-03 14:00:00', [0, 0], ['stage_group_id' => $a->id, 'home_pens' => 5, 'away_pens' => 3]);
+
+        $table = collect($this->competitionBlock($this->props(), 'cup')['group']['table'])->keyBy('team');
+
+        $this->assertSame(['Зенит' => 2, 'Спартак' => 2, 'ЦСКА' => 2], $table->map(fn ($r) => $r['pts'])->sortKeys()->all());
+        $this->assertSame([0, 2, 0], [$table['Зенит']['wins'], $table['Зенит']['draws'], $table['Зенит']['losses']]);
+    }
+
     public function test_cup_knockout_status_won_lost_and_in_play(): void
     {
         $cup = $this->cupCompetition();

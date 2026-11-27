@@ -5,6 +5,7 @@ namespace Tests\Unit\Matches;
 use App\Domains\Matches\DayFilter;
 use App\Domains\Matches\LeagueSelection;
 use App\Domains\Matches\LeagueTable;
+use App\Domains\Matches\StandingRules;
 use App\Domains\Matches\TeamForm;
 use App\Enums\MatchDayPeriod;
 use App\Enums\MatchResult;
@@ -62,6 +63,36 @@ class MatchDomainTest extends TestCase
         $this->assertSame([1, 2, 3], array_column($table, 'pos'));
         $this->assertSame(['played' => 2, 'wins' => 1, 'draws' => 1, 'losses' => 0, 'gf' => 3, 'ga' => 1, 'gd' => 2],
             array_intersect_key($table[0], array_flip(['played', 'wins', 'draws', 'losses', 'gf', 'ga', 'gd'])));
+    }
+
+    public function test_league_table_applies_penalty_points_only_with_stage_rules(): void
+    {
+        $shootout = $this->match(1, 1, 2, 1, 1, '2026-08-01');
+        $shootout->home_pens = 5;
+        $shootout->away_pens = 3;
+        $plainDraw = $this->match(2, 3, 1, 0, 0, '2026-08-08');
+        $matches = new Collection([$shootout, $plainDraw]);
+
+        $default = collect(LeagueTable::compute($matches))->keyBy('team_id');
+        $this->assertSame([2, 1, 1], [$default[1]['pts'], $default[2]['pts'], $default[3]['pts']]);
+
+        $rules = StandingRules::fromStageRules(['points' => ['win' => 3, 'draw' => 1, 'loss' => 0, 'penalty_win' => 2, 'penalty_loss' => 1]]);
+        $table = collect(LeagueTable::compute($matches, null, $rules))->keyBy('team_id');
+        $this->assertSame([3, 1, 1], [$table[1]['pts'], $table[2]['pts'], $table[3]['pts']], 'победа по пенальти 2, поражение по пенальти 1, ничья без серии 1');
+        $this->assertSame([0, 2, 0], [$table[1]['wins'], $table[1]['draws'], $table[1]['losses']], 'В/Н/П — по счёту матча');
+    }
+
+    public function test_standing_rules_points_for_each_outcome(): void
+    {
+        $rules = StandingRules::fromStageRules(['points' => ['penalty_win' => 2, 'penalty_loss' => 1]]);
+
+        $this->assertSame(3, $rules->points(2, 1, null, null));
+        $this->assertSame(0, $rules->points(0, 1, 4, 3), 'пенальти не меняют результат по счёту');
+        $this->assertSame(2, $rules->points(1, 1, 5, 4));
+        $this->assertSame(1, $rules->points(1, 1, 4, 5));
+        $this->assertSame(1, $rules->points(1, 1, null, null));
+        $this->assertSame(1, (new StandingRules)->points(1, 1, 5, 4));
+        $this->assertEquals(new StandingRules, StandingRules::fromStageRules([]));
     }
 
     public function test_league_table_form_is_chronological_and_limited_and_side_filters(): void
