@@ -14,9 +14,9 @@ use Illuminate\Console\Command;
  */
 class IngestRunScheduled extends Command
 {
-    public const JOBS = ['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'catalog', 'structure'];
+    public const JOBS = ['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'catalog', 'structure', 'squads'];
 
-    protected $signature = 'ingest:run-scheduled {job : fixtures | fixtures_full | details_missing | details_recent | catalog | structure}';
+    protected $signature = 'ingest:run-scheduled {job : fixtures | fixtures_full | details_missing | details_recent | catalog | structure | squads}';
 
     protected $description = 'Поставить в очередь плановые прогоны ingest для включённых соревнований (вызывается из scheduler)';
 
@@ -34,7 +34,10 @@ class IngestRunScheduled extends Command
         }
 
         $provider = $providers->ensure(SourceProviderCode::Sstats);
-        $targets = $competitions->forScheduledIngest($provider->id, config('ingest.schedule.competitions', []));
+        $slugs = $job === 'squads'
+            ? config('ingest.schedule.squads.competitions', [])
+            : config('ingest.schedule.competitions', []);
+        $targets = $competitions->forScheduledIngest($provider->id, $slugs);
         if ($targets->isEmpty()) {
             $this->warn('Нет соревнований для ingest (status = live с внешним id SStats или INGEST_COMPETITIONS).');
 
@@ -92,6 +95,7 @@ class IngestRunScheduled extends Command
                 '--limit' => (string) max(1, (int) config('ingest.schedule.details_recent.limit')),
             ],
             'structure' => $base + ['type' => 'sync_structure'],
+            'squads' => $base + ['type' => 'sync_squads'],
         };
     }
 }

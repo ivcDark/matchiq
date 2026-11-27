@@ -17,6 +17,7 @@ const (
 	JobSyncFixtures  = "sync_fixtures"
 
 	JobSyncMatchDetails = "sync_match_details"
+	JobSyncSquads       = "sync_squads"
 )
 
 const (

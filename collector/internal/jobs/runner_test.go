@@ -21,6 +21,9 @@ type fakeSource struct {
 	info       map[string]sstats.LsGameInfo
 	lineups    map[string]sstats.LsGameLineups
 	detailsErr map[string]error
+
+	squads    map[string][]sstats.LsSquadPlayer
+	squadErrs map[string]error
 }
 
 func (f fakeSource) Leagues(context.Context, string) ([]sstats.LsLeague, error) {
@@ -52,6 +55,13 @@ func (f fakeSource) GameInfo(_ context.Context, id string) (sstats.LsGameInfo, e
 
 func (f fakeSource) GameLineups(_ context.Context, id string) (sstats.LsGameLineups, error) {
 	return f.lineups[id], f.err
+}
+
+func (f fakeSource) Players(_ context.Context, teamID string) ([]sstats.LsSquadPlayer, error) {
+	if err := f.squadErrs[teamID]; err != nil {
+		return nil, err
+	}
+	return f.squads[teamID], f.err
 }
 
 type counter struct{}

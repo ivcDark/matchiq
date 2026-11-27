@@ -330,3 +330,17 @@ type LsPlayerProfile struct {
 	PhotoURL  string     `json:"photoUrl"`
 	Country   *LsCountry `json:"country"`
 }
+
+// LsSquadPlayer — запись /Ls/Players (каталог людей): игрок или тренер текущей команды профиля.
+// ProfileUpdatedAt == nil — полный профиль ещё не получен (человек известен только из матчей).
+type LsSquadPlayer struct {
+	ID               string     `json:"id"`
+	Name             string     `json:"name"`
+	ShortName        *string    `json:"shortName"`
+	Role             *string    `json:"role"`
+	Birthdate        *string    `json:"birthdate"`
+	PhotoURL         *string    `json:"photoUrl"`
+	Country          *LsCountry `json:"country"`
+	CurrentTeamID    *string    `json:"currentTeamId"`
+	ProfileUpdatedAt *string    `json:"profileUpdatedAt"`
+}

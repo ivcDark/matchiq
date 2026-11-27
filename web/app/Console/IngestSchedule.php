@@ -22,6 +22,8 @@ class IngestSchedule
         self::daily($schedule, 'catalog', 'sync_catalog: страны, лиги, сезоны', $config['catalog']['daily_at'] ?? '');
         self::daily($schedule, 'structure', 'sync_structure: стадии и команды сезона', $config['structure']['daily_at'] ?? '');
 
+        self::daily($schedule, 'squads', 'sync_squads: составы клубов', $config['squads']['daily_at'] ?? '');
+
         $reap = self::cron((int) ($config['reap_stuck']['every_minutes'] ?? 0));
         if ($reap !== null) {
             $schedule->command('ingest:reap-stuck')->cron($reap)->timezone(config('app.timezone'))->withoutOverlapping(10)

@@ -153,3 +153,25 @@ func TestGameInfoParsesStatisticsAndAPIStatusError(t *testing.T) {
 		t.Fatalf("status=error must not be retried, requests = %d", s.Requests())
 	}
 }
+
+func TestPlayersPagesByTeamAndParsesNullableProfile(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if r.URL.Path != "/Ls/Players" || q.Get("teamId") != "vsXou9m7" || q.Get("limit") != "1000" || q.Get("offset") != "0" {
+			t.Errorf("unexpected request %s", r.URL.String())
+		}
+		_, _ = w.Write([]byte(`{"status":"OK","data":[
+			{"id":"0UR7zPPo","name":"Kirill Obonin","role":"Defender","birthdate":"2006-07-05","country":{"num":158,"id":"russia","name":"Russia","abbr2":"ru"},"profileUpdatedAt":"2026-11-25T14:50:54+03:00"},
+			{"id":"8QFFlwyr","name":"Pedrinho","role":null,"birthdate":null,"country":null,"profileUpdatedAt":null}]}`))
+	}))
+	defer srv.Close()
+
+	s := NewClient(Options{BaseURL: srv.URL}).Session()
+	people, err := s.Players(context.Background(), "vsXou9m7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(people) != 2 || people[0].ProfileUpdatedAt == nil || people[1].ProfileUpdatedAt != nil || people[1].Role != nil || s.Requests() != 1 {
+		t.Fatalf("people = %+v requests=%d", people, s.Requests())
+	}
+}

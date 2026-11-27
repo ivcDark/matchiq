@@ -8,8 +8,16 @@ const POSITIONS = {
     FW: { short: 'НАП', full: 'Нападающий' },
 };
 
+const GROUPS = [
+    { key: 'GK', title: 'Вратари' },
+    { key: 'DF', title: 'Защитники' },
+    { key: 'MF', title: 'Полузащитники' },
+    { key: 'FW', title: 'Нападающие' },
+    { key: null, title: 'Позиция не указана' },
+];
+
 const props = defineProps({
-    /** { name, position, age, height, weight, apps, starts, subs, minutes, goals, pens, assists, yellow, red, shots, passing, aerial, mom, rating } */
+    /** { name, position, age, height, weight, apps, starts, subs, minutes, goals, pens, assists, yellow, red, shots, passing, aerial, mom, rating, in_squad } */
     players: { type: Array, required: true },
     hint: { type: String, default: '' },
 });
@@ -30,20 +38,38 @@ const COLUMNS = [
     { key: 'rating', label: 'Рейт.', title: 'Средняя оценка', digits: 2, rating: true },
 ];
 
-const sortKey = ref('rating');
+const sortKey = ref('minutes');
 const sortDir = ref('desc');
 
-const rows = computed(() => {
+const compare = computed(() => {
     const dir = sortDir.value === 'asc' ? 1 : -1;
     const key = sortKey.value;
 
-    return [...props.players].sort((a, b) => {
+    return (a, b) => {
         const av = a[key] ?? -Infinity;
         const bv = b[key] ?? -Infinity;
+        if (av !== bv) {
+            return (av > bv ? 1 : -1) * dir;
+        }
 
-        return av === bv ? b.minutes - a.minutes : (av > bv ? 1 : -1) * dir;
-    });
+        return (b.minutes ?? 0) - (a.minutes ?? 0) || b.apps - a.apps || a.name.localeCompare(b.name, 'ru');
+    };
 });
+
+const groups = computed(() => {
+    const known = new Set(GROUPS.map((g) => g.key));
+
+    return GROUPS
+        .map((group) => ({
+            ...group,
+            players: props.players
+                .filter((p) => (known.has(p.position) ? p.position : null) === group.key)
+                .sort(compare.value),
+        }))
+        .filter((group) => group.players.length > 0);
+});
+
+const total = computed(() => props.players.length);
 
 function sortBy(column) {
     if (sortKey.value === column.key) {
@@ -83,7 +109,7 @@ const ariaSort = (column) => (sortKey.value === column.key ? (sortDir.value === 
             </div>
         </div>
 
-        <div v-if="rows.length" class="overflow-x-auto">
+        <div v-if="total" class="overflow-x-auto">
             <table class="miq-club-table min-w-[44rem]">
                 <thead>
                     <tr>
@@ -113,11 +139,18 @@ const ariaSort = (column) => (sortKey.value === column.key ? (sortDir.value === 
                         </th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr v-for="player in rows" :key="player.name">
+                <tbody v-for="group in groups" :key="group.key ?? 'none'" :data-group="group.key ?? 'none'">
+                    <tr class="miq-club-group">
+                        <th :colspan="COLUMNS.length + 1" class="is-left" scope="colgroup">
+                            {{ group.title }}
+                            <span class="font-normal text-miq-muted">{{ group.players.length }}</span>
+                        </th>
+                    </tr>
+                    <tr v-for="(player, index) in group.players" :key="`${player.name}-${index}`" :class="{ 'opacity-60': player.in_squad === false }">
                         <td class="is-left is-sticky">
                             <span class="font-semibold text-miq-ink">{{ player.name }}</span>
                             <span class="ml-1 text-[11px] text-miq-muted">{{ player.age }}</span>
+                            <span v-if="player.in_squad === false" class="ml-1 text-[11px] text-miq-muted" title="Сейчас не числится в составе клуба">не в составе</span>
                             <span
                                 v-if="player.position"
                                 class="miq-tt-pos"

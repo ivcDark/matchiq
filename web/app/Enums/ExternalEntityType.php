@@ -21,5 +21,7 @@ enum ExternalEntityType: string
     case Match = 'match';
     /** Составы, события и статистика одного матча; external_id = внешний id матча. В external_ids не пишется. */
     case MatchDetails = 'match_details';
+    /** Актуальный состав клуба; external_id = внешний id команды. В external_ids не пишется. */
+    case Squad = 'squad';
     case MarketType = 'market_type';
 }

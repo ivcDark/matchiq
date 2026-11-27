@@ -18,6 +18,7 @@ type Source interface {
 	Fixtures(ctx context.Context, q sstats.FixturesQuery) ([]sstats.LsFixture, error)
 	GameInfo(ctx context.Context, matchID string) (sstats.LsGameInfo, error)
 	GameLineups(ctx context.Context, matchID string) (sstats.LsGameLineups, error)
+	Players(ctx context.Context, teamID string) ([]sstats.LsSquadPlayer, error)
 }
 
 // Output — нормализованный результат сборщика: сущности и ошибки отдельных сущностей.
@@ -48,6 +49,7 @@ func DefaultRegistry() Registry {
 		dto.JobSyncFixtures:  SyncFixtures{},
 
 		dto.JobSyncMatchDetails: SyncMatchDetails{},
+		dto.JobSyncSquads:       SyncSquads{},
 	}
 }
 

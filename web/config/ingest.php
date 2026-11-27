@@ -50,6 +50,13 @@ return [
             'daily_at' => $str('INGEST_STRUCTURE_DAILY_AT', '04:10'),
         ],
 
+        // Составы клубов (/Ls/Players по команде): по запросу на клуб, поэтому раз в сутки и по умолчанию только РПЛ.
+        // INGEST_SQUADS_COMPETITIONS — slug'и через запятую; Кубок России: `ingest:dispatch sync_squads --competition=russian-cup`.
+        'squads' => [
+            'daily_at' => $str('INGEST_SQUADS_DAILY_AT', '04:20'),
+            'competitions' => array_values(array_filter(array_map('trim', explode(',', $str('INGEST_SQUADS_COMPETITIONS', 'premier-league'))))),
+        ],
+
         'reap_stuck' => [
             'every_minutes' => $int('INGEST_REAP_EVERY_MINUTES', 10),
         ],

@@ -13,6 +13,7 @@ use App\Repositories\MatchRepository;
 use App\Repositories\SeasonRepository;
 use App\Repositories\SourceProviderRepository;
 use App\Repositories\StageRepository;
+use App\Repositories\TeamRepository;
 use App\Services\Ingestion\Exceptions\IngestionSkipped;
 use App\Services\Ingestion\StartIngestionRun;
 use Illuminate\Console\Command;
@@ -26,8 +27,10 @@ class IngestDispatch extends Command
 
     private const MAX_DETAILS_LIMIT = 500;
 
+    private const MAX_SQUAD_TEAMS = 200;
+
     protected $signature = 'ingest:dispatch
-        {type : sync_catalog | sync_structure | sync_fixtures | sync_match_details}
+        {type : sync_catalog | sync_structure | sync_fixtures | sync_match_details | sync_squads}
         {--country= : sync_catalog: страна (название, alias или ISO-код)}
         {--league= : sync_catalog: часть названия лиги}
         {--league-id=* : sync_catalog: внешние id лиг SStats}
@@ -38,6 +41,7 @@ class IngestDispatch extends Command
         {--to= : sync_fixtures, sync_match_details: конец окна дат YYYY-MM-DD, включительно}
         {--match=* : sync_match_details: внешний id матча (можно несколько); вместо выборки по сезону}
         {--limit= : sync_match_details: сколько завершённых матчей взять (по умолчанию 50, максимум 500), свежие первыми}
+        {--team=* : sync_squads: slug или внешний id команды (можно несколько); по умолчанию все команды сезона соревнования}
         {--missing : sync_match_details: только матчи, по которым детали ещё не загружены}
         {--scheduled : вызов из расписания: stats.context.trigger = schedule, «уже идёт» и «нечего грузить» — не ошибка}';
 
@@ -51,6 +55,7 @@ class IngestDispatch extends Command
         ExternalIdRepository $externalIds,
         StageRepository $stages,
         MatchRepository $matches,
+        TeamRepository $teams,
     ): int {
         $kind = IngestionKind::tryFrom((string) $this->argument('type'));
 
@@ -60,7 +65,8 @@ class IngestDispatch extends Command
                 IngestionKind::SyncStructure => $this->structurePayload($providers, $competitions, $seasons, $externalIds),
                 IngestionKind::SyncFixtures => $this->fixturesPayload($providers, $competitions, $seasons, $stages, $externalIds),
                 IngestionKind::SyncMatchDetails => $this->matchDetailsPayload($providers, $competitions, $seasons, $stages, $matches, $externalIds),
-                default => throw new InvalidArgumentException('Поддерживаются типы: sync_catalog, sync_structure, sync_fixtures, sync_match_details.'),
+                IngestionKind::SyncSquads => $this->squadsPayload($providers, $competitions, $seasons, $teams, $externalIds),
+                default => throw new InvalidArgumentException('Поддерживаются типы: sync_catalog, sync_structure, sync_fixtures, sync_match_details, sync_squads.'),
             };
 
             $run = $start->handle($kind, $payload, $competitionId, $this->option('scheduled') ? ['trigger' => 'schedule'] : []);
@@ -229,6 +235,56 @@ class IngestDispatch extends Command
             'season_external_id' => $seasonExternalId,
             'match_external_ids' => $externalMatchIds,
         ], fn ($v) => $v !== null), $competition->id];
+    }
+
+    /**
+     * Составы клубов: команды выбирает Laravel (все команды текущего сезона соревнования либо явные `--team`),
+     * в collector уходят внешние id команд.
+     *
+     * @return array{0: array, 1: int}
+     */
+    private function squadsPayload(
+        SourceProviderRepository $providers,
+        CompetitionRepository $competitions,
+        SeasonRepository $seasons,
+        TeamRepository $teams,
+        ExternalIdRepository $externalIds,
+    ): array {
+        [$competition, $competitionExternalId, $season, $seasonExternalId] = $this->resolveTarget($providers, $competitions, $seasons, $externalIds, 'sync_squads');
+        $provider = $providers->ensure(SourceProviderCode::Sstats);
+
+        $explicit = array_values(array_unique(array_filter(array_map('trim', (array) $this->option('team')))));
+        if ($explicit !== []) {
+            $externalTeamIds = [];
+            foreach ($explicit as $ref) {
+                $team = $teams->findBySlug($ref);
+                $externalTeamIds[] = $team !== null
+                    ? ($externalIds->externalIdFor($provider->id, ExternalEntityType::Team, $team->id)
+                        ?? throw new InvalidArgumentException("У команды {$ref} нет внешнего id SStats."))
+                    : (isset($externalIds->entityIdsFor($provider->id, ExternalEntityType::Team, [$ref])[$ref])
+                        ? $ref
+                        : throw new InvalidArgumentException("Команда {$ref} не найдена (slug или внешний id SStats; сначала sync_structure)."));
+            }
+        } else {
+            $teamIds = $teams->idsInSeason($season->id);
+            $map = $externalIds->externalIdsFor($provider->id, ExternalEntityType::Team, $teamIds);
+            $externalTeamIds = array_values(array_filter(array_map(fn (int $id) => $map[$id] ?? null, $teamIds)));
+        }
+
+        if ($externalTeamIds === []) {
+            throw new IngestionSkipped('Нет команд сезона с внешним id SStats (сначала sync_structure / sync_fixtures).');
+        }
+        if (count($externalTeamIds) > self::MAX_SQUAD_TEAMS) {
+            throw new InvalidArgumentException('sync_squads: не более '.self::MAX_SQUAD_TEAMS.' команд за прогон, выберите команды через --team.');
+        }
+
+        $this->line('Команд в прогоне: '.count($externalTeamIds));
+
+        return [[
+            'competition' => ['id' => $competition->id, 'external_id' => $competitionExternalId],
+            'season_external_id' => $seasonExternalId,
+            'team_external_ids' => $externalTeamIds,
+        ], $competition->id];
     }
 
     private function assertCompetitionOption(CompetitionRepository $competitions, ?int $matchCompetitionId): void

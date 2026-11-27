@@ -3,6 +3,9 @@
 namespace App\Repositories;
 
 use App\Enums\UpsertOutcome;
+use App\Models\FootballMatch;
+use App\Models\Stage;
+use App\Models\StageTeam;
 use App\Models\Team;
 use App\Repositories\Concerns\GeneratesUniqueSlugs;
 use App\Repositories\Concerns\UpsertsModels;
@@ -14,6 +17,27 @@ class TeamRepository
     public function find(int $id): ?Team
     {
         return Team::find($id);
+    }
+
+    public function findBySlug(string $slug): ?Team
+    {
+        return Team::where('slug', $slug)->first();
+    }
+
+    /**
+     * Команды сезона: участники стадий и клубы матчей сезона.
+     *
+     * @return list<int>
+     */
+    public function idsInSeason(int $seasonId): array
+    {
+        $stageTeams = StageTeam::query()
+            ->whereIn('stage_id', Stage::where('season_id', $seasonId)->select('id'))
+            ->pluck('team_id');
+        $home = FootballMatch::where('season_id', $seasonId)->pluck('home_team_id');
+        $away = FootballMatch::where('season_id', $seasonId)->pluck('away_team_id');
+
+        return $stageTeams->merge($home)->merge($away)->filter()->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
     }
 
     /** @return array{0: Team, 1: UpsertOutcome} */

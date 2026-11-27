@@ -13,6 +13,7 @@ use App\Models\MatchLineup;
 use App\Models\MatchPlayerStat;
 use App\Models\MatchTeamStat;
 use App\Models\Player;
+use App\Models\SquadMembership;
 use App\Models\Season;
 use App\Models\Stage;
 use App\Models\StageTeam;
@@ -386,6 +387,16 @@ class TournamentCatalogRepository
     public function playersByIds(array $ids): Collection
     {
         return Player::whereIn('id', $ids)->get()->keyBy('id');
+    }
+
+    /**
+     * Действующий состав клуба (заявки без даты ухода), по игрокам.
+     *
+     * @return Collection<int, SquadMembership>
+     */
+    public function currentSquad(int $teamId): Collection
+    {
+        return SquadMembership::where('team_id', $teamId)->whereNull('left_on')->orderBy('id')->get()->keyBy('player_id');
     }
 
     /**

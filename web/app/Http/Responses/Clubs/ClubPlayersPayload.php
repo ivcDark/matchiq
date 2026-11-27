@@ -7,6 +7,7 @@ use App\Models\MatchEvent;
 use App\Models\MatchLineup;
 use App\Models\MatchPlayerStat;
 use App\Models\Player;
+use App\Models\SquadMembership;
 use Illuminate\Support\Collection;
 
 final class ClubPlayersPayload
@@ -22,9 +23,11 @@ final class ClubPlayersPayload
      * @param  Collection<int, MatchEvent>  $events
      * @param  Collection<int, Player>  $players
      * @param  Collection<int, MatchPlayerStat>  $playerStats
+     * @param  Collection<int, SquadMembership>|null  $roster  действующий состав (по id игрока): в таблицу попадают
+     *                                                         и игроки без выступлений, `in_squad` отличает их от ушедших
      * @return list<array<string, mixed>>
      */
-    public static function make(array $matchIds, Collection $starters, Collection $events, Collection $players, string $locale, ?Collection $playerStats = null): array
+    public static function make(array $matchIds, Collection $starters, Collection $events, Collection $players, string $locale, ?Collection $playerStats = null, ?Collection $roster = null): array
     {
         $stats = [];
         $position = [];
@@ -103,6 +106,10 @@ final class ClubPlayersPayload
             }
         }
 
+        foreach ($roster ?? [] as $membership) {
+            $touch($membership->player_id);
+        }
+
         $rows = [];
         foreach ($stats as $playerId => $s) {
             $player = $players[$playerId] ?? null;
@@ -110,7 +117,7 @@ final class ClubPlayersPayload
                 continue;
             }
             $metrics = self::metrics($played[$playerId] ?? []);
-            $code = $player->position?->value ?? $position[$playerId] ?? null;
+            $code = $player->position?->value ?? $roster?->get($playerId)?->position?->value ?? $position[$playerId] ?? null;
 
             $rows[] = [
                 'name' => $player->localized('name', $locale),
@@ -132,6 +139,7 @@ final class ClubPlayersPayload
                 'aerial' => $metrics['aerial'],
                 'mom' => $metrics['mom'],
                 'rating' => $metrics['rating'],
+                'in_squad' => $roster === null || $roster->isEmpty() ? null : $roster->has($playerId),
                 '_id' => $playerId,
             ];
         }

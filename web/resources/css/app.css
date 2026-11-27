@@ -3589,6 +3589,16 @@
         background: color-mix(in srgb, var(--miq-lime) 18%, white);
     }
 
+    .miq-club-table tbody tr.miq-club-group,
+    .miq-club-table tbody tr.miq-club-group:hover {
+        --tt-bg: var(--miq-mist-deep);
+        background: var(--miq-mist-deep);
+    }
+
+    .miq-club-table tbody tr.miq-club-group th {
+        @apply py-1.5 text-[11px] font-bold uppercase tracking-wider text-miq-ink;
+    }
+
     .miq-club-table tbody tr.is-current {
         --tt-bg: color-mix(in srgb, var(--miq-lime) 30%, white);
     }

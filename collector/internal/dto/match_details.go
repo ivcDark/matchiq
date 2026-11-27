@@ -146,3 +146,23 @@ type PlayerMatchStatsData struct {
 	IsMOTM           bool           `json:"is_motm"`
 	Extra            map[string]any `json:"extra,omitempty"`
 }
+
+// SquadsPayload — payload sync_squads. Команды выбирает Laravel (команды сезона соревнования или явный список),
+// collector получает готовый список внешних id команд.
+type SquadsPayload struct {
+	Competition      CompetitionRef  `json:"competition"`
+	SeasonExternalID string          `json:"season_external_id,omitempty"`
+	TeamExternalIDs  []string        `json:"team_external_ids"`
+	Context          json.RawMessage `json:"context,omitempty"`
+}
+
+// SquadData — актуальный состав команды. Игроки перечислены внешними id (сами игроки идут отдельными сущностями player).
+type SquadData struct {
+	TeamExternalID string            `json:"team_external_id"`
+	Players        []SquadPlayerData `json:"players"`
+}
+
+type SquadPlayerData struct {
+	PlayerExternalID string `json:"player_external_id"`
+	Position         string `json:"position,omitempty"`
+}

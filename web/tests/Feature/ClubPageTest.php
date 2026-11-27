@@ -7,6 +7,7 @@ use App\Enums\CompetitionType;
 use App\Enums\MatchEventType;
 use App\Enums\MatchSide;
 use App\Enums\MatchStatus;
+use App\Enums\PlayerPosition;
 use App\Enums\StageType;
 use App\Enums\StatsPeriod;
 use App\Models\Competition;
@@ -17,6 +18,7 @@ use App\Models\MatchTeamStat;
 use App\Models\Player;
 use App\Models\Round;
 use App\Models\Season;
+use App\Models\SquadMembership;
 use App\Models\Stage;
 use App\Models\StageGroup;
 use App\Models\StageTeam;
@@ -294,6 +296,55 @@ class ClubPageTest extends TestCase
         $this->assertSame(['cup', 'premier-league', 'premier-league'], array_column($props['results'], 'tournament'));
         $this->assertSame(['premier-league', 'cup'], array_column($props['competitions'], 'key'));
         $this->assertSame(['league', 'cup'], array_column($props['competitions'], 'kind'));
+    }
+
+    public function test_roster_players_without_appearances_are_listed_with_positions(): void
+    {
+        $matches = $this->playRounds();
+        $sobolev = $this->player('sobolev', 'А. Соболев');
+        $sobolev->update(['position' => PlayerPosition::Forward]);
+        $this->event($matches['zenit-spartak'], 'zenit', MatchEventType::Goal, $sobolev, null, 10);
+        $gone = $this->player('gone', 'Ушедший');
+        $this->event($matches['zenit-spartak'], 'zenit', MatchEventType::Yellow, $gone, null, 20);
+
+        $zenit = $this->teams['zenit'];
+        foreach ([['Вратарь', PlayerPosition::Goalkeeper], ['Защитник', PlayerPosition::Defender], ['Игрок без позиции', null]] as $i => [$name, $position]) {
+            $member = Player::create(['country_id' => $this->country->id, 'slug' => 'roster-'.$i, 'name' => $name, 'name_i18n' => ['ru' => $name], 'position' => $position]);
+            SquadMembership::create(['team_id' => $zenit->id, 'player_id' => $member->id, 'position' => $position]);
+        }
+        SquadMembership::create(['team_id' => $zenit->id, 'player_id' => $sobolev->id, 'position' => PlayerPosition::Forward]);
+        SquadMembership::create(['team_id' => $zenit->id, 'player_id' => $gone->id, 'left_on' => '2026-08-01']);
+
+        $rows = collect($this->props()['players']['premier-league']['overall'])->keyBy('name');
+
+        $this->assertEqualsCanonicalizing(['А. Соболев', 'Ушедший', 'Вратарь', 'Защитник', 'Игрок без позиции'], $rows->keys()->all());
+        $this->assertSame(['GK', 'DF', null, 'FW'], [$rows['Вратарь']['position'], $rows['Защитник']['position'], $rows['Игрок без позиции']['position'], $rows['А. Соболев']['position']]);
+        $this->assertSame([0, 0, null, 0], [$rows['Вратарь']['apps'], $rows['Вратарь']['goals'], $rows['Вратарь']['rating'], $rows['Вратарь']['yellow']]);
+        $this->assertSame(1, $rows['А. Соболев']['goals']);
+        $this->assertSame([true, true, false], [$rows['Вратарь']['in_squad'], $rows['А. Соболев']['in_squad'], $rows['Ушедший']['in_squad']]);
+        $this->assertSame(1, $rows['Ушедший']['yellow'], 'статистика ушедшего игрока сохраняется');
+    }
+
+    public function test_club_without_roster_keeps_only_players_with_appearances_and_no_squad_flag(): void
+    {
+        $matches = $this->playRounds();
+        $this->event($matches['zenit-spartak'], 'zenit', MatchEventType::Goal, $this->player('sobolev', 'А. Соболев'), null, 10);
+
+        $rows = $this->props()['players']['premier-league']['overall'];
+
+        $this->assertSame(['А. Соболев'], array_column($rows, 'name'));
+        $this->assertNull($rows[0]['in_squad']);
+    }
+
+    public function test_players_table_groups_squad_by_position_in_vue(): void
+    {
+        $table = file_get_contents(resource_path('js/Components/ClubPlayersTable.vue'));
+        $order = array_map(fn (string $key) => strpos($table, "key: '{$key}', title"), ['GK', 'DF', 'MF', 'FW']);
+
+        $this->assertNotContains(false, $order);
+        $this->assertSame($order, collect($order)->sort()->values()->all(), 'группы идут ГК, ЗЩ, ПЗ, НАП');
+        $this->assertStringContainsString('v-for="group in groups"', $table);
+        $this->assertStringContainsString("ref('minutes')", $table);
     }
 
     public function test_only_current_season_matches_are_shown(): void

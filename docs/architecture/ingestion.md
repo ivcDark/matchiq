@@ -182,7 +182,7 @@ collector/
 
 ## Реализация первого среза (каталог и структура сезона)
 
-Реализовано в `collector/` и `web/`: `sync_catalog`, `sync_structure`, `sync_fixtures`, `sync_match_details` (см. ниже); остальные job types (`live`) — следующие срезы; scheduler и воркеры — раздел «Расписание и постоянные воркеры». Расписание матчей в коде — `sync_fixtures`, а не `schedule` из наброска.
+Реализовано в `collector/` и `web/`: `sync_catalog`, `sync_structure`, `sync_fixtures`, `sync_match_details`, `sync_squads` (см. ниже); остальные job types (`live`) — следующие срезы; scheduler и воркеры — раздел «Расписание и постоянные воркеры». Расписание матчей в коде — `sync_fixtures`, а не `schedule` из наброска.
 
 **Отличия от наброска выше (источник правды — код):**
 
@@ -215,6 +215,16 @@ collector/
 - Проверено вживую на РПЛ 2026-2027: `--limit=1`, затем `--limit=3` (6 `match_teams`, 135 игроков в составах, 6 тренеров, 46 событий, 18 строк командной и 91 игровой статистики, 3 MOTM); повторный прогон тех же матчей — 170 `unchanged`, 0 ошибок.
 - TODO: отсутствующие игроки (`kind = 3/4`) → `player_absences`; судья/стадион/зрители; события серии пенальти; VAR и «гол отменён» (сейчас неизвестные коды — ошибки); xG/xA точнее `decimal(5,2)` (xGOT и остальное — в `extra`); координаты x/y (API даёт только линию); сопоставление игроков-дублей между источниками.
 
+**`sync_squads` — составы клубов** (эндпоинт SStats `/Ls/Players?teamId=<внешний id команды>`, один запрос на команду; пагинация до 1000 записей):
+
+- Payload: `{"competition": {"id", "external_id"}, "season_external_id": "...", "team_external_ids": ["..."], "context": {...}}`. Список команд выбирает Laravel (`TeamRepository::idsInSeason`: команды этапов сезона и участники его матчей — у РПЛ строк `stage_teams` нет, поэтому берутся и из матчей), максимум 200 команд на прогон. Явный список — `--team=<slug|внешний id>` (повторяемая опция).
+- Ответ `/Ls/Players` фильтруется по текущей команде профиля. `role`: `Goalkeeper/Defender/Midfielder/Forward` → `GK/DF/MF/FW`; `Coach` пропускается. `profileUpdatedAt` бывает `null` — тогда игрок идёт как `has_profile = false`, и `PlayerUpserter` не затирает уже известные поля (дата рождения, рост и т. п.); позицию без роли он тоже не обнуляет. Относительный `photoUrl` отбрасывается.
+- Сущности (порядок по зависимостям): `country` (4) → `player` (9) → `squad` (10). `player` — те же канонические игроки, что в `sync_match_details` (повторный прогон даёт `unchanged`); `squad` — одна сущность на команду (`external_id` = id команды): `team_external_id`, `players[] = {player_external_id, position?}`. `squad` публикуется только при полностью полученном и непустом списке: Laravel закрывает заявки игроков, которых в списке нет, поэтому сбой запроса или пустой ответ уходят в `errors[]`, а состав команды остаётся как был. `401/403` и исчерпанный лимит запросов — `failed` целиком.
+- Laravel: `SquadUpserter` + `SquadMembershipRepository` (`squad_memberships`). Для каждого игрока из списка открывается заявка (`left_on IS NULL`, позиция — из ответа, иначе из `players.position`); существующая обновляется только при смене позиции. Заявки игроков, которых в составе больше нет, закрываются (`left_on = сегодня`, считаются как `updated`), а заявки игрока в других клубах закрываются при переходе. Игроки, которых нет в БД, пропускаются и считаются `skipped` в `squad_players` (в `by_entity`, как и прочие дочерние счётчики; в общие `created/updated/unchanged` входят `country`, `player`, `squad`). Дата вступления (`joined_on`) неизвестна и остаётся `null`.
+- Запуск: `php artisan ingest:dispatch sync_squads --competition=<slug|id> [--season=<slug>] [--team=<slug|внешний id>]...`; блокировка — на (провайдер, соревнование, `sync_squads`). Плановая задача `squads` (ниже) синхронизирует РПЛ раз в сутки; Кубок России (102 команды, ≈ 102 запроса при лимите 30/мин) запускается вручную: `php artisan ingest:dispatch sync_squads --competition=russian-cup`.
+- Проверено вживую на РПЛ 2026-2027: один прогон — 16 команд, 508 заявок (`squad_players.created = 508`), 45 новых игроков, 0 ошибок. Состав (ГК/ЗЩ/ПЗ/НАП): Зенит 4/13/7/6 (30), Спартак 5/6/9/9 (29), ЦСКА 5/9/11/8 (33), Краснодар 5/9/10/5 (29).
+- UI: блок «Игроки» страницы клуба строится из действующего состава (`squad_memberships` без `left_on`) плюс игроки с выступлениями в матчах среза; игроки без матчей показываются с нулевой статистикой, ушедшие из клуба — с пометкой «не в составе». Таблица сгруппирована ГК → ЗЩ → ПЗ → НАП (игроки без позиции — в конце), внутри группы сортировка по выбранной колонке (по умолчанию — минуты).
+
 **Запуск локально:**
 
 ```bash
@@ -223,6 +233,7 @@ docker compose exec app php artisan ingest:dispatch sync_catalog --country=Russi
 docker compose exec app php artisan ingest:dispatch sync_structure --competition=premier-league
 docker compose exec app php artisan ingest:dispatch sync_fixtures --competition=premier-league --stage=Main   # весь сезон; окно — --from/--to
 docker compose exec app php artisan ingest:dispatch sync_match_details --competition=premier-league --limit=3   # составы, события, статистика; --match=<id> — конкретный матч
+docker compose exec app php artisan ingest:dispatch sync_squads --competition=premier-league   # составы клубов; --team=<slug|id> — отдельные клубы
 ```
 
 `ingest:consume` и scheduler поднимаются самим compose — вручную consume запускать не нужно (ручной `docker compose exec app php artisan ingest:consume` допустим для отладки, но не нужен).
@@ -252,6 +263,7 @@ docker compose exec app php artisan ingest:dispatch sync_match_details --competi
 | `fixtures_full` | `sync_fixtures` на весь текущий сезон без окна: переносы матчей, новые туры | ежедневно 03:30 МСК | `INGEST_FIXTURES_FULL_DAILY_AT` |
 | `catalog` | `sync_catalog --country=Russia --league="Premier League"` | ежедневно 04:00 МСК | `INGEST_CATALOG_DAILY_AT`, `_COUNTRY`, `_LEAGUE` |
 | `structure` | `sync_structure` (стадии и команды текущего сезона) | ежедневно 04:10 МСК | `INGEST_STRUCTURE_DAILY_AT` |
+| `squads` | `sync_squads`: составы клубов текущего сезона соревнований из `INGEST_SQUADS_COMPETITIONS` | ежедневно 04:20 МСК | `INGEST_SQUADS_DAILY_AT`, `INGEST_SQUADS_COMPETITIONS` (по умолчанию `premier-league`) |
 | `ingest:reap-stuck` | уборщик зависших прогонов (ниже) | каждые 10 мин | `INGEST_REAP_EVERY_MINUTES`, `INGEST_STUCK_AFTER_MINUTES` |
 
 - Интервал `0` выключает задачу, пустое время (`*_DAILY_AT=`) — тоже; `INGEST_SCHEDULE_ENABLED=false` выключает всё расписание. Интервалы ≥ 60 мин округляются до целых часов. Время ежедневных задач (и «сегодня» в окнах дат) — в часовом поясе приложения: `APP_TIMEZONE`, по умолчанию `Europe/Moscow` (задачи вешают `->timezone(config('app.timezone'))`; в compose переменная пробрасывается всем сервисам, включая `scheduler`). Сессия PostgreSQL тоже в этом поясе (`database.connections.pgsql.timezone`, `DB_TIMEZONE`): `timestamptz` хранит моменты как есть, `kickoff_at` из collector (UTC) приводится к поясу приложения при записи.

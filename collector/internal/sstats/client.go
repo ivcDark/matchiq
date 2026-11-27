@@ -171,6 +171,33 @@ func (s *Session) GameLineups(ctx context.Context, matchID string) (LsGameLineup
 	return get[LsGameLineups](ctx, s, "/Ls/GameLineups", url.Values{"id": {matchID}})
 }
 
+const (
+	playersPageSize = 1000
+	playersMaxPages = 5
+)
+
+// Players возвращает всех людей текущей команды (/Ls/Players?teamId=), листая по offset.
+func (s *Session) Players(ctx context.Context, teamID string) ([]LsSquadPlayer, error) {
+	var all []LsSquadPlayer
+	for page := 0; page < playersMaxPages; page++ {
+		q := url.Values{
+			"teamId": {teamID},
+			"limit":  {strconv.Itoa(playersPageSize)},
+			"offset": {strconv.Itoa(page * playersPageSize)},
+		}
+		items, err := get[[]LsSquadPlayer](ctx, s, "/Ls/Players", q)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, items...)
+		if len(items) < playersPageSize {
+			return all, nil
+		}
+	}
+
+	return nil, fmt.Errorf("sstats: /Ls/Players вернул больше %d страниц", playersMaxPages)
+}
+
 func get[T any](ctx context.Context, s *Session, path string, q url.Values) (T, error) {
 	var zero T
 	body, err := s.do(ctx, path, q)

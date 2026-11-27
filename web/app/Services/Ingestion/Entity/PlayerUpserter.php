@@ -55,6 +55,7 @@ class PlayerUpserter implements EntityUpserter
             $photoUrl ??= $existing->photo_url;
         } else {
             $country = $this->resolveCountry($data, $context);
+            $position ??= $existing?->position;
         }
 
         [$player, $outcome] = $this->players->upsert(

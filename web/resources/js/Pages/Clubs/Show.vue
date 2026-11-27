@@ -57,6 +57,7 @@ const tournament = ref(props.tournaments[0]?.key ?? 'rpl');
 const CONTEXT_HINTS = { overall: '', home: 'только дома', away: 'только в гостях' };
 
 const squad = computed(() => props.players[tournament.value]?.[context.value] ?? []);
+const played = computed(() => squad.value.filter((p) => p.apps > 0));
 const goalSplit = computed(() => props.goals[tournament.value][context.value]);
 const tablesStats = computed(() => props.stats[context.value]);
 </script>
@@ -115,7 +116,7 @@ const tablesStats = computed(() => props.stats[context.value]);
                     <ClubGoalsSplit :goals="goalSplit" :hint="CONTEXT_HINTS[context]">
                         <template #controls><ClubTournamentSwitch v-model="tournament" :tournaments="tournaments" /></template>
                     </ClubGoalsSplit>
-                    <ClubBestPlayers :players="squad" :hint="CONTEXT_HINTS[context]">
+                    <ClubBestPlayers :players="played" :hint="CONTEXT_HINTS[context]">
                         <template #controls><ClubTournamentSwitch v-model="tournament" :tournaments="tournaments" /></template>
                     </ClubBestPlayers>
                 </div>

@@ -516,6 +516,8 @@ class BuildClubShow
             ->filter()->unique()->values()->all();
         $playerStats = $this->catalog->teamPlayerStats($team->id, $matchIds);
         $playerIds = array_values(array_unique(array_merge($playerIds, $playerStats->pluck('player_id')->all())));
+        $roster = $this->catalog->currentSquad($team->id);
+        $playerIds = array_values(array_unique(array_merge($playerIds, $roster->keys()->all())));
         $players = $this->catalog->playersByIds($playerIds);
 
         $result = [];
@@ -528,6 +530,7 @@ class BuildClubShow
                     $players,
                     $locale,
                     $playerStats,
+                    $roster,
                 );
             }
         }

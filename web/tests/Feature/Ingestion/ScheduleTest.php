@@ -55,6 +55,7 @@ class ScheduleTest extends TestCase
             "ingest:run-scheduled 'fixtures_full'" => '30 3 * * *',
             "ingest:run-scheduled 'catalog'" => '0 4 * * *',
             "ingest:run-scheduled 'structure'" => '10 4 * * *',
+            "ingest:run-scheduled 'squads'" => '20 4 * * *',
             'ingest:reap-stuck' => '*/10 * * * *',
         ], $crons);
     }
@@ -64,7 +65,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('Europe/Moscow', config('app.timezone'));
 
         $events = $this->registered();
-        $this->assertCount(7, $events);
+        $this->assertCount(8, $events);
         foreach ($events as $event) {
             $this->assertSame('Europe/Moscow', (string) $event->timezone, $event->command);
         }
@@ -298,6 +299,39 @@ class ScheduleTest extends TestCase
         $this->artisan('ingest:run-scheduled', ['job' => 'structure'])->assertSuccessful();
 
         $this->assertCount(1, $publisher->sent, 'второй вызов пропущен: прогон ещё идёт');
+    }
+
+    public function test_run_scheduled_squads_sends_season_teams_of_listed_competitions(): void
+    {
+        $this->seedCompetition(finished: true);
+        $publisher = $this->fakePublisher();
+
+        $this->artisan('ingest:run-scheduled', ['job' => 'squads'])->assertSuccessful();
+
+        $sent = $publisher->sent[0];
+        $this->assertSame('sync_squads', $sent['job_type']);
+        $this->assertSame('SeAs2026', $sent['payload']['season_external_id']);
+        $this->assertSame(['TeAm0001', 'TeAm0002'], $sent['payload']['team_external_ids']);
+        $this->assertSame('schedule', $sent['payload']['context']['trigger']);
+
+        IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+        config(['ingest.schedule.squads.competitions' => ['no-such-cup']]);
+        $this->artisan('ingest:run-scheduled', ['job' => 'squads'])->assertSuccessful();
+        $this->assertCount(1, $publisher->sent);
+    }
+
+    public function test_dispatch_sync_squads_accepts_explicit_teams_by_slug_or_external_id(): void
+    {
+        $this->seedCompetition(finished: true);
+        $publisher = $this->fakePublisher();
+        $slug = \App\Models\Team::where('name', 'Zenit')->value('slug');
+
+        $this->artisan('ingest:dispatch', ['type' => 'sync_squads', '--competition' => 'premier-league', '--team' => [$slug, 'TeAm0002']])->assertSuccessful();
+        $this->assertSame(['TeAm0001', 'TeAm0002'], $publisher->sent[0]['payload']['team_external_ids']);
+
+        IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+        $this->artisan('ingest:dispatch', ['type' => 'sync_squads', '--competition' => 'premier-league', '--team' => ['unknown']])->assertFailed();
+        $this->assertCount(1, $publisher->sent);
     }
 
     public function test_run_scheduled_details_missing_and_recent(): void

@@ -19,4 +19,6 @@ enum IngestionKind: string
     case SyncFixtures = 'sync_fixtures';
     /** Составы, события, командная и игровая статистика выбранных матчей. */
     case SyncMatchDetails = 'sync_match_details';
+    /** Актуальные составы клубов (игроки и заявка в squad_memberships). */
+    case SyncSquads = 'sync_squads';
 }
