@@ -40,6 +40,24 @@ class MatchRepository
     }
 
     /**
+     * Идущие сейчас матчи сезона (status = live) для загрузки деталей. `$startedAfter` отсекает «застрявшие» в live матчи,
+     * которым давно пора было завершиться; самые давние по началу первыми — у них больше всего событий.
+     *
+     * @return Collection<int, FootballMatch>
+     */
+    public function selectLiveForDetails(int $seasonId, ?int $stageId, CarbonInterface $startedAfter, int $limit): Collection
+    {
+        return FootballMatch::where('season_id', $seasonId)
+            ->where('status', MatchStatus::Live)
+            ->where('kickoff_at', '>=', $startedAfter)
+            ->when($stageId !== null, fn ($q) => $q->where('stage_id', $stageId))
+            ->orderBy('kickoff_at')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
      * @param  list<int>  $ids
      * @return Collection<int, FootballMatch>
      */

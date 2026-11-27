@@ -41,6 +41,17 @@ return [
             'limit' => $int('INGEST_DETAILS_RECENT_LIMIT', 10),
         ],
 
+        // Статистика, события и составы идущих сейчас матчей (status = live, их статус обновляет fixtures каждые 10 мин).
+        // max_age_hours — страховка от матчей, «застрявших» в live: старше этого срока от начала не берутся.
+        'details_live' => [
+            'every_minutes' => $int('INGEST_DETAILS_LIVE_EVERY_MINUTES', 15),
+            'limit' => $int('INGEST_DETAILS_LIVE_LIMIT', 20),
+            // Сдвиг старта (минуты): 5 → :05, :20, :35, :50 — не совпадает с details_missing (:00, :15, ...), иначе
+            // второй sync_match_details по соревнованию в ту же минуту пропускается («уже выполняется»).
+            'offset_minutes' => $int('INGEST_DETAILS_LIVE_OFFSET_MINUTES', 5),
+            'max_age_hours' => $int('INGEST_DETAILS_LIVE_MAX_AGE_HOURS', 6),
+        ],
+
         // Справочники и структура сезона — не чаще раза в сутки.
         // catalog: по умолчанию лиги включённых соревнований (--league-id); country/league — override-фильтры из env.
         'catalog' => [

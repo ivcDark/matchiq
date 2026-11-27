@@ -8,8 +8,10 @@ use App\Data\Ingestion\ResultMessage;
 use App\Enums\CompetitionStatus;
 use App\Enums\IngestionKind;
 use App\Enums\IngestionStatus;
+use App\Enums\MatchStatus;
 use App\Enums\SourceProviderCode;
 use App\Models\Competition;
+use App\Models\FootballMatch;
 use App\Models\IngestionRun;
 use App\Repositories\SourceProviderRepository;
 use App\Services\Ingestion\ApplyIngestionResult;
@@ -52,6 +54,7 @@ class ScheduleTest extends TestCase
             "ingest:run-scheduled 'fixtures'" => '*/10 * * * *',
             "ingest:run-scheduled 'details_missing'" => '*/15 * * * *',
             "ingest:run-scheduled 'details_recent'" => '0 * * * *',
+            "ingest:run-scheduled 'details_live'" => '5-59/15 * * * *',
             "ingest:run-scheduled 'fixtures_full'" => '30 3 * * *',
             "ingest:run-scheduled 'catalog'" => '0 4 * * *',
             "ingest:run-scheduled 'structure'" => '10 4 * * *',
@@ -65,7 +68,7 @@ class ScheduleTest extends TestCase
         $this->assertSame('Europe/Moscow', config('app.timezone'));
 
         $events = $this->registered();
-        $this->assertCount(8, $events);
+        $this->assertCount(9, $events);
         foreach ($events as $event) {
             $this->assertSame('Europe/Moscow', (string) $event->timezone, $event->command);
         }
@@ -339,14 +342,17 @@ class ScheduleTest extends TestCase
         Competition::query()->update(['ingest_enabled' => false]);
         $publisher = $this->fakePublisher();
 
-        foreach (['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'structure', 'squads'] as $job) {
+        foreach (['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'details_live', 'structure', 'squads'] as $job) {
             $this->artisan('ingest:run-scheduled', ['job' => $job])->assertSuccessful();
         }
         $this->assertSame([], $publisher->sent);
 
         Competition::query()->update(['ingest_enabled' => true]);
-        foreach (['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'structure', 'squads'] as $i => $job) {
+        foreach (['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'details_live', 'structure', 'squads'] as $i => $job) {
             IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+            if ($job === 'details_live') {
+                FootballMatch::query()->update(['status' => MatchStatus::Live, 'kickoff_at' => now()->subHour()]);
+            }
             $this->artisan('ingest:run-scheduled', ['job' => $job])->assertSuccessful();
             $this->assertCount($i + 1, $publisher->sent, $job);
         }
@@ -419,6 +425,81 @@ class ScheduleTest extends TestCase
 
         $this->artisan('ingest:run-scheduled', ['job' => 'details_recent'])->assertSuccessful();
         $this->assertSame(['Mat00001'], $publisher->sent[1]['payload']['match_external_ids']);
+    }
+
+    public function test_run_scheduled_details_live_takes_only_live_matches_of_enabled_competitions(): void
+    {
+        $this->seedCompetition(finished: true);
+        $publisher = $this->fakePublisher();
+
+        $this->artisan('ingest:run-scheduled', ['job' => 'details_live'])->assertSuccessful();
+        $this->assertSame([], $publisher->sent, 'завершённый матч не live — нечего грузить, не ошибка');
+
+        FootballMatch::query()->update(['status' => MatchStatus::Live, 'kickoff_at' => now()->subMinutes(50)]);
+        $this->artisan('ingest:run-scheduled', ['job' => 'details_live'])->assertSuccessful();
+
+        $sent = $publisher->sent[0];
+        $this->assertSame('sync_match_details', $sent['job_type']);
+        $this->assertSame(['Mat00001'], $sent['payload']['match_external_ids']);
+        $this->assertSame('schedule', $sent['payload']['context']['trigger']);
+    }
+
+    public function test_details_live_ignores_matches_stuck_in_live_status(): void
+    {
+        $this->seedCompetition(finished: true);
+        $publisher = $this->fakePublisher();
+        config(['ingest.schedule.details_live.max_age_hours' => 6]);
+
+        FootballMatch::query()->update(['status' => MatchStatus::Live, 'kickoff_at' => now()->subHours(7)]);
+        $this->artisan('ingest:run-scheduled', ['job' => 'details_live'])->assertSuccessful();
+
+        $this->assertSame([], $publisher->sent);
+    }
+
+    public function test_details_live_does_not_touch_finished_selection(): void
+    {
+        $this->seedCompetition(finished: true);
+        $publisher = $this->fakePublisher();
+
+        $this->artisan('ingest:run-scheduled', ['job' => 'details_missing'])->assertSuccessful();
+
+        $this->assertSame(['Mat00001'], $publisher->sent[0]['payload']['match_external_ids']);
+        $this->artisan('ingest:dispatch', ['type' => 'sync_match_details', '--competition' => 'premier-league', '--live' => true, '--missing' => true])->assertFailed();
+    }
+
+    public function test_details_live_respects_limit(): void
+    {
+        $this->seedCompetition(finished: true);
+        $publisher = $this->fakePublisher();
+        app(ApplyIngestionResult::class)->handle($this->message($this->newRun(IngestionKind::SyncFixtures, now()), [
+            'kind' => 'batch', 'seq' => 1,
+            'entities' => [[
+                'entity_type' => 'match', 'external_id' => 'Mat00002',
+                'data' => [
+                    'competition_external_id' => 'AbCd1234', 'season_external_id' => 'SeAs2026', 'stage_external_id' => 'StG00001',
+                    'round_name' => 'Round 2', 'round_number' => 2,
+                    'home_team_external_id' => 'TeAm0002', 'away_team_external_id' => 'TeAm0001',
+                    'kickoff_at' => now()->subHour()->toIso8601ZuluString(), 'status' => 'finished', 'period' => null,
+                    'home_goals' => 0, 'away_goals' => 0,
+                ],
+            ]],
+        ]));
+        IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+        FootballMatch::query()->update(['status' => MatchStatus::Live]);
+        FootballMatch::query()->whereHas('homeTeam', fn ($q) => $q->where('name', 'Zenit'))->update(['kickoff_at' => now()->subMinutes(90)]);
+        config(['ingest.schedule.details_live.limit' => 1]);
+
+        $this->artisan('ingest:run-scheduled', ['job' => 'details_live'])->assertSuccessful();
+
+        $this->assertSame(['Mat00001'], $publisher->sent[0]['payload']['match_external_ids'], 'давнее начало первым, лимит 1');
+    }
+
+    public function test_cron_offset_shifts_start_inside_the_hour(): void
+    {
+        $this->assertSame('*/15 * * * *', IngestSchedule::cron(15));
+        $this->assertSame('5-59/15 * * * *', IngestSchedule::cron(15, 5));
+        $this->assertSame('*/15 * * * *', IngestSchedule::cron(15, 15));
+        $this->assertSame('0 * * * *', IngestSchedule::cron(60, 5));
     }
 
     public function test_run_scheduled_details_missing_without_candidates_is_not_an_error(): void

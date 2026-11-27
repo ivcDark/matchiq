@@ -43,6 +43,7 @@ class IngestDispatch extends Command
         {--limit= : sync_match_details: сколько завершённых матчей взять (по умолчанию 50, максимум 500), свежие первыми}
         {--team=* : sync_squads: slug или внешний id команды (можно несколько); по умолчанию все команды сезона соревнования}
         {--missing : sync_match_details: только матчи, по которым детали ещё не загружены}
+        {--live : sync_match_details: только идущие сейчас матчи (status = live) вместо завершённых}
         {--scheduled : вызов из расписания: stats.context.trigger = schedule, «уже идёт» и «нечего грузить» — не ошибка}';
 
     protected $description = 'Создать прогон ingest и положить команду в RabbitMQ (ingest.commands)';
@@ -216,11 +217,21 @@ class IngestDispatch extends Command
                 throw new InvalidArgumentException('--from не может быть позже --to.');
             }
 
-            $rows = $matches->selectFinishedForDetails($season->id, $stageId, $from, $to, (bool) $this->option('missing'), $limit);
+            if ($this->option('live')) {
+                if ($this->option('missing') || $from !== null || $to !== null) {
+                    throw new InvalidArgumentException('--live несовместим с --missing, --from и --to.');
+                }
+                $maxAgeHours = max(1, (int) config('ingest.schedule.details_live.max_age_hours'));
+                $rows = $matches->selectLiveForDetails($season->id, $stageId, now()->subHours($maxAgeHours), $limit);
+            } else {
+                $rows = $matches->selectFinishedForDetails($season->id, $stageId, $from, $to, (bool) $this->option('missing'), $limit);
+            }
             $map = $externalIds->externalIdsFor($provider->id, ExternalEntityType::Match, $rows->pluck('id')->all());
             $externalMatchIds = $rows->map(fn ($m) => $map[$m->id] ?? null)->filter()->values()->all();
             if ($externalMatchIds === []) {
-                throw new IngestionSkipped('Нет подходящих завершённых матчей с внешним id SStats (сначала sync_fixtures).');
+                throw new IngestionSkipped($this->option('live')
+                    ? 'Нет идущих матчей с внешним id SStats.'
+                    : 'Нет подходящих завершённых матчей с внешним id SStats (сначала sync_fixtures).');
             }
         }
 

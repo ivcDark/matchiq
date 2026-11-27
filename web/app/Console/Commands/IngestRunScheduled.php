@@ -14,9 +14,9 @@ use Illuminate\Console\Command;
  */
 class IngestRunScheduled extends Command
 {
-    public const JOBS = ['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'catalog', 'structure', 'squads'];
+    public const JOBS = ['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'details_live', 'catalog', 'structure', 'squads'];
 
-    protected $signature = 'ingest:run-scheduled {job : fixtures | fixtures_full | details_missing | details_recent | catalog | structure | squads}';
+    protected $signature = 'ingest:run-scheduled {job : fixtures | fixtures_full | details_missing | details_recent | details_live | catalog | structure | squads}';
 
     protected $description = 'Поставить в очередь плановые прогоны ingest для включённых соревнований (вызывается из scheduler)';
 
@@ -101,6 +101,11 @@ class IngestRunScheduled extends Command
                 '--from' => $today->copy()->subDays(max(0, (int) config('ingest.schedule.details_recent.days_back')))->toDateString(),
                 '--to' => $today->toDateString(),
                 '--limit' => (string) max(1, (int) config('ingest.schedule.details_recent.limit')),
+            ],
+            'details_live' => $base + [
+                'type' => 'sync_match_details',
+                '--live' => true,
+                '--limit' => (string) max(1, (int) config('ingest.schedule.details_live.limit')),
             ],
             'structure' => $base + ['type' => 'sync_structure'],
             'squads' => $base + ['type' => 'sync_squads'],
