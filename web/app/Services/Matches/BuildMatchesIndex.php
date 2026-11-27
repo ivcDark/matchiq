@@ -11,6 +11,7 @@ use App\Http\Responses\Matches\LeaguePayload;
 use App\Http\Responses\Matches\MatchesIndexResponse;
 use App\Http\Responses\Matches\MatchRowPayload;
 use App\Models\Competition;
+use App\Models\NewsItem;
 use App\Repositories\CompetitionCatalogRepository;
 use App\Repositories\MatchCatalogRepository;
 
@@ -20,6 +21,8 @@ class BuildMatchesIndex
     private const STANDINGS_WIDGET_ROWS = 8;
 
     private const SCORERS_WIDGET_ROWS = 5;
+
+    private const NEWS_WIDGET_ROWS = 5;
 
     public function __construct(
         private readonly CompetitionCatalogRepository $competitions,
@@ -59,13 +62,13 @@ class BuildMatchesIndex
 
     /**
      * Таблица считается по сыгранным матчам; бомбардиры — из событий матчей.
-     * Скорострелы (кросс-лига) и новости источника данных не имеют — пустые списки.
+     * Новости — промо из news_items. Скорострелы источника данных не имеют.
      *
      * @return array<string, mixed>
      */
     private function widgets(?Competition $competition): array
     {
-        $empty = ['league' => null, 'standings' => [], 'scorers' => [], 'hotScorers' => [], 'news' => []];
+        $empty = ['league' => null, 'standings' => [], 'scorers' => [], 'hotScorers' => [], 'news' => $this->news()];
 
         if ($competition === null) {
             return $empty;
@@ -108,8 +111,32 @@ class BuildMatchesIndex
             'standings' => $standings,
             'scorers' => $scorers,
             'hotScorers' => [],
-            'news' => [],
+            'news' => $empty['news'],
         ];
+    }
+
+    /**
+     * Карточки блока «Новости»: последние опубликованные, не больше пяти.
+     *
+     * @return list<array{id: int, tag: string, title: string, ago: string}>
+     */
+    private function news(): array
+    {
+        $locale = (string) config('matchiq.ui_locale');
+
+        return NewsItem::query()
+            ->where('published_at', '<=', now())
+            ->orderByDesc('published_at')
+            ->orderByDesc('id')
+            ->limit(self::NEWS_WIDGET_ROWS)
+            ->get()
+            ->map(fn (NewsItem $item) => [
+                'id' => $item->id,
+                'tag' => $item->tag,
+                'title' => $item->title,
+                'ago' => $item->published_at->locale($locale)->diffForHumans(),
+            ])
+            ->all();
     }
 
     /** @return array<string, mixed> */

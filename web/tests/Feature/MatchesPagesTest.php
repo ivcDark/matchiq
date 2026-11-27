@@ -15,6 +15,7 @@ use App\Models\MatchEvent;
 use App\Models\MatchPrediction;
 use App\Models\MatchTeamStat;
 use App\Models\ModelVersion;
+use App\Models\NewsItem;
 use App\Models\Player;
 use App\Models\Round;
 use App\Models\Season;
@@ -288,6 +289,39 @@ class MatchesPagesTest extends TestCase
                 ->where('widgets.scorers.0.player', 'М. Глушенков')
                 ->where('widgets.scorers.0.team', 'Зенит')
                 ->where('widgets.scorers.0.goals', 2));
+    }
+
+    public function test_index_news_widget_lists_published_items_newest_first(): void
+    {
+        NewsItem::create([
+            'slug' => 'older',
+            'tag' => 'РПЛ',
+            'title' => 'Старая новость',
+            'published_at' => '2026-11-25 12:00:00',
+        ]);
+        $fresh = NewsItem::create([
+            'slug' => 'fresh',
+            'tag' => 'MatchIQ',
+            'title' => 'Свежая новость',
+            'published_at' => '2026-11-27 09:00:00',
+        ]);
+        NewsItem::create([
+            'slug' => 'future',
+            'tag' => 'РПЛ',
+            'title' => 'Ещё не вышла',
+            'published_at' => '2026-11-28 09:00:00',
+        ]);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('widgets.news', 2)
+                ->where('widgets.news.0.id', $fresh->id)
+                ->where('widgets.news.0.tag', 'MatchIQ')
+                ->where('widgets.news.0.title', 'Свежая новость')
+                ->where('widgets.news.0.ago', $fresh->published_at->locale('ru')->diffForHumans())
+                ->where('widgets.news.1.title', 'Старая новость')
+                ->where('widgets.hotScorers', []));
     }
 
     public function test_index_without_active_leagues_returns_empty_lists(): void
