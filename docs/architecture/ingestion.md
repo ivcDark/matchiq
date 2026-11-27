@@ -245,15 +245,15 @@ docker compose exec app php artisan ingest:dispatch sync_match_details --competi
 
 | Задача (`job`) | Что делает | По умолчанию | Env |
 |----------------|------------|--------------|-----|
-| `fixtures` | `sync_fixtures` с окном [сегодня − 2 дня, сегодня + 2 дня] (UTC), все стадии | каждые 10 мин (`*/10 * * * *`) | `INGEST_FIXTURES_EVERY_MINUTES`, `_DAYS_BACK`, `_DAYS_FORWARD` |
+| `fixtures` | `sync_fixtures` с окном [сегодня − 2 дня, сегодня + 2 дня] (даты по Москве), все стадии | каждые 10 мин (`*/10 * * * *`) | `INGEST_FIXTURES_EVERY_MINUTES`, `_DAYS_BACK`, `_DAYS_FORWARD` |
 | `details_missing` | `sync_match_details --missing --limit=10`: завершённые матчи без деталей, свежие первыми | каждые 15 мин | `INGEST_DETAILS_MISSING_EVERY_MINUTES`, `_LIMIT` |
 | `details_recent` | `sync_match_details` по матчам, завершённым за последние сутки (окно [вчера, сегодня]), `--limit=10`: поздние поправки статистики | раз в час | `INGEST_DETAILS_RECENT_EVERY_MINUTES`, `_DAYS_BACK`, `_LIMIT` |
-| `fixtures_full` | `sync_fixtures` на весь текущий сезон без окна: переносы матчей, новые туры | ежедневно 03:30 | `INGEST_FIXTURES_FULL_DAILY_AT` |
-| `catalog` | `sync_catalog --country=Russia --league="Premier League"` | ежедневно 04:00 | `INGEST_CATALOG_DAILY_AT`, `_COUNTRY`, `_LEAGUE` |
-| `structure` | `sync_structure` (стадии и команды текущего сезона) | ежедневно 04:10 | `INGEST_STRUCTURE_DAILY_AT` |
+| `fixtures_full` | `sync_fixtures` на весь текущий сезон без окна: переносы матчей, новые туры | ежедневно 03:30 МСК | `INGEST_FIXTURES_FULL_DAILY_AT` |
+| `catalog` | `sync_catalog --country=Russia --league="Premier League"` | ежедневно 04:00 МСК | `INGEST_CATALOG_DAILY_AT`, `_COUNTRY`, `_LEAGUE` |
+| `structure` | `sync_structure` (стадии и команды текущего сезона) | ежедневно 04:10 МСК | `INGEST_STRUCTURE_DAILY_AT` |
 | `ingest:reap-stuck` | уборщик зависших прогонов (ниже) | каждые 10 мин | `INGEST_REAP_EVERY_MINUTES`, `INGEST_STUCK_AFTER_MINUTES` |
 
-- Интервал `0` выключает задачу, пустое время (`*_DAILY_AT=`) — тоже; `INGEST_SCHEDULE_ENABLED=false` выключает всё расписание. Интервалы ≥ 60 мин округляются до целых часов. Время ежедневных задач — в часовом поясе приложения (`APP_TIMEZONE`, по умолчанию UTC).
+- Интервал `0` выключает задачу, пустое время (`*_DAILY_AT=`) — тоже; `INGEST_SCHEDULE_ENABLED=false` выключает всё расписание. Интервалы ≥ 60 мин округляются до целых часов. Время ежедневных задач (и «сегодня» в окнах дат) — в часовом поясе приложения: `APP_TIMEZONE`, по умолчанию `Europe/Moscow` (задачи вешают `->timezone(config('app.timezone'))`; в compose переменная пробрасывается всем сервисам, включая `scheduler`). Сессия PostgreSQL тоже в этом поясе (`database.connections.pgsql.timezone`, `DB_TIMEZONE`): `timestamptz` хранит моменты как есть, `kickoff_at` из collector (UTC) приводится к поясу приложения при записи.
 - Rate-friendly: `details_*` берут не более 10 матчей (≈ 20 запросов к SStats) за прогон, `fixtures` — один запрос на окно. Один `running` на (провайдер, соревнование, `kind`): если прошлый прогон ещё идёт, плановый запуск пропускается (`ingest:dispatch --scheduled` пишет «Пропущено» и завершается успешно; так же — «нечего грузить»). Плановые прогоны помечены `stats.context.trigger = schedule`.
 - Соревнование для регулярной загрузки включается так: `sync_catalog` → `sync_structure` (разово руками, как в «Запуске локально») → `competitions.status = 'live'` (или slug в `INGEST_COMPETITIONS`). `sync_catalog` создаёт соревнование со статусом `hidden`, сам он `live` не ставит.
 - Проверка: `docker compose exec app php artisan schedule:list`; ручной запуск одной задачи — `php artisan ingest:run-scheduled fixtures`.

@@ -59,6 +59,17 @@ class ScheduleTest extends TestCase
         ], $crons);
     }
 
+    public function test_all_events_run_in_moscow_timezone(): void
+    {
+        $this->assertSame('Europe/Moscow', config('app.timezone'));
+
+        $events = $this->registered();
+        $this->assertCount(7, $events);
+        foreach ($events as $event) {
+            $this->assertSame('Europe/Moscow', (string) $event->timezone, $event->command);
+        }
+    }
+
     public function test_intervals_come_from_config_and_zero_disables_a_job(): void
     {
         config([
@@ -89,7 +100,7 @@ class ScheduleTest extends TestCase
 
     public function test_application_schedule_is_visible_in_schedule_list(): void
     {
-        Artisan::call('schedule:list');
+        Artisan::call('schedule:list', ['--next' => true]);
         $output = Artisan::output();
 
         $this->assertStringContainsString('ingest:run-scheduled', $output);
@@ -245,10 +256,22 @@ class ScheduleTest extends TestCase
         $this->assertSame('sync_fixtures', $sent['job_type']);
         $this->assertSame('SeAs2026', $sent['payload']['season_external_id']);
         $this->assertSame([
-            'from' => now('UTC')->subDays(2)->toDateString(),
-            'to' => now('UTC')->addDays(3)->toDateString(),
+            'from' => now('Europe/Moscow')->subDays(2)->toDateString(),
+            'to' => now('Europe/Moscow')->addDays(3)->toDateString(),
         ], $sent['payload']['window']);
         $this->assertSame('schedule', IngestionRun::latest('id')->first()->stats['context']['trigger']);
+    }
+
+    public function test_run_scheduled_window_uses_moscow_date_not_utc(): void
+    {
+        $this->seedCompetition();
+        $publisher = $this->fakePublisher();
+        config(['ingest.schedule.fixtures.days_back' => 2, 'ingest.schedule.fixtures.days_forward' => 3]);
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-27 22:30:00', 'UTC'));
+
+        $this->artisan('ingest:run-scheduled', ['job' => 'fixtures'])->assertSuccessful();
+
+        $this->assertSame(['from' => '2026-11-26', 'to' => '2026-12-01'], $publisher->sent[0]['payload']['window']);
     }
 
     public function test_run_scheduled_skips_hidden_competitions_unless_listed_explicitly(): void

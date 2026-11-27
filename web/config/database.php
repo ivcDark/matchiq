@@ -97,6 +97,8 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Сессия PG в поясе приложения: Eloquent пишет моменты строкой без смещения, в поясе Carbon (app.timezone).
+            'timezone' => env('DB_TIMEZONE', env('APP_TIMEZONE', 'Europe/Moscow')),
         ],
 
         'sqlsrv' => [

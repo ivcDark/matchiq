@@ -24,7 +24,7 @@ class IngestSchedule
 
         $reap = self::cron((int) ($config['reap_stuck']['every_minutes'] ?? 0));
         if ($reap !== null) {
-            $schedule->command('ingest:reap-stuck')->cron($reap)->withoutOverlapping(10)
+            $schedule->command('ingest:reap-stuck')->cron($reap)->timezone(config('app.timezone'))->withoutOverlapping(10)
                 ->description('Закрыть зависшие прогоны ingest');
         }
     }
@@ -55,7 +55,7 @@ class IngestSchedule
             return;
         }
 
-        $schedule->command('ingest:run-scheduled', [$job])->cron($cron)->withoutOverlapping(10)->description($description);
+        $schedule->command('ingest:run-scheduled', [$job])->cron($cron)->timezone(config('app.timezone'))->withoutOverlapping(10)->description($description);
     }
 
     private static function daily(Schedule $schedule, string $job, string $description, string $at): void
@@ -64,6 +64,6 @@ class IngestSchedule
             return;
         }
 
-        $schedule->command('ingest:run-scheduled', [$job])->dailyAt($at)->withoutOverlapping(30)->description($description);
+        $schedule->command('ingest:run-scheduled', [$job])->dailyAt($at)->timezone(config('app.timezone'))->withoutOverlapping(30)->description($description);
     }
 }

@@ -15,7 +15,7 @@ return [
         // Slug'и соревнований через запятую. Пусто — все с competitions.status = live и внешним id SStats.
         'competitions' => array_values(array_filter(array_map('trim', explode(',', (string) env('INGEST_COMPETITIONS', ''))))),
 
-        // Расписание и результаты: короткое окно вокруг сегодняшней даты (UTC), часто.
+        // Расписание и результаты: короткое окно вокруг сегодняшней даты (часовой пояс приложения, Москва), часто.
         'fixtures' => [
             'every_minutes' => $int('INGEST_FIXTURES_EVERY_MINUTES', 10),
             'days_back' => $int('INGEST_FIXTURES_DAYS_BACK', 2),

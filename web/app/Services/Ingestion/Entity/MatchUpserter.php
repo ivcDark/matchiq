@@ -43,7 +43,7 @@ class MatchUpserter implements EntityUpserter
         $period = isset($data['period']) ? MatchPeriod::tryFrom((string) $data['period']) : null;
 
         try {
-            $kickoff = Carbon::parse((string) ($data['kickoff_at'] ?? ''));
+            $kickoff = Carbon::parse((string) ($data['kickoff_at'] ?? ''))->setTimezone(config('app.timezone'));
         } catch (Throwable) {
             throw IngestionEntityException::invalid('у матча некорректный kickoff_at', ['kickoff_at' => $data['kickoff_at'] ?? null]);
         }

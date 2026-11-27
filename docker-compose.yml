@@ -8,6 +8,7 @@ x-app-environment: &app-environment
   APP_DEBUG: "true"
   APP_URL: http://localhost:${APP_PORT:-8000}
   APP_KEY: ${APP_KEY:-}
+  APP_TIMEZONE: ${APP_TIMEZONE:-Europe/Moscow}
   DB_CONNECTION: pgsql
   DB_HOST: postgres
   DB_PORT: 5432

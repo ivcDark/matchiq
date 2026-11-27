@@ -70,7 +70,7 @@ class IngestRunScheduled extends Command
     /** @return array<string, mixed> */
     private function dispatchArguments(string $job, Competition $competition): array
     {
-        $today = now('UTC')->startOfDay();
+        $today = now(config('app.timezone'))->startOfDay();
         $base = ['--competition' => $competition->slug, '--scheduled' => true];
 
         return match ($job) {
