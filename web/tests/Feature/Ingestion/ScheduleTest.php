@@ -312,9 +312,13 @@ class ScheduleTest extends TestCase
 
         Competition::create(['slug' => 'premier-league', 'name' => 'RPL', 'type' => 'league']);
         Competition::create(['slug' => 'russian-cup', 'name' => 'Cup', 'type' => 'cup']);
+        Competition::create(['slug' => 'fnl', 'name' => 'FNL', 'type' => 'league', 'status' => 'hidden']);
         $this->seed(\Database\Seeders\IngestFlagsSeeder::class);
 
-        $this->assertSame(['premier-league', 'russian-cup'], Competition::where('ingest_enabled', true)->orderBy('slug')->pluck('slug')->all());
+        $this->assertSame(['fnl', 'premier-league', 'russian-cup'], Competition::where('ingest_enabled', true)->orderBy('slug')->pluck('slug')->all());
+        $fnl = Competition::where('slug', 'fnl')->first();
+        $this->assertSame(CompetitionStatus::Live, $fnl->status);
+        $this->assertSame('ФНЛ', $fnl->short_name_i18n['ru']);
     }
 
     public function test_every_competition_job_respects_ingest_enabled(): void
