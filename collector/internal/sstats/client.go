@@ -182,14 +182,9 @@ func (s *Session) GamesByFlashIDs(ctx context.Context, flashIDs []string) ([]Gam
 	return all, nil
 }
 
-// GameInfo — события и командная статистика матча.
-func (s *Session) GameInfo(ctx context.Context, matchID string) (LsGameInfo, error) {
-	return get[LsGameInfo](ctx, s, "/Ls/GameInfo", url.Values{"id": {matchID}})
-}
-
-// GameLineups — составы, статистика игроков и профили людей матча.
-func (s *Session) GameLineups(ctx context.Context, matchID string) (LsGameLineups, error) {
-	return get[LsGameLineups](ctx, s, "/Ls/GameLineups", url.Values{"id": {matchID}})
+// Game — матч целиком (/Games/{id}); id — числовой id SStats или flash-id.
+func (s *Session) Game(ctx context.Context, id string) (GameFull, error) {
+	return get[GameFull](ctx, s, "/Games/"+url.PathEscape(id), nil)
 }
 
 const (

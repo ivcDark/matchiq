@@ -433,6 +433,22 @@ class MatchDetailsIngestionTest extends TestCase
         $this->assertSame('SeAs2026', $payload['season_external_id']);
     }
 
+    public function test_dispatch_sends_numeric_api_ids_only_for_matches_that_have_them(): void
+    {
+        $this->seedMatch();
+        $this->apply(IngestionKind::SyncFixtures, [[
+            'entity_type' => 'external_refs', 'external_id' => 'Mat00001',
+            'data' => ['entity_type' => 'match', 'refs' => ['sstats_api' => '1577610']],
+        ]]);
+        $publisher = $this->fakePublisher();
+
+        $this->artisan('ingest:dispatch', ['type' => 'sync_match_details', '--competition' => 'premier-league'])->assertSuccessful();
+
+        $payload = $publisher->sent[0]['payload'];
+        $this->assertSame(['Mat00002', 'Mat00001'], $payload['match_external_ids']);
+        $this->assertSame(['Mat00001' => '1577610'], $payload['match_api_ids']);
+    }
+
     public function test_dispatch_rejects_bad_input(): void
     {
         $this->seedMatch();

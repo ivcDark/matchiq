@@ -7,16 +7,22 @@ use App\Data\Ingestion\UpsertContext;
 use App\Data\Ingestion\UpsertResult;
 use App\Enums\ExternalEntityType;
 use App\Enums\MatchEventType;
+use App\Enums\MatchPeriod;
 use App\Enums\MatchSide;
+use App\Enums\MatchStatus;
 use App\Enums\PlayerPosition;
+use App\Enums\SourceProviderCode;
 use App\Enums\StatsPeriod;
 use App\Enums\UpsertOutcome;
+use App\Models\FootballMatch;
 use App\Repositories\ExternalIdRepository;
 use App\Repositories\MatchEventRepository;
 use App\Repositories\MatchLineupRepository;
 use App\Repositories\MatchRepository;
 use App\Repositories\MatchStatsRepository;
 use App\Repositories\MatchTeamRepository;
+use App\Repositories\PlayerRepository;
+use App\Repositories\SourceProviderRepository;
 use App\Services\Ingestion\Exceptions\IngestionEntityException;
 use Illuminate\Support\Collection;
 
@@ -24,6 +30,11 @@ use Illuminate\Support\Collection;
  * Составы, события и статистика одного матча. Игроки, тренеры и команды ссылаются на уже загруженные сущности.
  * Секция из пустого списка ничего не удаляет; непустая синхронизируется целиком (строки, которых больше нет в источнике, удаляются).
  * Сущность атомарна: любая невалидная ссылка откатывает весь матч.
+ *
+ * `people_source = sstats_api` (детали из /Games/{id}): игроки названы числовыми id SStats и именами. Их опознаёт
+ * `ApiPlayerResolver`; неопознанный игрок события — null (имя уходит в details.person_name), неопознанный участник состава
+ * или статистики пропускается (`skipped`), и тогда секция только дополняется, не удаляя строки. Необязательная секция `state`
+ * обновляет статус, минуту и счёт самого матча.
  */
 class MatchDetailsUpserter implements EntityUpserter
 {
@@ -36,6 +47,8 @@ class MatchDetailsUpserter implements EntityUpserter
         private readonly MatchEventRepository $events,
         private readonly MatchStatsRepository $stats,
         private readonly ExternalIdRepository $externalIds,
+        private readonly PlayerRepository $players,
+        private readonly SourceProviderRepository $providers,
     ) {}
 
     public function type(): ExternalEntityType
@@ -50,7 +63,17 @@ class MatchDetailsUpserter implements EntityUpserter
         $match = $this->matches->find($matchId)
             ?? throw IngestionEntityException::missingReference(ExternalEntityType::Match->value, $entity->externalId);
 
-        $refs = new MatchReferences($this->externalIds, $context->providerId, $match);
+        $peopleSource = $data['people_source'] ?? null;
+        if ($peopleSource !== null && $peopleSource !== 'sstats_api') {
+            throw IngestionEntityException::invalid('неизвестный people_source', ['people_source' => $peopleSource]);
+        }
+        $resolver = $peopleSource === null ? null : new ApiPlayerResolver(
+            $this->externalIds,
+            $this->players,
+            $this->providers->ensure(SourceProviderCode::SstatsApi)->id,
+            $context->runId,
+        );
+        $refs = new MatchReferences($this->externalIds, $context->providerId, $match, $resolver);
 
         $children = [];
         $this->syncTeams($matchId, $this->list($data, 'teams'), $refs, $children);
@@ -58,6 +81,7 @@ class MatchDetailsUpserter implements EntityUpserter
         $this->syncEvents($matchId, $this->list($data, 'events'), $refs, $children);
         $this->syncTeamStats($matchId, $this->list($data, 'team_stats'), $refs, $children);
         $this->syncPlayerStats($matchId, $this->list($data, 'player_stats'), $refs, $children);
+        $this->syncState($match, $data['state'] ?? null, $children);
 
         return new UpsertResult($this->aggregate($children), $matchId, $children);
     }
@@ -94,8 +118,11 @@ class MatchDetailsUpserter implements EntityUpserter
      * @param  array<int|string, callable>  $rows  ключ строки → функция upsert(?existing)
      * @param  array<string, array<string, int>>  $children
      */
-    private function sync(string $child, Collection $existing, array $rows, array &$children, callable $delete): void
+    private function sync(string $child, Collection $existing, array $rows, array &$children, callable $delete, int $skipped = 0): void
     {
+        if ($skipped > 0) {
+            $children[$child][UpsertOutcome::Skipped->value] = $skipped;
+        }
         if ($rows === []) {
             return;
         }
@@ -103,6 +130,10 @@ class MatchDetailsUpserter implements EntityUpserter
         foreach ($rows as $key => $upsert) {
             [, $outcome] = $upsert($existing->get($key));
             $children[$child][$outcome->value] = ($children[$child][$outcome->value] ?? 0) + 1;
+        }
+
+        if ($skipped > 0) {
+            return;
         }
 
         $stale = $existing->reject(fn ($model, $key) => array_key_exists($key, $rows))->pluck('id')->all();
@@ -118,7 +149,7 @@ class MatchDetailsUpserter implements EntityUpserter
         foreach ($list as $row) {
             $side = MatchSide::tryFrom((string) ($row['side'] ?? ''))
                 ?? throw IngestionEntityException::invalid('у команды матча неизвестная сторона', ['side' => $row['side'] ?? null]);
-            $teamId = $refs->team($row['team_external_id'] ?? null);
+            $teamId = $refs->teamOf($row);
             $expected = $side === MatchSide::Home ? $refs->match()->home_team_id : $refs->match()->away_team_id;
             if ($teamId !== $expected) {
                 throw IngestionEntityException::conflict('команда не соответствует стороне матча', ['side' => $side->value, 'team_external_id' => $row['team_external_id']]);
@@ -143,11 +174,21 @@ class MatchDetailsUpserter implements EntityUpserter
     private function syncLineups(int $matchId, array $list, MatchReferences $refs, array &$children): void
     {
         $rows = [];
+        $skipped = 0;
         foreach ($list as $row) {
-            $playerId = $refs->player($row['player_external_id'] ?? null);
-            $teamId = $refs->team($row['team_external_id'] ?? null);
-            if (isset($rows[$playerId])) {
-                throw IngestionEntityException::invalid('игрок повторяется в составах матча', ['player_external_id' => $row['player_external_id']]);
+            $teamId = $refs->teamOf($row);
+            if ($refs->resolvesApiPlayers()) {
+                $playerId = $refs->apiPlayer($row['player_external_id'] ?? null, $row['player_name'] ?? null, $teamId);
+                if ($playerId === null || isset($rows[$playerId])) {
+                    $skipped++;
+
+                    continue;
+                }
+            } else {
+                $playerId = $refs->player($row['player_external_id'] ?? null);
+                if (isset($rows[$playerId])) {
+                    throw IngestionEntityException::invalid('игрок повторяется в составах матча', ['player_external_id' => $row['player_external_id']]);
+                }
             }
 
             $position = PlayerPosition::tryFrom((string) ($row['position'] ?? ''));
@@ -165,7 +206,7 @@ class MatchDetailsUpserter implements EntityUpserter
             );
         }
 
-        $this->sync('match_lineup', $this->lineups->forMatch($matchId), $rows, $children, fn (array $ids) => $this->lineups->delete($ids));
+        $this->sync('match_lineup', $this->lineups->forMatch($matchId), $rows, $children, fn (array $ids) => $this->lineups->delete($ids), $skipped);
     }
 
     private function syncEvents(int $matchId, array $list, MatchReferences $refs, array &$children): void
@@ -182,14 +223,26 @@ class MatchDetailsUpserter implements EntityUpserter
                 throw IngestionEntityException::invalid('sort_order события повторяется', ['sort_order' => $sortOrder]);
             }
 
-            $teamExternalId = $row['team_external_id'] ?? null;
-            $teamId = is_string($teamExternalId) && $teamExternalId !== '' ? $refs->team($teamExternalId) : null;
-            $playerId = $refs->optionalPlayer($row['player_external_id'] ?? null);
-            $relatedId = $refs->optionalPlayer($row['related_player_external_id'] ?? null);
+            $teamId = $refs->teamOf($row, false);
+            $details = is_array($row['details'] ?? null) ? $row['details'] : [];
+            if ($refs->resolvesApiPlayers()) {
+                $playerTeamId = $type === MatchEventType::OwnGoal && $teamId !== null ? $refs->opposite($teamId) : $teamId;
+                $playerId = $refs->apiPlayer($row['player_external_id'] ?? null, $row['player_name'] ?? null, $playerTeamId);
+                $relatedId = $refs->apiPlayer($row['related_player_external_id'] ?? null, $row['related_player_name'] ?? null, $teamId);
+                if ($playerId === null && is_string($row['player_name'] ?? null) && trim($row['player_name']) !== '') {
+                    $details['person_name'] = trim($row['player_name']);
+                }
+                if ($relatedId === null && is_string($row['related_player_name'] ?? null) && trim($row['related_player_name']) !== '') {
+                    $details['related_person_name'] = trim($row['related_player_name']);
+                }
+            } else {
+                $playerId = $refs->optionalPlayer($row['player_external_id'] ?? null);
+                $relatedId = $refs->optionalPlayer($row['related_player_external_id'] ?? null);
+            }
             $added = $this->int($row['added_minute'] ?? null, 'added_minute');
             $scoreHome = $this->int($row['score_home'] ?? null, 'score_home');
             $scoreAway = $this->int($row['score_away'] ?? null, 'score_away');
-            $details = is_array($row['details'] ?? null) && $row['details'] !== [] ? $row['details'] : null;
+            $details = $details !== [] ? $details : null;
 
             $rows[$sortOrder] = fn ($existing) => $this->events->upsert(
                 $existing, $matchId, $teamId, $playerId, $relatedId, $type, $minute, $added, $scoreHome, $scoreAway, $sortOrder, $details,
@@ -203,7 +256,7 @@ class MatchDetailsUpserter implements EntityUpserter
     {
         $rows = [];
         foreach ($list as $row) {
-            $teamId = $refs->team($row['team_external_id'] ?? null);
+            $teamId = $refs->teamOf($row);
             $period = StatsPeriod::tryFrom((string) ($row['period'] ?? ''))
                 ?? throw IngestionEntityException::invalid('у командной статистики неизвестный period', ['period' => $row['period'] ?? null]);
             $key = $teamId.':'.$period->value;
@@ -231,11 +284,21 @@ class MatchDetailsUpserter implements EntityUpserter
     private function syncPlayerStats(int $matchId, array $list, MatchReferences $refs, array &$children): void
     {
         $rows = [];
+        $skipped = 0;
         foreach ($list as $row) {
-            $playerId = $refs->player($row['player_external_id'] ?? null);
-            $teamId = $refs->team($row['team_external_id'] ?? null);
-            if (isset($rows[$playerId])) {
-                throw IngestionEntityException::invalid('статистика игрока повторяется', ['player_external_id' => $row['player_external_id']]);
+            $teamId = $refs->teamOf($row);
+            if ($refs->resolvesApiPlayers()) {
+                $playerId = $refs->apiPlayer($row['player_external_id'] ?? null, $row['player_name'] ?? null, $teamId);
+                if ($playerId === null || isset($rows[$playerId])) {
+                    $skipped++;
+
+                    continue;
+                }
+            } else {
+                $playerId = $refs->player($row['player_external_id'] ?? null);
+                if (isset($rows[$playerId])) {
+                    throw IngestionEntityException::invalid('статистика игрока повторяется', ['player_external_id' => $row['player_external_id']]);
+                }
             }
 
             $metrics = [
@@ -255,7 +318,53 @@ class MatchDetailsUpserter implements EntityUpserter
             $rows[$playerId] = fn ($existing) => $this->stats->upsertPlayerStat($existing, $matchId, $teamId, $playerId, $metrics);
         }
 
-        $this->sync('match_player_stat', $this->stats->playerStatsForMatch($matchId), $rows, $children, fn (array $ids) => $this->stats->deletePlayerStats($ids));
+        $this->sync('match_player_stat', $this->stats->playerStatsForMatch($matchId), $rows, $children, fn (array $ids) => $this->stats->deletePlayerStats($ids), $skipped);
+    }
+
+    /**
+     * Состояние матча из шапки источника. Завершённый матч не «оживает» обратно. Счёт переписываем у идущего матча и в момент
+     * завершения; у уже завершённого он остаётся за sync_fixtures (там учтены доп. время и пенальти).
+     *
+     * @param  array<string, array<string, int>>  $children
+     */
+    private function syncState(FootballMatch $match, mixed $state, array &$children): void
+    {
+        if ($state === null) {
+            return;
+        }
+        if (! is_array($state) || array_is_list($state) && $state !== []) {
+            throw IngestionEntityException::invalid('state должен быть объектом');
+        }
+
+        $rawStatus = $state['status'] ?? null;
+        $status = $rawStatus === null || $rawStatus === '' ? null : (MatchStatus::tryFrom((string) $rawStatus)
+            ?? throw IngestionEntityException::invalid('у state неизвестный status', ['status' => $rawStatus]));
+        $period = MatchPeriod::tryFrom((string) ($state['period'] ?? ''));
+        $minute = $this->int($state['minute'] ?? null, 'minute');
+
+        $wasFinished = $match->status === MatchStatus::Finished;
+        if ($status === null || ($wasFinished && $status !== MatchStatus::Finished)) {
+            return;
+        }
+
+        $attributes = [
+            'status' => $status,
+            'period' => $status === MatchStatus::Live ? $period : null,
+            'minute' => $status === MatchStatus::Live ? $minute : null,
+        ];
+
+        $writeScore = $status === MatchStatus::Live || ($status === MatchStatus::Finished && ! $wasFinished) || $match->home_goals === null;
+        if ($writeScore && $status !== MatchStatus::Scheduled) {
+            foreach (['home_goals', 'away_goals', 'home_goals_ht', 'away_goals_ht'] as $column) {
+                $value = $this->int($state[$column] ?? null, $column);
+                if ($value !== null) {
+                    $attributes[$column] = $value;
+                }
+            }
+        }
+
+        $outcome = $this->matches->applyState($match, $attributes);
+        $children['match_state'][$outcome->value] = ($children['match_state'][$outcome->value] ?? 0) + 1;
     }
 
     private function int(mixed $value, string $field): ?int

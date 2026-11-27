@@ -9,91 +9,95 @@ import (
 	"github.com/ivcDark/matchiq/collector/internal/sstats"
 )
 
-const gameInfoJSON = `{
-  "game": {"id": "Mat00001", "homeTeamId": "TeHome01", "awayTeamId": "TeAway01", "status": 3},
-  "events": [
-    {"teamId": "TeAway01", "sourceEventId": "ev1", "period": 1, "sortOrder": 0, "homeScoreAfter": 0, "awayScoreAfter": 1, "time": 1, "minute": 1, "injuryTime": 0, "team": 2,
-     "actions": [{"playerUniqueId": "PlAway01", "actionType": 3, "actionName": "Goal", "playerName": "Offor C."}, {"playerUniqueId": "PlAway02", "actionType": 8, "actionName": "Assistance", "playerName": "Gassama N."}]},
-    {"teamId": "TeHome01", "sourceEventId": "ev2", "period": 1, "sortOrder": 1, "homeScoreAfter": 1, "awayScoreAfter": 1, "time": 33, "minute": 33, "injuryTime": 0, "team": 1,
-     "actions": [{"playerUniqueId": "PlAway02", "actionType": 4, "actionName": "Own goal", "playerName": "Gassama N."}]},
-    {"teamId": "TeAway01", "sourceEventId": "ev3", "period": 2, "sortOrder": 2, "time": 46, "minute": 46, "injuryTime": 0, "team": 2,
-     "actions": [{"playerUniqueId": "PlAway01", "actionType": 6, "actionName": "Substitution - Out", "playerName": "Offor C."}, {"playerUniqueId": "PlAway03", "actionType": 7, "actionName": "Substitution - In", "playerName": "Civic E."}]},
-    {"teamId": "TeHome01", "sourceEventId": "ev4", "period": 2, "sortOrder": 3, "time": 64, "minute": 64, "injuryTime": 0, "team": 1,
-     "actions": [{"playerUniqueId": "PlHome02", "actionType": 1, "actionName": "Yellow Card", "playerName": "Kozlov D.", "reason": "Foul", "reasonCode": 12}]},
-    {"teamId": "TeAway01", "sourceEventId": "ev5", "period": 2, "sortOrder": 4, "time": 90, "minute": 90, "injuryTime": 2, "team": 2,
-     "actions": [{"playerUniqueId": "PlAway03", "actionType": 1, "actionName": "Yellow Card", "playerName": "Civic E."}, {"playerUniqueId": "PlAway03", "actionType": 2, "actionName": "Red Card", "playerName": "Civic E."}]},
-    {"teamId": "TeHome01", "sourceEventId": "ev6", "period": 1, "sortOrder": 5, "homeScoreAfter": 2, "awayScoreAfter": 1, "time": 27, "minute": 27, "injuryTime": 0, "team": 1,
-     "actions": [{"playerUniqueId": "PlHome01", "actionType": 5, "actionName": "Penalty Awarded", "playerName": "Glebov K."}, {"playerUniqueId": "PlHome01", "actionType": 10, "actionName": "Penalty", "playerName": "Glebov K."}]},
-    {"teamId": "TeHome01", "sourceEventId": "ev7", "period": 2, "sortOrder": 6, "time": 70, "minute": 70, "injuryTime": 0, "team": 1,
-     "actions": [{"playerUniqueId": "PlHome01", "actionType": 5, "actionName": "Penalty Awarded", "playerName": "Glebov K."}, {"playerUniqueId": "PlHome01", "actionType": 11, "actionName": "Penalty missed", "playerName": "Glebov K."}]},
-    {"teamId": "TeAway01", "sourceEventId": "ev8", "period": 2, "sortOrder": 7, "time": 62, "minute": 62, "injuryTime": 0, "team": 2,
-     "actions": [{"playerUniqueId": "CoAway01", "actionType": 1, "actionName": "Yellow Card", "playerName": "Talalaev A."}, {"playerUniqueId": "CoAway01", "actionType": 47, "actionName": "Not on pitch", "playerName": "Talalaev A."}]},
-    {"teamId": "TeHome01", "sourceEventId": "ev9", "period": 4, "sortOrder": 8, "time": 1, "penaltyAttempt": 1, "team": 1,
-     "actions": [{"playerUniqueId": "PlHome01", "actionType": 10, "actionName": "Penalty", "playerName": "Glebov K."}]},
-    {"teamId": "TeHome01", "sourceEventId": "ev10", "period": 2, "sortOrder": 9, "time": 80, "minute": 80, "team": 1,
-     "actions": [{"playerUniqueId": "PlHome01", "actionType": 999, "actionName": "VAR something"}]}
-  ],
+// Завершённый матч: хозяева 6811 (flash TeHome01), гости 2012 (flashId у SStats пуст). Счёт 2:1.
+const gameFinishedJSON = `{
+  "game": {
+    "id": 1577460, "flashId": "Mat00001", "status": 8, "statusName": "Finished", "elapsed": 90, "extraMinutes": 3,
+    "homeResult": 2, "awayResult": 1, "homeHTResult": 0, "awayHTResult": 0,
+    "homeTeam": {"id": 6811, "name": "Leningradets", "flashId": "TeHome01"},
+    "awayTeam": {"id": 2012, "name": "FC Sochi", "flashId": null}
+  },
   "statistics": {
-    "fullTime": {
-      "metrics": [{"id": "432", "name": "xG"}],
-      "expectedGoals": {"home": 2.25, "away": 1.52}, "ballPossession": {"home": 65, "away": 35},
-      "totalShots": {"home": 18, "away": 14}, "shotsOnTarget": {"home": 5, "away": 3}, "cornerKicks": {"home": 6, "away": 2},
-      "totalPasses": {"home": 548, "away": 290}, "completedPasses": {"home": 454, "away": 190},
-      "bigChances": {"home": 4, "away": 2}, "xgOnTarget": {"home": 2.77, "away": 1.06}, "goalkeeperSaves": {"home": 1, "away": 4},
-      "otherStats": {"Goal kicks": {"home": "8", "away": "11"}}
-    },
-    "firstHalf": {"expectedGoals": {"home": 1.1, "away": 0.4}},
-    "secondHalf": {}
-  }
-}`
-
-const gameLineupsJSON = `{
-  "lineups": [
-    {"teamId": "TeHome01", "side": 1, "formation": "4-1-4-1", "averageRating": 7.2, "players": [
-      {"playerId": "PlHome01", "playerName": "Glebov K.", "kind": 0, "shirtNumber": "17", "isCaptain": true, "isGoalkeeper": false, "position": "Winger", "formationLine": 1, "formationRow": 3, "sortOrder": 0, "subOutTime": "76",
-       "statistics": {"lineupPlayerId": 1, "rating": 7.7, "isBestRating": true, "isBestInTeam": false, "minutesPlayed": 76, "goals": 1, "goalsPenalty": 1, "assists": 0, "yellowCards": 0, "redCards": 0,
-         "totalShots": 3, "shotsOnTarget": 2, "expectedGoals": 0.75, "expectedGoalsOnTarget": 1.2, "expectedAssists": 0.001935, "touches": 40, "bonuses": "GOALS,WINNING_GOAL", "extraData": {"A": "1"}}},
-      {"playerId": "PlHome02", "playerName": "Kozlov D.", "kind": 0, "shirtNumber": "18", "isGoalkeeper": false, "position": "Midfielder", "formationRow": 3, "sortOrder": 1},
-      {"playerId": "PlHome03", "playerName": "Henrique Carmo", "kind": 1, "shirtNumber": "37", "position": "Forward", "sortOrder": 0, "subInTime": "45+2"},
-      {"playerId": "CoHome01", "playerName": "Coach H.", "kind": 2},
-      {"playerId": "PlHome04", "playerName": "Hurt P.", "kind": 3, "missingReason": "Knee Injury"}
-    ]},
-    {"teamId": "TeAway01", "side": 2, "formation": "5-4-1", "averageRating": 6.7, "players": [
-      {"playerId": "PlAway01", "playerName": "Offor C.", "kind": 0, "shirtNumber": "9", "position": "Striker", "formationRow": 3, "sortOrder": 0, "subOutTime": "46"},
-      {"playerId": "PlAway02", "playerName": "Gassama N.", "kind": 0, "shirtNumber": "4", "position": "Centre back", "formationRow": 1, "sortOrder": 1},
-      {"playerId": "PlAway03", "playerName": "Civic E.", "kind": 1, "shirtNumber": "77", "position": "Defender", "sortOrder": 0, "subInTime": "46",
-       "statistics": {"rating": 6.7, "minutesPlayed": 44, "goals": 0, "assists": 0, "yellowCards": 1, "redCards": 1}},
-      {"playerId": "CoAway01", "playerName": "Talalaev A.", "kind": 2}
-    ]}
+    "shotsOnGoalHome": 5, "shotsOnGoalAway": 3, "totalShotsHome": 21, "totalShotsAway": 8, "cornerKicksHome": 6, "cornerKicksAway": 3,
+    "foulsHome": 14, "foulsAway": 12, "offsidesHome": 1, "offsidesAway": 3, "yellowCardsHome": 2, "yellowCardsAway": 3,
+    "redCardsHome": 0, "redCardsAway": 1, "ballPossessionHome": 56, "ballPossessionAway": 44, "goalkeeperSavesHome": 2, "goalkeeperSavesAway": 5,
+    "totalPassesHome": 400, "totalPassesAway": 200, "passesAccurateHome": 300, "passesAccurateAway": 100,
+    "expectedGoalsHome": 1.78, "expectedGoalsAway": 0.58, "crossesHome": 35, "crossesAway": 9, "headedGoalsHome": null, "headedGoalsAway": null
+  },
+  "lineups": {"homeFormation": "4-3-3", "awayFormation": null, "homeCoach": {"id": 24584, "name": "Jonatan Alba"}, "awayCoach": {"id": 0, "name": ""}},
+  "lineupPlayers": [
+    {"teamId": 6811, "playerId": 829, "playerName": "Rodrigo Becão", "number": 50, "position": "G", "grid": "1:1", "startXI": true},
+    {"teamId": 6811, "playerId": 1031, "playerName": "Igor Silva", "number": 2, "position": "D", "grid": "2:4", "startXI": true},
+    {"teamId": 6811, "playerId": 342299, "playerName": "N. Bozov", "number": 7, "position": "M", "grid": null, "startXI": true},
+    {"teamId": 6811, "playerId": 478098, "playerName": "V. Churilov", "number": 19, "position": "F", "grid": null, "startXI": false},
+    {"teamId": 2012, "playerId": null, "playerName": "Ilya Dronov", "number": 68, "position": "M", "grid": null, "startXI": false},
+    {"teamId": 999, "playerId": 5, "playerName": "Stranger", "number": 1, "position": "M", "grid": null, "startXI": true}
   ],
-  "players": [
-    {"id": "PlHome01", "name": "Kirill Glebov", "shortName": "Glebov K.", "role": "Midfielder", "birthdate": "2000-02-03", "country": {"num": 158, "id": "russia", "name": "Russia", "abbr2": "ru"}},
-    {"id": "PlHome03", "name": "Henrique Carmo", "role": "Forward", "country": {"num": 31, "id": "brazil", "name": "Brazil", "abbr2": "br"}},
-    {"id": "PlAway01", "name": "Chinonso Offor", "role": "Forward", "birthdate": "not-a-date", "country": {"num": 158, "id": "russia", "name": "Russia", "abbr2": "ru"}},
-    {"id": "CoAway01", "name": "Andrey Talalaev", "role": "Coach", "country": {"num": 158, "id": "russia", "name": "Russia", "abbr2": "ru"}}
+  "playerStats": [
+    {"playerId": 829, "minutes": 90, "capitan": true, "goalsTotal": 0, "goalsAssists": 0, "penaltyScored": 0, "shotsTotal": 0, "shotsOn": 0, "cardsYellow": 0, "cardsRed": 0, "rating": 6.79, "passesTotal": 66, "duelsWon": 5, "substitute": false},
+    {"playerId": 1031, "minutes": 90, "capitan": false, "goalsTotal": 1, "goalsAssists": 1, "penaltyScored": 1, "shotsTotal": 3, "shotsOn": 2, "cardsYellow": 1, "cardsRed": 0, "rating": 8.1, "passesTotal": 43, "penaltySaved": null},
+    {"playerId": 777777, "minutes": 10, "rating": 9.9}
+  ],
+  "events": [
+    {"id": 105, "teamId": 2012, "elapsed": 85, "extra": null, "type": 1, "name": "Normal Goal", "player": {"id": 50, "name": "A. Gost"}, "assistPlayer": null},
+    {"id": 101, "teamId": 6811, "elapsed": 81, "extra": null, "type": 1, "name": "Own Goal", "player": {"id": 53594, "name": "I. Kalinin"}, "assistPlayer": {"id": 99, "name": "X. Ignored"}},
+    {"id": 102, "teamId": 6811, "elapsed": 64, "extra": null, "type": 1, "name": "Normal Goal", "player": {"id": 1031, "name": "I. Silva"}, "assistPlayer": {"id": 342299, "name": "N. Bozov"}},
+    {"id": 103, "teamId": 6811, "elapsed": 46, "extra": null, "type": 3, "name": "Substitution 1", "player": {"id": 342299, "name": "N. Bozov"}, "assistPlayer": {"id": 478098, "name": "V. Churilov"}},
+    {"id": 104, "teamId": 2012, "elapsed": 34, "extra": null, "type": 2, "name": "Yellow Card", "player": {"id": null, "name": null}, "assistPlayer": null},
+    {"id": 110, "teamId": 6811, "elapsed": 40, "extra": null, "type": 4, "name": "Goal confirmed", "player": {"id": null, "name": null}, "assistPlayer": null},
+    {"id": 111, "teamId": 6811, "elapsed": 90, "extra": 2, "type": 2, "name": "Red Card", "player": {"id": 829, "name": "R. Becao"}, "assistPlayer": null},
+    {"id": 112, "teamId": 6811, "elapsed": 30, "extra": null, "type": 1, "name": "Missed Penalty", "player": {"id": 1031, "name": "I. Silva"}, "assistPlayer": {"id": 1031, "name": "I. Silva"}},
+    {"id": 113, "teamId": 6811, "elapsed": 20, "extra": null, "type": 7, "name": "Mystery", "player": null, "assistPlayer": null},
+    {"id": 114, "teamId": 12345, "elapsed": 21, "extra": null, "type": 2, "name": "Yellow Card", "player": null, "assistPlayer": null}
   ]
 }`
 
-func detailsSource(t *testing.T) fakeSource {
+// Идущий матч: событий нет, статистика и составы пусты — это не ошибка.
+const gameLiveEmptyJSON = `{
+  "game": {
+    "id": 1577610, "flashId": "Live0001", "status": 3, "statusName": "First Half", "elapsed": 42,
+    "homeResult": 1, "awayResult": 0, "homeHTResult": null, "awayHTResult": null,
+    "homeTeam": {"id": 3985, "flashId": "TeHome01"}, "awayTeam": {"id": 1087, "flashId": "TeAway01"}
+  },
+  "statistics": {"shotsOnGoalHome": null, "shotsOnGoalAway": null, "totalShotsHome": null, "totalShotsAway": null},
+  "lineups": {"homeFormation": null, "awayFormation": null, "homeCoach": {"id": null, "name": null}, "awayCoach": {"id": null, "name": null}},
+  "lineupPlayers": [], "playerStats": null, "events": null
+}`
+
+const gameLiveGoalJSON = `{
+  "game": {
+    "id": 1577610, "flashId": "Live0001", "status": 3, "statusName": "First Half", "elapsed": 28,
+    "homeResult": 1, "awayResult": 0,
+    "homeTeam": {"id": 3985, "flashId": "TeHome01"}, "awayTeam": {"id": 1087, "flashId": "TeAway01"}
+  },
+  "events": [
+    {"id": 8836955, "teamId": 3985, "elapsed": 28, "extra": null, "type": 1, "name": "Normal Goal", "player": {"id": null, "name": null}, "assistPlayer": null}
+  ]
+}`
+
+func mustGame(t *testing.T, raw string) sstats.GameFull {
 	t.Helper()
-	var info sstats.LsGameInfo
-	var lineups sstats.LsGameLineups
-	if err := json.Unmarshal([]byte(gameInfoJSON), &info); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal([]byte(gameLineupsJSON), &lineups); err != nil {
+	var g sstats.GameFull
+	if err := json.Unmarshal([]byte(raw), &g); err != nil {
 		t.Fatal(err)
 	}
 
-	return fakeSource{
-		info:    map[string]sstats.LsGameInfo{"Mat00001": info},
-		lineups: map[string]sstats.LsGameLineups{"Mat00001": lineups},
-	}
+	return g
 }
 
-func collectDetails(t *testing.T, src fakeSource, ids ...string) (*dto.Batch, dto.Done) {
+func detailsSource(t *testing.T) fakeSource {
 	t.Helper()
-	msgs := runCommand(t, src, dto.JobSyncMatchDetails, dto.MatchDetailsPayload{MatchExternalIDs: ids}, 200)
+
+	return fakeSource{game: map[string]sstats.GameFull{
+		"1577460":  mustGame(t, gameFinishedJSON),
+		"Mat00001": mustGame(t, gameFinishedJSON),
+		"Live0001": mustGame(t, gameLiveEmptyJSON),
+	}}
+}
+
+func collectDetails(t *testing.T, src fakeSource, payload dto.MatchDetailsPayload) (*dto.Batch, dto.Done) {
+	t.Helper()
+	msgs := runCommand(t, src, dto.JobSyncMatchDetails, payload, 200)
 	batch, ok := msgs[0].(*dto.Batch)
 	if !ok {
 		t.Fatalf("expected batch, got %#v", msgs[0])
@@ -102,171 +106,236 @@ func collectDetails(t *testing.T, src fakeSource, ids ...string) (*dto.Batch, dt
 	return batch, msgs[len(msgs)-1].(dto.Done)
 }
 
-func entitiesOf(b *dto.Batch, typ string) []dto.Entity {
-	var out []dto.Entity
+func detailsOf(t *testing.T, b *dto.Batch, id string) dto.MatchDetailsData {
+	t.Helper()
 	for _, e := range b.Entities {
-		if e.EntityType == typ {
-			out = append(out, e)
+		if e.EntityType == dto.EntityMatchDetails && e.ExternalID == id {
+			return e.Data.(dto.MatchDetailsData)
+		}
+	}
+	t.Fatalf("no match_details for %s in %+v", id, b.Entities)
+
+	return dto.MatchDetailsData{}
+}
+
+func TestSyncMatchDetailsUsesGamesEndpointWithNumericID(t *testing.T) {
+	var got []string
+	src := detailsSource(t)
+	src.gotGameIDs = &got
+
+	_, _ = collectDetails(t, src, dto.MatchDetailsPayload{
+		MatchExternalIDs: []string{"Mat00001", "Live0001"},
+		MatchAPIIDs:      map[string]string{"Mat00001": "1577460"},
+	})
+
+	if len(got) != 2 || got[0] != "1577460" || got[1] != "Live0001" {
+		t.Fatalf("requested ids = %v, want numeric id and flash fallback", got)
+	}
+}
+
+func TestSyncMatchDetailsNormalizesGame(t *testing.T) {
+	batch, done := collectDetails(t, detailsSource(t), dto.MatchDetailsPayload{MatchExternalIDs: []string{"Mat00001"}})
+	d := detailsOf(t, batch, "Mat00001")
+
+	if d.PeopleSource != dto.PeopleSStatsAPI {
+		t.Fatalf("people source = %q", d.PeopleSource)
+	}
+	if len(batch.Entities) != 1 || done.EntitiesTotal != 1 {
+		t.Fatalf("only match_details expected (people are resolved by Laravel): %+v", batch.Entities)
+	}
+
+	s := d.State
+	if s == nil || s.Status != dto.MatchFinished || s.Minute != nil || s.HomeGoals == nil || *s.HomeGoals != 2 || *s.AwayGoals != 1 || *s.HomeGoalsHT != 0 {
+		t.Fatalf("state = %+v", s)
+	}
+
+	// Событие 113 (неизвестный тип), 114 (чужая команда) и участник чужой команды дают ошибки, VAR (тип 4) пропущен.
+	if len(batch.Errors) != 3 {
+		t.Fatalf("errors = %+v", batch.Errors)
+	}
+	for _, e := range batch.Errors {
+		if e.EntityType != dto.EntityMatchDetails || e.ExternalID != "Mat00001" || e.Phase != dto.PhaseNormalize {
+			t.Fatalf("error = %+v", e)
 		}
 	}
 
-	return out
-}
-
-func TestSyncMatchDetailsNormalizesEverything(t *testing.T) {
-	batch, done := collectDetails(t, detailsSource(t), "Mat00001")
-
-	if len(entitiesOf(batch, dto.EntityMatchDetails)) != 1 {
-		t.Fatalf("entities = %+v", batch.Entities)
-	}
-	last := batch.Entities[len(batch.Entities)-1]
-	if last.EntityType != dto.EntityMatchDetails || last.ExternalID != "Mat00001" {
-		t.Fatalf("match_details must go last, got %s", last.EntityType)
-	}
-	d := last.Data.(dto.MatchDetailsData)
-
-	if len(batch.Errors) != 1 || !strings.Contains(batch.Errors[0].Message, "неизвестный тип события") || batch.Errors[0].ExternalID != "Mat00001" {
-		t.Fatalf("errors = %+v", batch.Errors)
-	}
-	if done.ErrorsTotal != 1 || done.EntitiesTotal != len(batch.Entities) {
-		t.Fatalf("done = %+v", done)
-	}
-
-	if len(d.Teams) != 2 {
-		t.Fatalf("teams = %+v", d.Teams)
-	}
-	home := d.Teams[0]
-	if home.Side != "home" || home.TeamExternalID != "TeHome01" || home.Formation != "4-1-4-1" || home.CoachExternalID != "CoHome01" || *home.Rating != 7.2 {
-		t.Fatalf("home team = %+v", home)
-	}
-	if d.Teams[1].CoachExternalID != "CoAway01" {
-		t.Fatalf("away coach = %+v", d.Teams[1])
-	}
-
-	// 3 + 3 игрока без тренеров и отсутствующих.
-	if len(d.Lineup) != 6 {
-		t.Fatalf("lineup = %+v", d.Lineup)
-	}
-	glebov := d.Lineup[0]
-	if !glebov.IsStarter || !glebov.IsCaptain || *glebov.ShirtNumber != 17 || *glebov.Position != "MF" || *glebov.Line != 3 || *glebov.MinuteOut != 76 || glebov.MinuteIn != nil {
-		t.Fatalf("glebov = %+v", glebov)
-	}
-	carmo := d.Lineup[2]
-	if carmo.IsStarter || *carmo.Position != "FW" || *carmo.MinuteIn != 47 || carmo.Line != nil {
-		t.Fatalf("carmo = %+v", carmo)
-	}
-
-	var typesSeen []string
+	var types []string
 	for _, e := range d.Events {
-		typesSeen = append(typesSeen, e.Type)
+		types = append(types, e.Type)
 	}
-	want := []string{"goal", "own_goal", "substitution", "yellow", "second_yellow", "penalty_goal", "penalty_missed", "yellow"}
-	if strings.Join(typesSeen, ",") != strings.Join(want, ",") {
-		t.Fatalf("event types = %v, want %v", typesSeen, want)
-	}
-	goal := d.Events[0]
-	if goal.PlayerExternalID != "PlAway01" || goal.RelatedPlayerExternalID != "PlAway02" || goal.TeamExternalID != "TeAway01" || *goal.ScoreHome != 0 || *goal.ScoreAway != 1 || goal.Minute != 1 {
-		t.Fatalf("goal = %+v", goal)
-	}
-	sub := d.Events[2]
-	if sub.PlayerExternalID != "PlAway01" || sub.RelatedPlayerExternalID != "PlAway03" || sub.ScoreHome != nil {
-		t.Fatalf("sub = %+v", sub)
-	}
-	yellow := d.Events[3]
-	if yellow.Details["reason"] != "Foul" || yellow.Details["reason_code"] != 12 || yellow.Details["source_event_id"] != "ev4" {
-		t.Fatalf("yellow details = %+v", yellow.Details)
-	}
-	second := d.Events[4]
-	if second.Minute != 90 || *second.AddedMinute != 2 {
-		t.Fatalf("second yellow = %+v", second)
-	}
-	coachCard := d.Events[7]
-	if coachCard.PlayerExternalID != "" || coachCard.Details["not_on_pitch"] != true || coachCard.Details["person_name"] != "Talalaev A." {
-		t.Fatalf("coach card = %+v", coachCard)
+	// По времени: 30' промах, 34' жёлтая, 46' замена, 64' гол, 81' автогол, 85' гол, 90+2' красная.
+	want := []string{"penalty_missed", "yellow", "substitution", "goal", "own_goal", "goal", "red"}
+	if strings.Join(types, ",") != strings.Join(want, ",") {
+		t.Fatalf("event types = %v, want %v", types, want)
 	}
 
-	if len(d.TeamStats) != 4 {
-		t.Fatalf("team stats = %+v", d.TeamStats)
+	missed, yellow, sub, goal, own, away, red := d.Events[0], d.Events[1], d.Events[2], d.Events[3], d.Events[4], d.Events[5], d.Events[6]
+	if missed.RelatedPlayerExternalID != "" || missed.PlayerExternalID != "1031" || missed.Side != dto.SideHome || missed.TeamExternalID != "TeHome01" {
+		t.Fatalf("missed penalty = %+v", missed)
 	}
-	fh, fa := d.TeamStats[0], d.TeamStats[1]
-	if fh.Period != "full_time" || fh.TeamExternalID != "TeHome01" || *fh.XG != 2.25 || *fh.XGA != 1.52 || *fa.XG != 1.52 || *fa.XGA != 2.25 {
-		t.Fatalf("xg stats = %+v / %+v", fh, fa)
+	if yellow.PlayerExternalID != "" || yellow.PlayerName != "" || yellow.Side != dto.SideAway || yellow.TeamExternalID != "" {
+		t.Fatalf("yellow card without player and flash id = %+v", yellow)
 	}
-	if *fh.Shots != 18 || *fh.ShotsOnTarget != 5 || *fh.Corners != 6 || *fh.PossessionPct != 65 || *fh.Passes != 548 || *fh.PassAccuracyPct != 82.85 || *fh.Saves != 1 || fh.RedCards != nil {
-		t.Fatalf("home stats = %+v", fh)
+	if sub.PlayerExternalID != "342299" || sub.RelatedPlayerExternalID != "478098" || sub.RelatedPlayerName != "V. Churilov" || sub.Minute != 46 {
+		t.Fatalf("substitution (player out, assist = player in) = %+v", sub)
 	}
-	if fh.Extra["xg_on_target"] != 2.77 || fh.Extra["big_chances"] != 4 || fh.Extra["completed_passes"] != 454 {
-		t.Fatalf("extra = %+v", fh.Extra)
+	if goal.PlayerExternalID != "1031" || goal.RelatedPlayerExternalID != "342299" {
+		t.Fatalf("goal with assist = %+v", goal)
 	}
-	if fh.Extra["other_stats"].(map[string]string)["Goal kicks"] != "8" {
-		t.Fatalf("other_stats = %+v", fh.Extra)
+	if own.RelatedPlayerExternalID != "" || own.Side != dto.SideHome {
+		t.Fatalf("own goal is credited to the other team, no assist: %+v", own)
 	}
-	if d.TeamStats[2].Period != "first_half" || *d.TeamStats[2].XG != 1.1 || d.TeamStats[2].Shots != nil {
-		t.Fatalf("first half = %+v", d.TeamStats[2])
+	if red.Minute != 90 || red.AddedMinute == nil || *red.AddedMinute != 2 {
+		t.Fatalf("red card minute = %+v", red)
+	}
+	if away.ScoreHome == nil || *away.ScoreHome != 2 || *away.ScoreAway != 1 || goal.ScoreHome == nil || *goal.ScoreHome != 1 || *goal.ScoreAway != 0 {
+		t.Fatalf("running score: goal=%+v away=%+v", goal, away)
+	}
+	for i, e := range d.Events {
+		if e.SortOrder != i {
+			t.Fatalf("sort_order must follow time: %d = %d", i, e.SortOrder)
+		}
+	}
+	if sub.Details["source_event_id"] != "103" {
+		t.Fatalf("details = %+v", sub.Details)
+	}
+
+	if len(d.Lineup) != 5 {
+		t.Fatalf("lineup (player of foreign team skipped) = %+v", d.Lineup)
+	}
+	gk, def, bozov, churilov, dronov := d.Lineup[0], d.Lineup[1], d.Lineup[2], d.Lineup[3], d.Lineup[4]
+	if gk.PlayerExternalID != "829" || !gk.IsStarter || !gk.IsCaptain || gk.Position == nil || *gk.Position != "GK" || gk.Line == nil || *gk.Line != 0 || *gk.ShirtNumber != 50 {
+		t.Fatalf("goalkeeper = %+v", gk)
+	}
+	if def.Line == nil || *def.Line != 1 || *def.Position != "DF" || def.IsCaptain {
+		t.Fatalf("defender = %+v", def)
+	}
+	if bozov.MinuteOut == nil || *bozov.MinuteOut != 46 || bozov.Line != nil {
+		t.Fatalf("substituted starter = %+v", bozov)
+	}
+	if churilov.IsStarter || churilov.MinuteIn == nil || *churilov.MinuteIn != 46 || *churilov.Position != "FW" {
+		t.Fatalf("substitute who came on = %+v", churilov)
+	}
+	if dronov.PlayerExternalID != "" || dronov.PlayerName != "Ilya Dronov" || dronov.Side != dto.SideAway {
+		t.Fatalf("player without numeric id keeps the name = %+v", dronov)
 	}
 
 	if len(d.PlayerStats) != 2 {
-		t.Fatalf("player stats = %+v", d.PlayerStats)
+		t.Fatalf("player stats (player outside lineup skipped) = %+v", d.PlayerStats)
 	}
-	ps := d.PlayerStats[0]
-	if ps.PlayerExternalID != "PlHome01" || ps.TeamExternalID != "TeHome01" || *ps.Minutes != 76 || *ps.Goals != 1 || *ps.PenaltiesScored != 1 ||
-		*ps.XG != 0.75 || *ps.XA != 0.001935 || *ps.Rating != 7.7 || !ps.IsMOTM || *ps.Shots != 3 || *ps.ShotsOnTarget != 2 {
+	if ps := d.PlayerStats[1]; ps.PlayerExternalID != "1031" || *ps.Goals != 1 || *ps.Assists != 1 || *ps.PenaltiesScored != 1 || *ps.ShotsOnTarget != 2 || !ps.IsMOTM || ps.PlayerName != "Igor Silva" {
 		t.Fatalf("player stats = %+v", ps)
 	}
-	if ps.Extra["expected_goals_on_target"] != 1.2 || ps.Extra["touches"] != 40 || ps.Extra["extra_data"] != nil {
-		t.Fatalf("player extra = %+v", ps.Extra)
-	}
-	if b, ok := ps.Extra["bonuses"].([]string); !ok || len(b) != 2 || b[1] != "WINNING_GOAL" {
-		t.Fatalf("bonuses = %+v", ps.Extra["bonuses"])
-	}
-	if ps2 := d.PlayerStats[1]; ps2.IsMOTM || *ps2.RedCards != 1 || ps2.XG != nil {
-		t.Fatalf("second player stats = %+v", ps2)
+	if ps := d.PlayerStats[0]; ps.IsMOTM || ps.Extra["passes_total"] != 66 || ps.Extra["duels_won"] != 5 || ps.Extra["penalty_saved"] != nil {
+		t.Fatalf("player stats extra = %+v", ps)
 	}
 
-	players := entitiesOf(batch, dto.EntityPlayer)
-	coaches := entitiesOf(batch, dto.EntityCoach)
-	countries := entitiesOf(batch, dto.EntityCountry)
-	if len(players) != 6 || len(coaches) != 2 || len(countries) != 2 {
-		t.Fatalf("players=%d coaches=%d countries=%d", len(players), len(coaches), len(countries))
+	if len(d.TeamStats) != 2 {
+		t.Fatalf("team stats = %+v", d.TeamStats)
 	}
-	var glebovPlayer dto.PlayerData
-	var offorPlayer dto.PlayerData
-	var kozlovPlayer dto.PlayerData
-	for _, e := range players {
-		switch e.ExternalID {
-		case "PlHome01":
-			glebovPlayer = e.Data.(dto.PlayerData)
-		case "PlAway01":
-			offorPlayer = e.Data.(dto.PlayerData)
-		case "PlHome02":
-			kozlovPlayer = e.Data.(dto.PlayerData)
+	home, away2 := d.TeamStats[0], d.TeamStats[1]
+	if home.Period != dto.StatsFullTime || home.Side != dto.SideHome || *home.Shots != 21 || *home.ShotsOnTarget != 5 || *home.Corners != 6 || *home.PossessionPct != 56 || *home.Passes != 400 {
+		t.Fatalf("home stats = %+v", home)
+	}
+	if *home.XG != 1.78 || *home.XGA != 0.58 || *away2.XG != 0.58 || *away2.RedCards != 1 || *home.PassAccuracyPct != 75 || *away2.PassAccuracyPct != 50 {
+		t.Fatalf("xg / accuracy: home=%+v away=%+v", home, away2)
+	}
+	if home.Extra["crosses"] != 35 || home.Extra["completed_passes"] != 300 {
+		t.Fatalf("home extra = %+v", home.Extra)
+	}
+	if _, has := home.Extra["headed_goals"]; has {
+		t.Fatalf("null metrics must not reach extra: %+v", home.Extra)
+	}
+
+	if len(d.Teams) != 2 || d.Teams[0].Formation != "4-3-3" || d.Teams[0].TeamExternalID != "TeHome01" || d.Teams[1].Side != dto.SideAway || d.Teams[1].Formation != "" {
+		t.Fatalf("teams = %+v", d.Teams)
+	}
+}
+
+func TestSyncMatchDetailsEmptyLiveResponseIsNotAnError(t *testing.T) {
+	batch, _ := collectDetails(t, detailsSource(t), dto.MatchDetailsPayload{MatchExternalIDs: []string{"Live0001"}})
+	d := detailsOf(t, batch, "Live0001")
+
+	if len(batch.Errors) != 0 {
+		t.Fatalf("errors = %+v", batch.Errors)
+	}
+	if len(d.Events)+len(d.Lineup)+len(d.TeamStats)+len(d.PlayerStats)+len(d.Teams) != 0 {
+		t.Fatalf("nothing to load, got %+v", d)
+	}
+	s := d.State
+	if s == nil || s.Status != dto.MatchLive || s.Period == nil || *s.Period != dto.PeriodFirstHalf || s.Minute == nil || *s.Minute != 42 || *s.HomeGoals != 1 || *s.AwayGoals != 0 {
+		t.Fatalf("state = %+v", s)
+	}
+}
+
+func TestSyncMatchDetailsGoalWithoutPlayer(t *testing.T) {
+	src := fakeSource{game: map[string]sstats.GameFull{"Live0001": mustGame(t, gameLiveGoalJSON)}}
+	batch, _ := collectDetails(t, src, dto.MatchDetailsPayload{MatchExternalIDs: []string{"Live0001"}})
+	d := detailsOf(t, batch, "Live0001")
+
+	if len(batch.Errors) != 0 || len(d.Events) != 1 {
+		t.Fatalf("errors = %+v events = %+v", batch.Errors, d.Events)
+	}
+	e := d.Events[0]
+	if e.Type != dto.EventGoal || e.PlayerExternalID != "" || e.PlayerName != "" || e.Minute != 28 || e.TeamExternalID != "TeHome01" {
+		t.Fatalf("goal without player = %+v", e)
+	}
+	if e.ScoreHome == nil || *e.ScoreHome != 1 || *e.ScoreAway != 0 {
+		t.Fatalf("score after goal = %+v", e)
+	}
+}
+
+func TestGameScoreDroppedWhenRunningScoreDiffers(t *testing.T) {
+	g := mustGame(t, gameFinishedJSON)
+	two := sstats.FlexInt(3)
+	g.Game.HomeResult = &two
+
+	d, _ := normalizeGame("Mat00001", g)
+	for _, e := range d.Events {
+		if e.ScoreHome != nil || e.ScoreAway != nil {
+			t.Fatalf("score must be dropped when it does not add up to the result: %+v", e)
 		}
 	}
-	if !glebovPlayer.HasProfile || kozlovPlayer.HasProfile {
-		t.Fatalf("has_profile flags: %+v / %+v", glebovPlayer, kozlovPlayer)
+}
+
+func TestGameStatusNames(t *testing.T) {
+	cases := map[string]struct {
+		status string
+		period string
+	}{
+		"Not Started":               {dto.MatchScheduled, ""},
+		"First Half":                {dto.MatchLive, dto.PeriodFirstHalf},
+		"Halftime":                  {dto.MatchLive, dto.PeriodHalfTime},
+		"Second Half":               {dto.MatchLive, dto.PeriodSecondHalf},
+		"Extra Time":                {dto.MatchLive, dto.PeriodExtraTime},
+		"Penalty Shootout":          {dto.MatchLive, dto.PeriodPenalties},
+		"Finished":                  {dto.MatchFinished, ""},
+		"Finished After Extra Time": {dto.MatchFinished, ""},
+		"Finished After Penalty":    {dto.MatchFinished, ""},
+		"Technical Loss":            {dto.MatchFinished, ""},
+		"Postponed":                 {dto.MatchPostponed, ""},
+		"Cancelled":                 {dto.MatchCancelled, ""},
+		"Abandoned":                 {dto.MatchAbandoned, ""},
+		"Something New":             {"", ""},
 	}
-	if glebovPlayer.Name != "Kirill Glebov" || glebovPlayer.CountryExternalID != "158" || glebovPlayer.Position != "MF" || glebovPlayer.BirthDate != "2000-02-03" {
-		t.Fatalf("glebov player = %+v", glebovPlayer)
-	}
-	if offorPlayer.BirthDate != "" || offorPlayer.Position != "FW" {
-		t.Fatalf("offor player = %+v", offorPlayer)
-	}
-	if kozlovPlayer.Name != "Kozlov D." || kozlovPlayer.CountryExternalID != "" || kozlovPlayer.TeamExternalID != "TeHome01" {
-		t.Fatalf("player without profile = %+v", kozlovPlayer)
-	}
-	if countries[0].EntityType != dto.EntityCountry {
-		t.Fatalf("countries = %+v", countries)
+	for name, want := range cases {
+		status, period := gameStatus(name)
+		got := ""
+		if period != nil {
+			got = *period
+		}
+		if status != want.status || got != want.period {
+			t.Fatalf("%q = %q/%q, want %q/%q", name, status, got, want.status, want.period)
+		}
 	}
 }
 
 func TestSyncMatchDetailsFetchErrorsDoNotStopRun(t *testing.T) {
 	src := detailsSource(t)
 	src.detailsErr = map[string]error{"Gone0001": &sstats.APIError{Message: "match not found"}}
-	batch, done := collectDetails(t, src, "Gone0001", "Mat00001", "Mat00001", " ")
+	batch, done := collectDetails(t, src, dto.MatchDetailsPayload{MatchExternalIDs: []string{"Gone0001", "Mat00001", "Mat00001", " "}})
 
-	if len(entitiesOf(batch, dto.EntityMatchDetails)) != 1 {
-		t.Fatalf("expected one details entity, got %+v", batch.Entities)
-	}
+	detailsOf(t, batch, "Mat00001")
 	var fetch *dto.EntityError
 	for i, e := range batch.Errors {
 		if e.Phase == dto.PhaseFetch {
@@ -281,32 +350,12 @@ func TestSyncMatchDetailsFetchErrorsDoNotStopRun(t *testing.T) {
 	}
 }
 
-func TestSyncMatchDetailsEmptySourceIsError(t *testing.T) {
-	src := fakeSource{info: map[string]sstats.LsGameInfo{"Empty001": {Game: sstats.LsGameRef{ID: "Empty001", HomeTeamID: "a", AwayTeamID: "b"}}}}
-	batch, _ := collectDetails(t, src, "Empty001")
+func TestSyncMatchDetailsRejectsForeignMatch(t *testing.T) {
+	src := fakeSource{game: map[string]sstats.GameFull{"Other001": mustGame(t, gameFinishedJSON)}}
+	batch, _ := collectDetails(t, src, dto.MatchDetailsPayload{MatchExternalIDs: []string{"Other001"}})
 
 	if len(batch.Entities) != 0 || len(batch.Errors) != 1 || batch.Errors[0].Phase != dto.PhaseNormalize {
 		t.Fatalf("batch = %+v", batch)
-	}
-}
-
-func TestSyncMatchDetailsLineupTeamMismatch(t *testing.T) {
-	src := detailsSource(t)
-	lineups := src.lineups["Mat00001"]
-	lineups.Lineups[1].TeamID = "Other001"
-	src.lineups["Mat00001"] = lineups
-
-	batch, _ := collectDetails(t, src, "Mat00001")
-	d := entitiesOf(batch, dto.EntityMatchDetails)[0].Data.(dto.MatchDetailsData)
-	if len(d.Teams) != 1 || d.Teams[0].Side != "home" {
-		t.Fatalf("teams = %+v", d.Teams)
-	}
-	found := false
-	for _, e := range batch.Errors {
-		found = found || strings.Contains(e.Message, "не совпадает")
-	}
-	if !found {
-		t.Fatalf("errors = %+v", batch.Errors)
 	}
 }
 
@@ -354,24 +403,6 @@ func TestSyncMatchDetailsFatalErrorsFailRun(t *testing.T) {
 	}
 }
 
-func TestParseMinute(t *testing.T) {
-	str := func(s string) *string { return &s }
-	cases := map[string]int{"46": 46, "45+2": 47, " 90+4 ": 94}
-	for in, want := range cases {
-		if got := parseMinute(str(in)); got == nil || *got != want {
-			t.Fatalf("parseMinute(%q) = %v, want %d", in, got, want)
-		}
-	}
-	for _, in := range []string{"", "abc", "45+"} {
-		if got := parseMinute(str(in)); got != nil {
-			t.Fatalf("parseMinute(%q) = %d, want nil", in, *got)
-		}
-	}
-	if parseMinute(nil) != nil {
-		t.Fatal("nil must stay nil")
-	}
-}
-
 func TestSnakeCase(t *testing.T) {
 	cases := map[string]string{
 		"touchesInOppositionBox": "touches_in_opposition_box",
@@ -390,17 +421,14 @@ func TestSnakeCase(t *testing.T) {
 
 func TestRunnerSplitsHeavyBatchesBySize(t *testing.T) {
 	src := detailsSource(t)
-	var lineups sstats.LsGameLineups
-	_ = json.Unmarshal([]byte(gameLineupsJSON), &lineups)
 
 	var ids []string
 	for i := 0; i < 3; i++ {
 		id := "Big0000" + string(rune('1'+i))
-		var info sstats.LsGameInfo
-		_ = json.Unmarshal([]byte(gameInfoJSON), &info)
-		info.Game.ID = id
-		info.Events[3].Actions[0].Comment = strings.Repeat("x", 400_000)
-		src.info[id], src.lineups[id] = info, lineups
+		g := mustGame(t, gameFinishedJSON)
+		g.Game.FlashID = id
+		g.Events[0].Name = "Normal Goal " + strings.Repeat("x", 400_000)
+		src.game[id] = g
 		ids = append(ids, id)
 	}
 

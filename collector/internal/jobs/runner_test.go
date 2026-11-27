@@ -21,8 +21,8 @@ type fakeSource struct {
 	gotQuery  *sstats.FixturesQuery
 	err       error
 
-	info       map[string]sstats.LsGameInfo
-	lineups    map[string]sstats.LsGameLineups
+	game       map[string]sstats.GameFull
+	gotGameIDs *[]string
 	detailsErr map[string]error
 
 	squads    map[string][]sstats.LsSquadPlayer
@@ -56,15 +56,14 @@ func (f fakeSource) GamesByFlashIDs(_ context.Context, ids []string) ([]sstats.G
 	return f.games, f.gamesErr
 }
 
-func (f fakeSource) GameInfo(_ context.Context, id string) (sstats.LsGameInfo, error) {
-	if err := f.detailsErr[id]; err != nil {
-		return sstats.LsGameInfo{}, err
+func (f fakeSource) Game(_ context.Context, id string) (sstats.GameFull, error) {
+	if f.gotGameIDs != nil {
+		*f.gotGameIDs = append(*f.gotGameIDs, id)
 	}
-	return f.info[id], f.err
-}
-
-func (f fakeSource) GameLineups(_ context.Context, id string) (sstats.LsGameLineups, error) {
-	return f.lineups[id], f.err
+	if err := f.detailsErr[id]; err != nil {
+		return sstats.GameFull{}, err
+	}
+	return f.game[id], f.err
 }
 
 func (f fakeSource) Players(_ context.Context, teamID string) ([]sstats.LsSquadPlayer, error) {

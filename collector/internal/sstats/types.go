@@ -200,127 +200,6 @@ func (f *FlexFloat) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// LsGameInfo — /Ls/GameInfo: события и командная статистика матча (нужные каноническому DTO разделы).
-type LsGameInfo struct {
-	Game       LsGameRef                `json:"game"`
-	Events     []LsEvent                `json:"events"`
-	Statistics map[string]LsPeriodStats `json:"statistics"`
-}
-
-type LsGameRef struct {
-	ID         string  `json:"id"`
-	HomeTeamID string  `json:"homeTeamId"`
-	AwayTeamID string  `json:"awayTeamId"`
-	Status     FlexInt `json:"status"`
-}
-
-// LsEvent — событие summary: одно или несколько действий в одну минуту.
-type LsEvent struct {
-	TeamID         string     `json:"teamId"`
-	SourceEventID  string     `json:"sourceEventId"`
-	Period         *FlexInt   `json:"period"`
-	SortOrder      *FlexInt   `json:"sortOrder"`
-	HomeScoreAfter *FlexInt   `json:"homeScoreAfter"`
-	AwayScoreAfter *FlexInt   `json:"awayScoreAfter"`
-	Time           FlexInt    `json:"time"`
-	Minute         *FlexInt   `json:"minute"`
-	InjuryTime     FlexInt    `json:"injuryTime"`
-	PenaltyAttempt *FlexInt   `json:"penaltyAttempt"`
-	Team           FlexInt    `json:"team"`
-	Actions        []LsAction `json:"actions"`
-}
-
-type LsAction struct {
-	PlayerUniqueID string   `json:"playerUniqueId"`
-	PlayerName     string   `json:"playerName"`
-	ActionType     FlexInt  `json:"actionType"`
-	ActionName     string   `json:"actionName"`
-	Reason         string   `json:"reason"`
-	ReasonCode     *FlexInt `json:"reasonCode"`
-	Comment        string   `json:"comment"`
-}
-
-// LsPair — значение командной метрики для хозяев и гостей (nil — источник не передал).
-type LsPair struct {
-	Home *FlexFloat `json:"home"`
-	Away *FlexFloat `json:"away"`
-}
-
-// LsPeriodStats — командная статистика одного периода: именованные метрики {home, away} и otherStats.
-type LsPeriodStats struct {
-	Metrics    map[string]LsPair
-	OtherStats map[string]map[string]string
-}
-
-func (p *LsPeriodStats) UnmarshalJSON(b []byte) error {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(b, &raw); err != nil {
-		return err
-	}
-	p.Metrics = make(map[string]LsPair, len(raw))
-	p.OtherStats = nil
-	for key, value := range raw {
-		switch key {
-		case "metrics":
-			continue
-		case "otherStats":
-			var other map[string]map[string]string
-			if err := json.Unmarshal(value, &other); err == nil {
-				p.OtherStats = other
-			}
-			continue
-		}
-		var pair LsPair
-		if err := json.Unmarshal(value, &pair); err != nil {
-			continue
-		}
-		if pair.Home != nil || pair.Away != nil {
-			p.Metrics[key] = pair
-		}
-	}
-
-	return nil
-}
-
-// LsGameLineups — /Ls/GameLineups: составы со статистикой игроков и профили людей.
-type LsGameLineups struct {
-	Lineups []LsLineup        `json:"lineups"`
-	Players []LsPlayerProfile `json:"players"`
-}
-
-type LsLineup struct {
-	TeamID        string           `json:"teamId"`
-	Side          FlexInt          `json:"side"`
-	Formation     *string          `json:"formation"`
-	AverageRating *FlexFloat       `json:"averageRating"`
-	Players       []LsLineupPlayer `json:"players"`
-}
-
-// Kind участника состава (LsDetailsMappers).
-const (
-	LineupStarter       = 0
-	LineupSubstitute    = 1
-	LineupCoach         = 2
-	LineupMissing       = 3
-	LineupUnsureMissing = 4
-)
-
-type LsLineupPlayer struct {
-	PlayerID      string         `json:"playerId"`
-	PlayerName    string         `json:"playerName"`
-	Kind          FlexInt        `json:"kind"`
-	ShirtNumber   *string        `json:"shirtNumber"`
-	IsCaptain     bool           `json:"isCaptain"`
-	IsGoalkeeper  *bool          `json:"isGoalkeeper"`
-	Position      *string        `json:"position"`
-	FormationLine *FlexInt       `json:"formationLine"`
-	FormationRow  *FlexInt       `json:"formationRow"`
-	SortOrder     *FlexInt       `json:"sortOrder"`
-	SubInTime     *string        `json:"subInTime"`
-	SubOutTime    *string        `json:"subOutTime"`
-	Statistics    map[string]any `json:"statistics"`
-}
-
 type LsPlayerProfile struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
@@ -411,4 +290,61 @@ type GameLeagueRef struct {
 	ID           FlexString             `json:"id"`
 	FlashScoreID string                 `json:"flashScoreId"`
 	Mappings     map[string]FlexStrings `json:"mappings"`
+}
+
+// GameFull — /Games/{id}: матч целиком (счёт, статус, события, статистика, составы). Любой раздел может быть null.
+type GameFull struct {
+	Game          GameInfo           `json:"game"`
+	Statistics    map[string]any     `json:"statistics"`
+	Lineups       *GameLineups       `json:"lineups"`
+	LineupPlayers []GameLineupPlayer `json:"lineupPlayers"`
+	PlayerStats   []map[string]any   `json:"playerStats"`
+	Events        []GameEvent        `json:"events"`
+}
+
+// GameInfo — шапка матча /Games/{id}. Числовые id команд (events/lineupPlayers ссылаются на них); flashId команд — ключ ingest.
+type GameInfo struct {
+	ID         FlexString  `json:"id"`
+	FlashID    string      `json:"flashId"`
+	Status     *FlexInt    `json:"status"`
+	StatusName string      `json:"statusName"`
+	Elapsed    *FlexInt    `json:"elapsed"`
+	HomeResult *FlexInt    `json:"homeResult"`
+	AwayResult *FlexInt    `json:"awayResult"`
+	HomeHT     *FlexInt    `json:"homeHTResult"`
+	AwayHT     *FlexInt    `json:"awayHTResult"`
+	HomeTeam   GameTeamRef `json:"homeTeam"`
+	AwayTeam   GameTeamRef `json:"awayTeam"`
+}
+
+type GameLineups struct {
+	HomeFormation *string `json:"homeFormation"`
+	AwayFormation *string `json:"awayFormation"`
+}
+
+type GamePerson struct {
+	ID   FlexString `json:"id"`
+	Name string     `json:"name"`
+}
+
+// GameEvent — событие хроники: type 1 гол, 2 карточка, 3 замена (player — ушёл, assistPlayer — вышел), 4 решение VAR.
+type GameEvent struct {
+	ID           FlexString  `json:"id"`
+	TeamID       FlexString  `json:"teamId"`
+	Elapsed      FlexInt     `json:"elapsed"`
+	Extra        *FlexInt    `json:"extra"`
+	Type         FlexInt     `json:"type"`
+	Name         string      `json:"name"`
+	Player       *GamePerson `json:"player"`
+	AssistPlayer *GamePerson `json:"assistPlayer"`
+}
+
+type GameLineupPlayer struct {
+	TeamID     FlexString `json:"teamId"`
+	PlayerID   FlexString `json:"playerId"`
+	PlayerName string     `json:"playerName"`
+	Number     *FlexInt   `json:"number"`
+	Position   *string    `json:"position"`
+	Grid       *string    `json:"grid"`
+	StartXI    *bool      `json:"startXI"`
 }

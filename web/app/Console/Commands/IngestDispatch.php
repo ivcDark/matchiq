@@ -241,11 +241,37 @@ class IngestDispatch extends Command
 
         $this->line('Матчей в прогоне: '.count($externalMatchIds));
 
+        $matchApiIds = $this->matchApiIds($providers, $externalIds, $provider->id, $externalMatchIds);
+
         return [array_filter([
             'competition' => ['id' => $competition->id, 'external_id' => $competitionExternalId],
             'season_external_id' => $seasonExternalId,
             'match_external_ids' => $externalMatchIds,
+            'match_api_ids' => $matchApiIds === [] ? null : $matchApiIds,
         ], fn ($v) => $v !== null), $competition->id];
+    }
+
+    /**
+     * Числовые id SStats матчей (провайдер sstats_api): /Games/{id} надёжнее принимает их, чем flash-id.
+     * У матча без числового id коллектор обращается к /Games по flash-id.
+     *
+     * @param  list<string>  $externalMatchIds
+     * @return array<string, string> flash-id → числовой id
+     */
+    private function matchApiIds(SourceProviderRepository $providers, ExternalIdRepository $externalIds, int $providerId, array $externalMatchIds): array
+    {
+        $entityIds = $externalIds->entityIdsFor($providerId, ExternalEntityType::Match, $externalMatchIds);
+        $apiProvider = $providers->ensure(SourceProviderCode::SstatsApi);
+        $apiIds = $externalIds->externalIdsFor($apiProvider->id, ExternalEntityType::Match, array_values($entityIds));
+
+        $result = [];
+        foreach ($entityIds as $flashId => $entityId) {
+            if (isset($apiIds[$entityId])) {
+                $result[(string) $flashId] = $apiIds[$entityId];
+            }
+        }
+
+        return $result;
     }
 
     /**

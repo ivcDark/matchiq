@@ -121,4 +121,12 @@ class MatchRepository
             'away_pens' => $score['away_pens'],
         ]);
     }
+
+    /** Состояние идущего или только что завершённого матча: статус, период, минута и счёт. Без изменений строка не пишется. */
+    public function applyState(FootballMatch $match, array $attributes): UpsertOutcome
+    {
+        [, $outcome] = $this->persist(new FootballMatch, $match, $attributes);
+
+        return $outcome;
+    }
 }

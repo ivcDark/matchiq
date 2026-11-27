@@ -220,7 +220,9 @@ func matchStatus(code int) (string, *string, bool) {
 		return dto.MatchLive, period(dto.PeriodExtraTime), true
 	case 7:
 		return dto.MatchLive, period(dto.PeriodPenalties), true
-	case 2, 38, 45, 42, 46:
+	case 38:
+		return dto.MatchLive, period(dto.PeriodHalfTime), true
+	case 2, 45, 42, 46:
 		return dto.MatchLive, nil, true
 	case 3, 10, 11, 9, 54:
 		return dto.MatchFinished, nil, true

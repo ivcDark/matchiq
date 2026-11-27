@@ -14,7 +14,52 @@ final class MatchReferences
         private readonly ExternalIdRepository $externalIds,
         private readonly int $providerId,
         private readonly FootballMatch $match,
+        private readonly ?ApiPlayerResolver $apiPlayers = null,
     ) {}
+
+    /** Игроки названы числовыми id SStats /Games (people_source = sstats_api), а не внешними id провайдера. */
+    public function resolvesApiPlayers(): bool
+    {
+        return $this->apiPlayers !== null;
+    }
+
+    /**
+     * Команда строки деталей: по внешнему id, а если его нет (SStats не всегда отдаёт flashId команды) — по стороне матча.
+     *
+     * @throws IngestionEntityException
+     */
+    public function teamOf(array $row, bool $required = true): ?int
+    {
+        $externalId = $row['team_external_id'] ?? null;
+        if (is_string($externalId) && $externalId !== '') {
+            return $this->team($externalId);
+        }
+
+        return match ($row['side'] ?? null) {
+            'home' => $this->match->home_team_id,
+            'away' => $this->match->away_team_id,
+            default => $required ? throw IngestionEntityException::invalid('у строки нет ни team_external_id, ни side') : null,
+        };
+    }
+
+    public function opposite(int $teamId): ?int
+    {
+        return match ($teamId) {
+            $this->match->home_team_id => $this->match->away_team_id,
+            $this->match->away_team_id => $this->match->home_team_id,
+            default => null,
+        };
+    }
+
+    /** Игрок по числовому id и имени (null — не опознан). Только в режиме sstats_api. */
+    public function apiPlayer(mixed $apiId, mixed $name, ?int $teamId): ?int
+    {
+        return $this->apiPlayers?->resolve(
+            is_string($apiId) ? $apiId : null,
+            is_string($name) ? $name : null,
+            $teamId,
+        );
+    }
 
     public function match(): FootballMatch
     {

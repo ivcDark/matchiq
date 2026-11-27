@@ -115,42 +115,58 @@ func TestFixturesPaginatesAndSendsFilters(t *testing.T) {
 	}
 }
 
-func TestGameInfoParsesStatisticsAndAPIStatusError(t *testing.T) {
+func TestGameParsesNullableSectionsAndNotFound(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Query().Get("id") {
-		case "Mat00001":
-			if r.URL.Path != "/Ls/GameInfo" {
-				t.Errorf("unexpected path %s", r.URL.Path)
-			}
-			_, _ = w.Write([]byte(`{"status":"OK","data":{"game":{"id":"Mat00001","homeTeamId":"A","awayTeamId":"B"},"events":[{"time":"12","actions":[{"actionType":3}]}],
-				"statistics":{"fullTime":{"metrics":[{"id":1}],"expectedGoals":{"home":"1.5","away":0.25},"otherStats":{"Goal kicks":{"home":"8","away":"11"}}}}}}`))
+		switch r.URL.Path {
+		case "/Games/1577610":
+			_, _ = w.Write([]byte(`{"status":"OK","data":{
+				"game":{"id":1577610,"flashId":"IPBoDE9D","status":3,"statusName":"First Half","elapsed":42,"homeResult":1,"awayResult":0,"homeHTResult":null,
+					"homeTeam":{"id":3985,"flashId":"OC7sNO6b"},"awayTeam":{"id":1087,"flashId":null}},
+				"statistics":{"totalShotsHome":null,"totalShotsAway":7,"expectedGoalsHome":1.5},
+				"lineups":{"homeFormation":"4-3-3","awayFormation":null},
+				"lineupPlayers":[{"teamId":3985,"playerId":null,"playerName":"Ilya","number":"9","position":"M","grid":null,"startXI":true}],
+				"playerStats":null,
+				"events":[{"id":8836955,"teamId":3985,"elapsed":28,"extra":null,"type":1,"name":"Normal Goal","player":{"id":null,"name":null},"assistPlayer":null},
+					{"id":8836957,"teamId":"3985","elapsed":"26","extra":2,"type":3,"name":"Substitution 1","player":{"id":342299,"name":"N. Bozov"},"assistPlayer":{"id":478098,"name":"V. Churilov"}}]}}`))
 		default:
-			_, _ = w.Write([]byte(`{"status":"error","message":"match not found"}`))
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"status":"error","data":null,"message":"Матч с id = 1 не найден"}`))
 		}
 	}))
 	defer srv.Close()
 
 	s := NewClient(Options{BaseURL: srv.URL, APIKey: "k"}).Session()
-	info, err := s.GameInfo(context.Background(), "Mat00001")
+	g, err := s.Game(context.Background(), "1577610")
 	if err != nil {
 		t.Fatal(err)
 	}
-	full := info.Statistics["fullTime"]
-	xg := full.Metrics["expectedGoals"]
-	if info.Game.HomeTeamID != "A" || len(info.Events) != 1 || info.Events[0].Time != 12 || xg.Home == nil || *xg.Home != 1.5 || *xg.Away != 0.25 {
-		t.Fatalf("info = %+v", info)
+	if g.Game.ID != "1577610" || g.Game.FlashID != "IPBoDE9D" || *g.Game.Elapsed != 42 || g.Game.HomeHT != nil || g.Game.AwayTeam.FlashID != "" || g.Game.AwayTeam.ID != "1087" {
+		t.Fatalf("game = %+v", g.Game)
 	}
-	if _, isMetric := full.Metrics["metrics"]; isMetric || full.OtherStats["Goal kicks"]["away"] != "11" {
-		t.Fatalf("statistics = %+v", full)
+	if g.Statistics["totalShotsHome"] != nil || g.Statistics["totalShotsAway"] != 7.0 || g.PlayerStats != nil {
+		t.Fatalf("statistics = %+v", g.Statistics)
+	}
+	if g.Lineups == nil || *g.Lineups.HomeFormation != "4-3-3" || g.Lineups.AwayFormation != nil {
+		t.Fatalf("lineups = %+v", g.Lineups)
+	}
+	if len(g.LineupPlayers) != 1 || g.LineupPlayers[0].PlayerID != "" || *g.LineupPlayers[0].Number != 9 {
+		t.Fatalf("lineup players = %+v", g.LineupPlayers)
+	}
+	goal, sub := g.Events[0], g.Events[1]
+	if goal.Player == nil || goal.Player.ID != "" || goal.Extra != nil || goal.AssistPlayer != nil {
+		t.Fatalf("goal = %+v", goal)
+	}
+	if sub.TeamID != "3985" || sub.Elapsed != 26 || *sub.Extra != 2 || sub.AssistPlayer.ID != "478098" {
+		t.Fatalf("substitution = %+v", sub)
 	}
 
-	_, err = s.GameInfo(context.Background(), "Nope0000")
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) || !strings.Contains(err.Error(), "match not found") {
+	_, err = s.Game(context.Background(), "1")
+	var statusErr *StatusError
+	if !errors.As(err, &statusErr) || statusErr.Code != http.StatusBadRequest || Retryable(err) {
 		t.Fatalf("err = %v", err)
 	}
 	if s.Requests() != 2 {
-		t.Fatalf("status=error must not be retried, requests = %d", s.Requests())
+		t.Fatalf("400 must not be retried, requests = %d", s.Requests())
 	}
 }
 

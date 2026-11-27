@@ -163,6 +163,7 @@ const (
 	MatchAbandoned = "abandoned"
 
 	PeriodFirstHalf  = "first_half"
+	PeriodHalfTime   = "half_time"
 	PeriodSecondHalf = "second_half"
 	PeriodExtraTime  = "extra_time"
 	PeriodPenalties  = "penalties"

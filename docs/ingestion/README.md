@@ -22,8 +22,8 @@
 |------------|-----------|
 | Справочник лиг/сезонов | `GET /Leagues`, `GET /Ls/Leagues`, `GET /Ls/Seasons`, `GET /Ls/SeasonStructure` |
 | Расписание и результаты | `GET /Games/list` (`LeagueId`, `Year`/`SeasonUid`, `From`, `To`, `Status`, `Ended`), `GET /Ls/List` |
-| Матч, события, статистика | `GET /Games/{id}`, `GET /Ls/GameInfo` |
-| Составы | `GET /Ls/GameLineups`, `GET /Ls/GamePredictedLineups` |
+| Матч, события, статистика | `GET /Games/{id}` (используется в `sync_match_details`) |
+| Составы | `GET /Games/{id}` (`lineupPlayers`), `GET /Ls/GamePredictedLineups` |
 | Таблицы | `GET /Ls/Standings`, `GET /Seasons/standings`, `GET /Games/season-table` |
 | Команды и игроки | `GET /Teams/list`, `GET /Teams/{id}`, `GET /Players/list`, `GET /Ls/Players`, `GET /Ls/PlayerInfo` |
 | Травмы, форма, коэффициенты | `GET /Games/injuries`, `GET /Games/last-games-stats`, `GET /Odds/{gameId}`, `GET /Ls/GameOdds` |

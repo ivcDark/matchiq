@@ -24,15 +24,21 @@ const (
 
 	SideHome = "home"
 	SideAway = "away"
+
+	// PeopleSStatsAPI: игроки в деталях матча названы числовыми id /Games (а не flash-id); Laravel сопоставляет их с игроками БД.
+	PeopleSStatsAPI = "sstats_api"
 )
 
 // MatchDetailsPayload — payload sync_match_details. Матчи выбирает Laravel (фильтры competition/season/stage/limit),
 // collector получает готовый список внешних id.
 type MatchDetailsPayload struct {
-	Competition      CompetitionRef  `json:"competition"`
-	SeasonExternalID string          `json:"season_external_id,omitempty"`
-	MatchExternalIDs []string        `json:"match_external_ids"`
-	Context          json.RawMessage `json:"context,omitempty"`
+	Competition      CompetitionRef `json:"competition"`
+	SeasonExternalID string         `json:"season_external_id,omitempty"`
+	MatchExternalIDs []string       `json:"match_external_ids"`
+	// MatchAPIIDs: flash-id матча → числовой id SStats (external_ids провайдера sstats_api) для GET /Games/{id}.
+	// Матча нет в карте — запрашиваем по flash-id (эндпоинт принимает оба).
+	MatchAPIIDs map[string]string `json:"match_api_ids,omitempty"`
+	Context     json.RawMessage   `json:"context,omitempty"`
 }
 
 // PlayerData — канонический игрок. TeamExternalID — команда матча, откуда игрок взят (запасная страна, если у профиля её нет).
@@ -60,11 +66,26 @@ type CoachData struct {
 // MatchDetailsData — детали одного матча. Любая секция может быть пустой («источник не отдал»):
 // пустая секция в Laravel ничего не удаляет.
 type MatchDetailsData struct {
-	Teams       []MatchTeamData        `json:"teams"`
-	Lineup      []LineupEntryData      `json:"lineup"`
-	Events      []MatchEventData       `json:"events"`
-	TeamStats   []TeamStatsData        `json:"team_stats"`
-	PlayerStats []PlayerMatchStatsData `json:"player_stats"`
+	// PeopleSource: чьими идентификаторами названы игроки в lineup/events/player_stats (пусто — flash-id провайдера sstats).
+	PeopleSource string                 `json:"people_source,omitempty"`
+	State        *MatchStateData        `json:"state,omitempty"`
+	Teams        []MatchTeamData        `json:"teams"`
+	Lineup       []LineupEntryData      `json:"lineup"`
+	Events       []MatchEventData       `json:"events"`
+	TeamStats    []TeamStatsData        `json:"team_stats"`
+	PlayerStats  []PlayerMatchStatsData `json:"player_stats"`
+}
+
+// MatchStateData — текущее состояние матча из шапки /Games/{id}. Пустые (null) поля Laravel не трогает.
+// Minute заполняется у идущего матча; у остальных статусов Laravel его сбрасывает.
+type MatchStateData struct {
+	Status      string  `json:"status,omitempty"`
+	Period      *string `json:"period,omitempty"`
+	Minute      *int    `json:"minute"`
+	HomeGoals   *int    `json:"home_goals"`
+	AwayGoals   *int    `json:"away_goals"`
+	HomeGoalsHT *int    `json:"home_goals_ht"`
+	AwayGoalsHT *int    `json:"away_goals_ht"`
 }
 
 // MatchTeamData — команда в матче: схема, средняя оценка состава и тренер.
@@ -79,8 +100,10 @@ type MatchTeamData struct {
 // LineupEntryData — игрок в заявке на матч (стартер или запасной). Line — номер линии расстановки от вратаря
 // (0 — вратарь), только у стартеров; координат x/y источник не отдаёт.
 type LineupEntryData struct {
+	Side             string  `json:"side,omitempty"`
 	TeamExternalID   string  `json:"team_external_id"`
 	PlayerExternalID string  `json:"player_external_id"`
+	PlayerName       string  `json:"player_name,omitempty"`
 	IsStarter        bool    `json:"is_starter"`
 	IsCaptain        bool    `json:"is_captain"`
 	ShirtNumber      *int    `json:"shirt_number"`
@@ -94,9 +117,12 @@ type LineupEntryData struct {
 // MatchEventData — событие хроники. TeamExternalID — команда, которой засчитан эпизод (у автогола — получившая гол).
 // PlayerExternalID — автор (при замене — ушедший), RelatedPlayerExternalID — ассистент (при замене — вышедший).
 type MatchEventData struct {
+	Side                    string         `json:"side,omitempty"`
 	TeamExternalID          string         `json:"team_external_id,omitempty"`
 	PlayerExternalID        string         `json:"player_external_id,omitempty"`
 	RelatedPlayerExternalID string         `json:"related_player_external_id,omitempty"`
+	PlayerName              string         `json:"player_name,omitempty"`
+	RelatedPlayerName       string         `json:"related_player_name,omitempty"`
 	Type                    string         `json:"type"`
 	Minute                  int            `json:"minute"`
 	AddedMinute             *int           `json:"added_minute"`
@@ -108,6 +134,7 @@ type MatchEventData struct {
 
 // TeamStatsData — командная статистика за период. XGA — xG соперника. Всё, что не вошло в колонки, — в Extra.
 type TeamStatsData struct {
+	Side            string         `json:"side,omitempty"`
 	TeamExternalID  string         `json:"team_external_id"`
 	Period          string         `json:"period"`
 	XG              *float64       `json:"xg"`
@@ -130,8 +157,10 @@ type TeamStatsData struct {
 // PlayerMatchStatsData — статистика игрока за матч; xGOT, прогрессивные действия и т.п. — в Extra.
 // IsMOTM — отметка источника «лучший рейтинг матча».
 type PlayerMatchStatsData struct {
+	Side             string         `json:"side,omitempty"`
 	TeamExternalID   string         `json:"team_external_id"`
 	PlayerExternalID string         `json:"player_external_id"`
+	PlayerName       string         `json:"player_name,omitempty"`
 	Minutes          *int           `json:"minutes"`
 	Goals            *int           `json:"goals"`
 	Assists          *int           `json:"assists"`
