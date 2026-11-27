@@ -8,18 +8,25 @@ use App\Http\Responses\Matches\ForecastPayload;
 use App\Http\Responses\Matches\FormBlocksPayload;
 use App\Http\Responses\Matches\MatchCenterPayload;
 use App\Http\Responses\Matches\MatchHeaderPayload;
+use App\Http\Responses\Matches\MatchMarketsPayload;
 use App\Http\Responses\Matches\MatchShowResponse;
 use App\Http\Responses\Matches\MiniStandingsPayload;
 use App\Models\FootballMatch;
+use App\Models\User;
 use App\Repositories\MatchCatalogRepository;
+use App\Repositories\PickRepository;
+use App\Services\Picks\PickWindow;
 
 /** Страница матча: реальные поля матча из БД, форма и таблица — по сыгранным матчам, прогноз — если он есть. */
 class BuildMatchShow
 {
-    public function __construct(private readonly MatchCatalogRepository $matches) {}
+    public function __construct(
+        private readonly MatchCatalogRepository $matches,
+        private readonly PickRepository $picks,
+    ) {}
 
     /** Возвращает null, если матча нет. */
-    public function handle(int $matchId, ?string $returnLeague): ?MatchShowResponse
+    public function handle(int $matchId, ?string $returnLeague, ?User $user = null): ?MatchShowResponse
     {
         $match = $this->matches->findForShow($matchId);
         if ($match === null) {
@@ -29,6 +36,7 @@ class BuildMatchShow
         $locale = config('matchiq.ui_locale');
         $form = new TeamForm($this->matches->finishedForTeams([$match->home_team_id, $match->away_team_id]));
         $matchCenter = MatchCenterPayload::make($match);
+        $markets = MatchMarketsPayload::make($match->currentPrediction, $this->picks->popularity($match->id), $locale);
 
         $preview = $this->matches->previewFor($match->id, $locale);
         $facts = is_array($preview?->facts) ? array_values(array_filter($preview->facts, 'is_string')) : [];
@@ -42,6 +50,9 @@ class BuildMatchShow
             formBlocks: FormBlocksPayload::make($match, $form),
             matchCenter: $matchCenter,
             returnLeague: $returnLeague,
+            markets: $markets,
+            userPick: $user === null ? null : MatchMarketsPayload::userPick($this->picks->activeFor($user->id, $match->id), $match->currentPrediction, $locale),
+            pickOpen: $markets !== [] && PickWindow::isOpen($match),
         );
     }
 

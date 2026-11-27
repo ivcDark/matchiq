@@ -11,6 +11,7 @@ const props = defineProps({
     periods: { type: Array, default: () => [] },
     season: { type: Object, default: null },
     entries: { type: Array, default: () => [] },
+    myEntry: { type: Object, default: null },
     totalPlayers: { type: Number, default: 0 },
     currentUserRank: { type: Number, default: null },
 });
@@ -45,7 +46,7 @@ function selectPeriod(id) {
     router.get(
         route('leaderboard'),
         { period: id },
-        { preserveScroll: true, preserveState: true, only: ['period', 'entries', 'currentUserRank'] },
+        { preserveScroll: true, preserveState: true, only: ['period', 'entries', 'myEntry', 'totalPlayers', 'currentUserRank'] },
     );
 }
 
@@ -67,6 +68,10 @@ function pluralize(n, forms) {
     if (mod10 === 1 && mod100 !== 11) return forms[0];
     if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
     return forms[2];
+}
+
+function formatAccuracy(entry) {
+    return entry.accuracy == null ? '—' : `${entry.accuracy}%`;
 }
 
 function formatNumber(n) {
@@ -149,17 +154,17 @@ function formatNumber(n) {
             <SeasonNote v-if="period === 'season' && season" :season="season" />
 
             <p class="miq-lb-rules">
-                Выберите одно событие на матч до старта. Если оно сыграло — чем ниже
-                вероятность модели, тем больше очков. Промах — 0.
+                Соберите событие в корзину и нажмите «Поставить» — одно на матч, до старта.
+                Если оно сыграло: чем ниже вероятность модели, тем больше очков. Промах — 0.
             </p>
 
             <div
                 v-if="entries.length === 0"
                 class="miq-panel p-8 text-center text-sm text-miq-muted"
             >
-                Пока никто не набрал очков —
+                В этом периоде ещё нет выборов —
                 <Link :href="route('matches.index')" class="font-semibold text-miq-pitch hover:underline">
-                    сделайте первый выбор на матче
+                    поставьте первое событие на матче
                 </Link>.
             </div>
 
@@ -236,14 +241,19 @@ function formatNumber(n) {
                                                     <span v-if="entry.is_me" class="miq-lb-me-tag">Вы</span>
                                                 </div>
                                                 <div class="miq-lb-subline sm:hidden">
-                                                    {{ entry.correct }} из {{ entry.picks }} · серия {{ entry.streak }}
+                                                    {{ entry.correct }} из {{ entry.picks }}<template v-if="entry.pending"> · в игре {{ entry.pending }}</template> · серия {{ entry.streak }}
                                                 </div>
                                             </div>
                                         </Link>
                                     </td>
-                                    <td class="num-display hidden sm:table-cell">{{ entry.picks }}</td>
+                                    <td class="num-display hidden sm:table-cell">
+                                        {{ entry.picks }}
+                                        <span v-if="entry.pending" class="miq-lb-pending" title="Ждут конца матча">
+                                            · {{ entry.pending }} в игре
+                                        </span>
+                                    </td>
                                     <td class="num-display hidden sm:table-cell">{{ entry.correct }}</td>
-                                    <td class="num-display">{{ entry.accuracy }}%</td>
+                                    <td class="num-display">{{ formatAccuracy(entry) }}</td>
                                     <td class="num-display is-points">{{ formatNumber(entry.points) }}</td>
                                     <td class="hidden md:table-cell">
                                         <span class="miq-lb-streak num-display" :class="{ 'is-hot': entry.streak >= 5 }">
@@ -251,6 +261,28 @@ function formatNumber(n) {
                                         </span>
                                     </td>
                                 </tr>
+                                <template v-if="myEntry">
+                                    <tr class="miq-lb-gap" aria-hidden="true">
+                                        <td colspan="7">···</td>
+                                    </tr>
+                                    <tr class="miq-lb-row is-me" aria-current="true" @click="openProfile($event, myEntry)">
+                                        <td class="is-rank"><span class="miq-rank">{{ myEntry.rank }}</span></td>
+                                        <td class="is-player">
+                                            <Link :href="route('users.show', myEntry.id)" class="miq-lb-player-link">
+                                                <PlayerAvatar :name="myEntry.name" size="sm" />
+                                                <span class="truncate font-semibold text-miq-ink">{{ myEntry.name }}</span>
+                                                <span class="miq-lb-me-tag">Вы</span>
+                                            </Link>
+                                        </td>
+                                        <td class="num-display hidden sm:table-cell">{{ myEntry.picks }}</td>
+                                        <td class="num-display hidden sm:table-cell">{{ myEntry.correct }}</td>
+                                        <td class="num-display">{{ formatAccuracy(myEntry) }}</td>
+                                        <td class="num-display is-points">{{ formatNumber(myEntry.points) }}</td>
+                                        <td class="hidden md:table-cell">
+                                            <span class="miq-lb-streak num-display">{{ myEntry.streak }}</span>
+                                        </td>
+                                    </tr>
+                                </template>
                             </tbody>
                         </table>
                     </div>

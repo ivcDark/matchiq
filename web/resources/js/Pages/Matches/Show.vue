@@ -3,12 +3,14 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import MatchBestPlayers from '@/Components/MatchBestPlayers.vue';
 import MatchChronicle from '@/Components/MatchChronicle.vue';
 import MatchLineups from '@/Components/MatchLineups.vue';
+import MatchPickCart from '@/Components/MatchPickCart.vue';
 import MatchSquads from '@/Components/MatchSquads.vue';
 import MatchStatIcon from '@/Components/MatchStatIcon.vue';
 import MatchStatRows from '@/Components/MatchStatRows.vue';
 import PlayerAvatar from '@/Components/PlayerAvatar.vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { formatPoints } from '@/lib/rating';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     match: { type: Object, required: true },
@@ -66,7 +68,10 @@ const props = defineProps({
         type: Object,
         default: () => null,
     },
-    userPickEventId: { type: Number, default: null },
+    /** Сохранённый выбор пользователя: { id, outcome_id, market, label, probability, potential_points, status, points } */
+    userPick: { type: Object, default: null },
+    /** Выбор открыт: матч не начат и есть вероятности */
+    pickOpen: { type: Boolean, default: false },
     returnLeague: { type: String, default: null },
 });
 
@@ -102,8 +107,13 @@ const MARKET_CATEGORY_TITLE = {
 
 const activeFilter = ref('best');
 const activeMarketCategory = ref('results');
-const localPickId = ref(props.userPickEventId);
-const guestCtaOpen = ref(false);
+
+/** Корзина: максимум одно событие на матч; сохраняется только по «Поставить». */
+const cart = ref(null);
+const cartBusy = ref(false);
+const cartError = ref('');
+const justSaved = ref(false);
+const cartKey = computed(() => `miq-cart-${props.match.id}`);
 
 /** b = шкалы + круги для % · c = все кругами */
 const compareView = ref('b');
@@ -198,10 +208,13 @@ const centerTabs = computed(() => [
 const centerTab = ref('summary');
 const showAnalytics = computed(() => !props.matchCenter || centerTab.value === 'analytics');
 
-const pickClosed = computed(() => {
+const pickClosed = computed(() => !props.pickOpen);
+const matchStarted = computed(() => {
     const status = props.match?.status;
     return status === 'live' || status === 'finished';
 });
+const hasCart = computed(() => !!cart.value || !!props.userPick);
+const isGuest = computed(() => !user.value);
 
 function marketMaxProb(market) {
     const outcomes = market?.outcomes || [];
@@ -728,22 +741,109 @@ function absenceLabel(status) {
     return status === 'doubt' ? 'Сомнительно' : 'Вне заявки';
 }
 
+function findOutcome(outcomeId) {
+    for (const market of props.markets || []) {
+        const outcome = (market.outcomes || []).find((o) => o.id === outcomeId);
+        if (outcome) return { market, outcome };
+    }
+    return null;
+}
+
+function setCart(outcomeId) {
+    const found = findOutcome(outcomeId);
+    if (!found) return;
+    cart.value = {
+        outcomeId: found.outcome.id,
+        market: found.market.name,
+        label: found.outcome.label,
+        prob: found.outcome.prob,
+        points: found.outcome.points,
+    };
+    cartError.value = '';
+    justSaved.value = false;
+}
+
+function clearCart() {
+    cart.value = null;
+    cartError.value = '';
+}
+
+/** Клик по событию: кладём в корзину (повторный клик — убираем; новое событие заменяет прежнее). */
 function onPick(outcome) {
     if (pickClosed.value) return;
-    if (!user.value) {
-        guestCtaOpen.value = true;
+    if (cart.value?.outcomeId === outcome.id) {
+        clearCart();
         return;
     }
-    localPickId.value = localPickId.value === outcome.id ? null : outcome.id;
+    if (props.userPick?.outcome_id === outcome.id) {
+        clearCart();
+        return;
+    }
+    setCart(outcome.id);
+}
+
+function placePick() {
+    if (!cart.value || cartBusy.value) return;
+    cartBusy.value = true;
+    cartError.value = '';
+    router.post(
+        route('picks.store', props.match.id),
+        { prediction_outcome_id: cart.value.outcomeId },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['userPick', 'markets', 'pickOpen', 'errors', 'flash'],
+            onSuccess: () => {
+                cart.value = null;
+                justSaved.value = true;
+                setTimeout(() => (justSaved.value = false), 4000);
+            },
+            onError: (errors) => {
+                cartError.value = errors.pick || errors.prediction_outcome_id || 'Не удалось сохранить выбор';
+            },
+            onFinish: () => (cartBusy.value = false),
+        },
+    );
+}
+
+function cancelPick() {
+    if (cartBusy.value) return;
+    cartBusy.value = true;
+    router.delete(route('picks.destroy', props.match.id), {
+        preserveScroll: true,
+        preserveState: true,
+        only: ['userPick', 'markets', 'pickOpen', 'errors', 'flash'],
+        onError: (errors) => (cartError.value = errors.pick || 'Не удалось снять выбор'),
+        onFinish: () => (cartBusy.value = false),
+    });
+}
+
+function isInCart(outcomeId) {
+    return cart.value?.outcomeId === outcomeId;
 }
 
 function isPicked(outcomeId) {
-    return localPickId.value === outcomeId;
+    return props.userPick?.outcome_id === outcomeId;
 }
 
 function marketHasPick(market) {
-    return (market?.outcomes || []).some((o) => isPicked(o.id));
+    return (market?.outcomes || []).some((o) => isPicked(o.id) || isInCart(o.id));
 }
+
+watch(
+    () => cart.value?.outcomeId,
+    (id) => {
+        if (typeof sessionStorage === 'undefined') return;
+        if (id) sessionStorage.setItem(cartKey.value, String(id));
+        else sessionStorage.removeItem(cartKey.value);
+    },
+);
+
+onMounted(() => {
+    if (!props.pickOpen || typeof sessionStorage === 'undefined') return;
+    const saved = Number(sessionStorage.getItem(cartKey.value));
+    if (saved && saved !== props.userPick?.outcome_id) setCart(saved);
+});
 
 function loginHref() {
     return route('login');
@@ -754,7 +854,7 @@ function loginHref() {
     <Head :title="`${match.home} — ${match.away}`" />
 
     <AppLayout>
-        <div class="miq-match-page space-y-5 sm:space-y-6">
+        <div class="miq-match-page space-y-5 sm:space-y-6" :class="{ 'has-cart': hasCart }">
             <!-- Back -->
             <div class="animate-miq-fade-up flex flex-wrap items-center gap-3">
                 <Link
@@ -1130,29 +1230,15 @@ function loginHref() {
                     </div>
 
                     <p class="mt-1.5 text-[10px] leading-snug text-miq-muted sm:text-[11px]">
-                        1 исход на матч · больше баллов за смелый верный выбор (низкая вероятность)
+                        Нажмите на событие — оно попадёт в корзину, «Поставить» сохранит выбор.
+                        1 событие на матч · чем смелее верный выбор, тем больше баллов
                     </p>
                     <p
-                        v-if="pickClosed"
+                        v-if="matchStarted"
                         class="mt-1 text-[10px] font-semibold text-miq-warn sm:text-[11px]"
                     >
                         Выбор закрыт — вероятности как снимок на старт
                     </p>
-                </div>
-
-                <div
-                    v-if="guestCtaOpen && !user"
-                    class="mx-2.5 mt-2 rounded-md border border-miq-pitch/25 bg-[color-mix(in_srgb,var(--miq-pitch)_8%,white)] px-2.5 py-2 text-sm text-miq-ink-soft sm:mx-3"
-                    role="status"
-                >
-                    Чтобы выбрать исход в рейтинг,
-                    <Link :href="loginHref()" class="font-semibold text-miq-pitch underline-offset-2 hover:underline">
-                        войдите
-                    </Link>
-                    или
-                    <Link :href="route('register')" class="font-semibold text-miq-pitch underline-offset-2 hover:underline">
-                        зарегистрируйтесь
-                    </Link>.
                 </div>
 
                 <div
@@ -1202,14 +1288,20 @@ function loginHref() {
                                         v-for="outcome in market.outcomes"
                                         :key="outcome.id"
                                         class="miq-outcome-cell"
-                                        :class="{ 'is-picked': isPicked(outcome.id) }"
+                                        :class="{ 'is-picked': isPicked(outcome.id), 'is-in-cart': isInCart(outcome.id) }"
                                     >
                                         <p class="miq-outcome-label">{{ outcome.label }}</p>
                                         <p class="miq-outcome-prob tabular-nums">
                                             {{ outcome.prob }}<span class="miq-outcome-unit">%</span>
                                         </p>
+                                        <div class="miq-outcome-bar" aria-hidden="true">
+                                            <span :style="{ width: `${outcome.prob}%` }" />
+                                        </div>
+                                        <p v-if="!pickClosed" class="miq-outcome-reward">
+                                            {{ formatPoints(outcome.points) }}
+                                        </p>
                                         <p class="miq-outcome-meta">
-                                            <span>выбрали {{ outcome.popular_pct }}%</span>
+                                            <span v-if="outcome.popular_pct">выбрали {{ outcome.popular_pct }}%</span>
                                             <span
                                                 v-if="!matchCenter && outcome.hit === true"
                                                 class="miq-outcome-hit is-yes"
@@ -1223,11 +1315,11 @@ function loginHref() {
                                             v-if="!pickClosed"
                                             type="button"
                                             class="miq-pick-btn miq-outcome-pick"
-                                            :class="{ 'is-active': isPicked(outcome.id) }"
-                                            :aria-pressed="isPicked(outcome.id)"
+                                            :class="{ 'is-active': isPicked(outcome.id) && !isInCart(outcome.id), 'is-cart': isInCart(outcome.id) }"
+                                            :aria-pressed="isInCart(outcome.id) || isPicked(outcome.id)"
                                             @click="onPick(outcome)"
                                         >
-                                            {{ isPicked(outcome.id) ? 'Выбрано' : 'Выбрать' }}
+                                            {{ isInCart(outcome.id) ? 'В корзине' : isPicked(outcome.id) ? 'Ваш выбор' : 'Выбрать' }}
                                         </button>
                                         <span
                                             v-else-if="isPicked(outcome.id)"
@@ -2316,5 +2408,17 @@ function loginHref() {
                 </p>
             </section>
         </div>
+        <MatchPickCart
+            :cart="cart"
+            :user-pick="userPick"
+            :pick-open="pickOpen"
+            :is-guest="isGuest"
+            :busy="cartBusy"
+            :error="cartError"
+            :just-saved="justSaved"
+            @place="placePick"
+            @clear="clearCart"
+            @cancel="cancelPick"
+        />
     </AppLayout>
 </template>

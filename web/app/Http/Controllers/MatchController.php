@@ -20,7 +20,7 @@ class MatchController extends Controller
     {
         $returnLeague = $request->query('league');
 
-        return $show->handle($match, is_string($returnLeague) && $returnLeague !== '' ? $returnLeague : null)
+        return $show->handle($match, is_string($returnLeague) && $returnLeague !== '' ? $returnLeague : null, $request->user())
             ?? abort(404);
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\MeController;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\PickController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\UserProfileController;
@@ -23,6 +24,9 @@ Route::get('/users/{id}', [UserProfileController::class, 'show'])->name('users.s
 
 Route::middleware('auth')->group(function () {
     Route::get('/me', [MeController::class, 'show'])->name('me');
+
+    Route::post('/matches/{match}/pick', [PickController::class, 'store'])->name('picks.store')->whereNumber('match');
+    Route::delete('/matches/{match}/pick', [PickController::class, 'destroy'])->name('picks.destroy')->whereNumber('match');
 
     // Breeze profile edit (настройки аккаунта; MVP-профиль смотрим на /me)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

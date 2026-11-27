@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Leaderboard\BuildLeaderboard;
 use App\Support\MockLeaderboard;
 use App\Support\RatingSeason;
 use Illuminate\Http\Request;
@@ -10,26 +11,16 @@ use Inertia\Response;
 
 class LeaderboardController extends Controller
 {
-    /**
-     * Таблица рейтинга (моки без реального начисления очков).
-     */
-    public function index(Request $request): Response
+    /** Таблица рейтинга: очки за разрешённые picks (угадал — 100 × (1 − p), промах — 0). */
+    public function index(Request $request, BuildLeaderboard $leaderboard): Response
     {
         $period = MockLeaderboard::resolvePeriod($request->query('period'));
         $season = RatingSeason::forDate();
-        $user = $request->user();
-        $entries = MockLeaderboard::entries(
-            $period,
-            $user ? ['id' => $user->id, 'name' => $user->name] : null,
-        );
 
         return Inertia::render('Leaderboard/Index', [
             'period' => $period,
             'periods' => MockLeaderboard::periods($season),
             'season' => $season->toArray(),
-            'entries' => $entries,
-            'totalPlayers' => MockLeaderboard::TOTAL_PLAYERS,
-            'currentUserRank' => collect($entries)->firstWhere('is_me', true)['rank'] ?? null,
-        ]);
+        ] + $leaderboard->handle($period, $season, $request->user()));
     }
 }

@@ -4551,3 +4551,197 @@
         @apply mt-2 max-w-3xl text-xs leading-relaxed text-miq-ink-soft;
     }
 }
+
+@layer components {
+    /* Корзина события на странице матча: док внизу (mobile — как sheet на всю ширину, desktop — карточка справа) */
+    .miq-cart-dock {
+        @apply pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[23.5rem] sm:px-0;
+        padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
+
+    .miq-cart {
+        @apply pointer-events-auto rounded-xl border p-3 sm:p-3.5;
+        border-color: color-mix(in srgb, var(--miq-pitch) 35%, var(--miq-line));
+        background: color-mix(in srgb, white 94%, var(--miq-mist));
+        box-shadow: 0 -6px 28px color-mix(in srgb, var(--miq-ink) 14%, transparent), inset 0 3px 0 var(--miq-pitch);
+    }
+
+    .miq-cart.is-saved {
+        box-shadow: 0 -6px 28px color-mix(in srgb, var(--miq-pitch) 28%, transparent), inset 0 3px 0 var(--miq-lime);
+    }
+
+    .miq-cart-head {
+        @apply mb-2 flex items-center gap-2;
+    }
+
+    .miq-cart-badge {
+        @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em];
+        color: var(--miq-pitch-deep);
+        background: color-mix(in srgb, var(--miq-pitch) 12%, white);
+    }
+
+    .miq-cart-badge b {
+        @apply inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] text-white;
+        background: var(--miq-pitch);
+    }
+
+    .miq-cart-badge.is-won {
+        color: var(--miq-pitch-deep);
+        background: var(--miq-lime);
+    }
+
+    .miq-cart-badge.is-lost {
+        color: var(--miq-muted);
+        background: var(--miq-mist-deep);
+    }
+
+    .miq-cart-rule {
+        @apply hidden text-[11px] text-miq-muted sm:inline;
+    }
+
+    .miq-cart-x {
+        @apply ml-auto flex h-7 w-7 items-center justify-center rounded-full text-xl leading-none transition;
+        color: var(--miq-muted);
+    }
+
+    .miq-cart-x:hover:not(:disabled) {
+        color: var(--miq-ink);
+        background: var(--miq-mist-deep);
+    }
+
+    .miq-cart-item {
+        @apply flex items-center justify-between gap-3;
+    }
+
+    .miq-cart-market {
+        @apply truncate text-[11px] font-semibold uppercase tracking-wide text-miq-muted;
+    }
+
+    .miq-cart-label {
+        @apply num-display truncate text-xl leading-tight text-miq-ink sm:text-2xl;
+    }
+
+    .miq-cart-reward {
+        @apply flex shrink-0 flex-col items-end text-right;
+    }
+
+    .miq-cart-pts {
+        @apply text-xl leading-tight sm:text-2xl;
+        color: var(--miq-pitch);
+    }
+
+    .miq-cart-pts.is-won {
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-cart-pts.is-lost {
+        color: var(--miq-muted);
+    }
+
+    .miq-cart-prob {
+        @apply text-[11px] text-miq-muted;
+    }
+
+    .miq-cart-note {
+        @apply mt-2 text-xs;
+        color: var(--miq-warn);
+    }
+
+    .miq-cart-error {
+        @apply mt-2 rounded-md px-2 py-1.5 text-xs font-semibold;
+        color: var(--miq-live);
+        background: color-mix(in srgb, var(--miq-live) 8%, white);
+    }
+
+    .miq-cart-cta {
+        @apply mt-3 flex w-full items-center justify-center rounded-lg px-4 py-3 text-base font-bold text-white transition;
+        background: var(--miq-pitch);
+        box-shadow: inset 0 -3px 0 var(--miq-lime);
+    }
+
+    .miq-cart-cta:hover:not(:disabled) {
+        background: var(--miq-pitch-deep);
+    }
+
+    .miq-cart-cta:disabled {
+        @apply cursor-wait opacity-70;
+    }
+
+    .miq-cart-guest,
+    .miq-cart-hint {
+        @apply mt-2 text-center text-[11px] leading-snug text-miq-muted;
+    }
+
+    .miq-cart-hint {
+        @apply text-left;
+    }
+
+    .miq-cart-link {
+        @apply ml-1 font-semibold underline-offset-2 hover:underline;
+        color: var(--miq-pitch-deep);
+    }
+
+    .miq-cart-enter-active,
+    .miq-cart-leave-active {
+        transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+
+    .miq-cart-enter-from,
+    .miq-cart-leave-to {
+        opacity: 0;
+        transform: translateY(1.25rem);
+    }
+
+    /* Событие в карточке рынка: награда и состояния «в корзине» / «ваш выбор» */
+    .miq-outcome-bar {
+        @apply mt-1.5 h-1 w-full overflow-hidden rounded-full;
+        background: color-mix(in srgb, var(--miq-line) 55%, white);
+    }
+
+    .miq-outcome-bar > span {
+        @apply block h-full rounded-full;
+        background: var(--miq-pitch);
+        opacity: 0.55;
+    }
+
+    .miq-outcome-reward {
+        @apply mt-1 text-[10px] font-bold tabular-nums;
+        color: var(--miq-pitch);
+    }
+
+    .miq-outcome-cell.is-in-cart {
+        border-color: var(--miq-lime);
+        background: color-mix(in srgb, var(--miq-lime) 22%, white);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--miq-lime) 55%, transparent);
+    }
+
+    .miq-pick-btn.is-cart {
+        color: var(--miq-ink);
+        background: var(--miq-lime);
+        border-color: var(--miq-pitch);
+    }
+
+    .miq-match-page.has-cart {
+        padding-bottom: 9rem;
+    }
+}
+
+@layer components {
+    .miq-lb-pending {
+        @apply text-[11px] font-medium text-miq-muted;
+    }
+
+    .miq-lb-gap td {
+        @apply py-1 text-center text-xs tracking-[0.3em] text-miq-muted;
+    }
+}
+
+@layer components {
+    .miq-pick-status {
+        @apply text-[11px] font-semibold text-miq-muted;
+    }
+
+    .miq-pick-status.is-won {
+        color: var(--miq-pitch-deep);
+    }
+}

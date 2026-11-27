@@ -3,9 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\MockLeaderboard;
 use App\Support\RatingSeason;
-use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class MvpRoutesTest extends TestCase
@@ -17,28 +18,6 @@ class MvpRoutesTest extends TestCase
         Carbon::setTestNow();
 
         parent::tearDown();
-    }
-
-    public function test_leaderboard_renders(): void
-    {
-        $this->get('/leaderboard')
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->component('Leaderboard/Index')
-                ->where('period', 'season')
-                ->has('periods', 4)
-                ->where('periods.0.label', 'Неделя')
-                ->where('periods.3.id', 'all_time')
-                ->has('entries', 12)
-                ->where('entries.0.rank', 1)
-                ->has('entries.0.name')
-                ->has('entries.0.picks')
-                ->has('entries.0.correct')
-                ->has('entries.0.accuracy')
-                ->has('entries.0.points')
-                ->has('entries.0.streak')
-                ->where('entries.0.is_me', false)
-                ->where('currentUserRank', null));
     }
 
     public function test_leaderboard_exposes_current_rating_season(): void
@@ -97,40 +76,6 @@ class MvpRoutesTest extends TestCase
             ->assertInertia(fn ($page) => $page->where('period', 'season'));
     }
 
-    public function test_leaderboard_entries_are_sorted_by_points(): void
-    {
-        foreach (['week', 'month', 'season', 'all_time'] as $period) {
-            $this->get('/leaderboard?period='.$period)
-                ->assertInertia(function ($page) {
-                    $points = array_column($page->toArray()['props']['entries'], 'points');
-                    $sorted = $points;
-                    rsort($sorted);
-
-                    $this->assertSame($sorted, $points);
-                });
-        }
-    }
-
-    public function test_leaderboard_highlights_current_user(): void
-    {
-        $user = User::factory()->create(['name' => 'Тестовый Игрок']);
-
-        $this->actingAs($user)
-            ->get('/leaderboard')
-            ->assertOk()
-            ->assertInertia(function ($page) {
-                $entries = collect($page->toArray()['props']['entries']);
-                $me = $entries->where('is_me', true);
-
-                $this->assertCount(1, $me);
-                $this->assertSame('Тестовый Игрок', $me->first()['name']);
-                $this->assertSame(
-                    $me->first()['rank'],
-                    $page->toArray()['props']['currentUserRank'],
-                );
-            });
-    }
-
     public function test_user_profile_renders_for_mock_player(): void
     {
         $this->get('/users/1000000')
@@ -165,9 +110,9 @@ class MvpRoutesTest extends TestCase
                 ->has('frequentEvents.0.items.0.accuracy'));
     }
 
-    public function test_user_profile_rank_matches_leaderboard(): void
+    public function test_mock_user_profile_rank_matches_mock_leaderboard(): void
     {
-        $leaderboard = $this->get('/leaderboard?period=season')->viewData('page')['props']['entries'];
+        $leaderboard = MockLeaderboard::entries('season');
         $second = $leaderboard[1];
 
         $this->get('/users/'.$second['id'])
@@ -218,21 +163,6 @@ class MvpRoutesTest extends TestCase
         $this->get('/users/999')->assertNotFound();
         $this->get('/users/1000012')->assertNotFound();
         $this->get('/users/'.rawurlencode('Бомбардир_77'))->assertNotFound();
-    }
-
-    public function test_leaderboard_entries_have_ids_for_profile_links(): void
-    {
-        $user = User::factory()->create(['name' => 'Новичок Вася']);
-
-        $this->actingAs($user)
-            ->get('/leaderboard')
-            ->assertInertia(function ($page) use ($user) {
-                $entries = collect($page->toArray()['props']['entries']);
-
-                $this->assertCount(12, $entries->pluck('id')->unique());
-                $this->assertSame($user->id, $entries->firstWhere('is_me', true)['id']);
-                $this->assertSame(1000000, $entries->firstWhere('name', 'Бомбардир_77')['id']);
-            });
     }
 
     public function test_me_requires_auth(): void

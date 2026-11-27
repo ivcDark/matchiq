@@ -48,7 +48,7 @@ class MatchCatalogRepository
         return FootballMatch::query()
             ->with([
                 'homeTeam', 'awayTeam', 'venue', 'referee', 'round', 'season',
-                'competition.country', 'currentPrediction.scorelines',
+                'competition.country', 'currentPrediction.scorelines', 'currentPrediction.outcomes.marketType.outcomes',
                 'events.player', 'events.relatedPlayer', 'teamStats',
             ])
             ->find($id);

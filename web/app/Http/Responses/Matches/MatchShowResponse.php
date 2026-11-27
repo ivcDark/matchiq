@@ -14,6 +14,8 @@ final readonly class MatchShowResponse implements Responsable
      * @param  array<string, mixed>|null  $forecast
      * @param  array<string, mixed>|null  $matchCenter
      * @param  list<string>  $insights
+     * @param  list<array<string, mixed>>  $markets
+     * @param  array<string, mixed>|null  $userPick
      */
     public function __construct(
         private array $match,
@@ -24,10 +26,13 @@ final readonly class MatchShowResponse implements Responsable
         private array $formBlocks,
         private ?array $matchCenter,
         private ?string $returnLeague,
+        private array $markets = [],
+        private ?array $userPick = null,
+        private bool $pickOpen = false,
     ) {}
 
     /**
-     * Блоки без источника данных (рынки, сравнение, тренды, потери, комментарии…) — явные пустые значения,
+     * Блоки без источника данных (сравнение, тренды, потери, комментарии…) — явные пустые значения,
      * чтобы Vue показывал empty state, а не демо-цифры.
      */
     public function toResponse($request)
@@ -37,7 +42,7 @@ final readonly class MatchShowResponse implements Responsable
             'preview' => $this->preview,
             'insights' => $this->insights,
             'forecast' => $this->forecast,
-            'markets' => [],
+            'markets' => $this->markets,
             'comparison' => ['match' => [], 'first_half' => [], 'second_half' => []],
             'homeAway' => ['tournament' => null, 'last5' => null, 'last10' => null],
             'standings' => $this->standings,
@@ -51,7 +56,8 @@ final readonly class MatchShowResponse implements Responsable
             'refereeStats' => null,
             'comments' => [],
             'matchCenter' => $this->matchCenter,
-            'userPickEventId' => null,
+            'userPick' => $this->userPick,
+            'pickOpen' => $this->pickOpen,
             'returnLeague' => $this->returnLeague,
         ])->toResponse($request);
     }
