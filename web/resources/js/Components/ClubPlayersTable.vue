@@ -9,7 +9,7 @@ const POSITIONS = {
 };
 
 const props = defineProps({
-    /** { name, position, age, height, weight, apps, starts, subs, minutes, goals, assists, yellow, red, shots, passing, aerial, mom, rating } */
+    /** { name, position, age, height, weight, apps, starts, subs, minutes, goals, pens, assists, yellow, red, shots, passing, aerial, mom, rating } */
     players: { type: Array, required: true },
     hint: { type: String, default: '' },
 });
@@ -19,7 +19,7 @@ const COLUMNS = [
     { key: 'weight', label: 'кг', title: 'Вес, кг', hideMobile: true },
     { key: 'apps', label: 'Выст', title: 'Матчей: в старте (и выходов на замену)', cell: (p) => (p.subs > 0 ? `${p.starts}(${p.subs})` : String(p.starts)) },
     { key: 'minutes', label: 'Мин', title: 'Сыграно минут' },
-    { key: 'goals', label: 'Г', title: 'Голы', zero: true, good: true },
+    { key: 'goals', label: 'Г', title: 'Голы (в скобках — с пенальти)', zero: true, good: true, cell: (p) => (p.goals === 0 ? '–' : p.pens > 0 ? `${p.goals} (${p.pens})` : String(p.goals)) },
     { key: 'assists', label: 'А', title: 'Голевые передачи', zero: true, good: true },
     { key: 'yellow', label: 'ЖК', title: 'Жёлтые карточки', zero: true },
     { key: 'red', label: 'КК', title: 'Красные карточки', zero: true },

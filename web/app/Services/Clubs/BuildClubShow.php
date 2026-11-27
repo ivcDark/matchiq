@@ -27,8 +27,9 @@ use Illuminate\Support\Collection;
 /**
  * Страница клуба: место в таблице, матчи, голы, карточки и игроки считаются из матчей и событий БД.
  * Турниры клуба — все нетоварищеские соревнования текущего сезона, где у команды есть матчи или заявка на этап:
- * для лиги — место в таблице, для кубка — группа или стадия плей-офф. Показатели, которых в БД нет
- * (удары, владение, рейтинги, минуты), — пустые значения.
+ * для лиги — место в таблице, для кубка — группа или стадия плей-офф. Удары, владение, точность пасов и рейтинг
+ * команды — средние за матч из `match_team_stats` и `match_teams`, минуты — по `match_player_stats`;
+ * чего в БД нет — пустые значения.
  */
 class BuildClubShow
 {
@@ -355,32 +356,55 @@ class BuildClubShow
      */
     private function stats(Team $team, Collection $finished, array $keys, Collection $competitions, array $tournaments, string $locale): array
     {
-        $events = $this->catalog->teamEvents($team->id, $finished->pluck('id')->all());
+        $matchIds = $finished->pluck('id')->all();
+        $events = $this->catalog->teamEvents($team->id, $matchIds);
         $cards = [];
+        $penalties = [];
         foreach ($events as $event) {
             $cards[$event->match_id] ??= ['yellow' => 0, 'red' => 0];
             match ($event->type) {
                 MatchEventType::Yellow => $cards[$event->match_id]['yellow']++,
                 MatchEventType::SecondYellow => [$cards[$event->match_id]['yellow']++, $cards[$event->match_id]['red']++],
                 MatchEventType::Red => $cards[$event->match_id]['red']++,
+                MatchEventType::PenaltyGoal => $penalties[$event->match_id] = ($penalties[$event->match_id] ?? 0) + 1,
                 default => null,
             };
         }
 
-        $line = function (string $name, string $key, Collection $matches) use ($team, $cards): array {
+        $teamStats = collect($this->catalog->teamStatsForMatches($matchIds))
+            ->where('team_id', $team->id)
+            ->keyBy('match_id');
+        $playerStats = $this->catalog->teamPlayerStats($team->id, $matchIds)->groupBy('match_id');
+
+        $average = function (Collection $matches, string $field, int $digits) use ($teamStats): ?float {
+            $values = $matches->map(fn (FootballMatch $m) => $teamStats[$m->id][$field] ?? null)->filter(fn ($v) => $v !== null);
+
+            return $values->isEmpty() ? null : round($values->avg(), $digits);
+        };
+
+        $minutes = function (Collection $matches) use ($playerStats): ?int {
+            $durations = $matches
+                ->map(fn (FootballMatch $m) => ($playerStats[$m->id] ?? collect())->pluck('minutes')->filter(fn ($v) => $v !== null)->max())
+                ->filter(fn ($v) => $v !== null);
+
+            return $durations->isEmpty() ? null : (int) $durations->sum();
+        };
+
+        $line = function (string $name, string $key, Collection $matches) use ($team, $cards, $penalties, $average, $minutes): array {
             return [
                 'key' => $key,
                 'name' => $name,
                 'apps' => $matches->count(),
                 'goals' => $matches->sum(fn (FootballMatch $m) => $m->home_team_id === $team->id ? $m->home_goals : $m->away_goals),
+                'penalty_goals' => $matches->sum(fn (FootballMatch $m) => $penalties[$m->id] ?? 0),
                 'conceded' => $matches->sum(fn (FootballMatch $m) => $m->home_team_id === $team->id ? $m->away_goals : $m->home_goals),
-                'shots' => null,
+                'shots' => $average($matches, 'shots', 1),
                 'yellow' => $matches->sum(fn (FootballMatch $m) => $cards[$m->id]['yellow'] ?? 0),
                 'red' => $matches->sum(fn (FootballMatch $m) => $cards[$m->id]['red'] ?? 0),
-                'possession' => null,
-                'passing' => null,
-                'aerial' => null,
-                'rating' => null,
+                'possession' => $average($matches, 'possession_pct', 1),
+                'passing' => $average($matches, 'pass_accuracy_pct', 1),
+                'minutes' => $minutes($matches),
+                'rating' => $average($matches, 'rating', 2),
             ];
         };
 
@@ -490,6 +514,8 @@ class BuildClubShow
             ->merge($events->pluck('player_id'))
             ->merge($events->pluck('related_player_id'))
             ->filter()->unique()->values()->all();
+        $playerStats = $this->catalog->teamPlayerStats($team->id, $matchIds);
+        $playerIds = array_values(array_unique(array_merge($playerIds, $playerStats->pluck('player_id')->all())));
         $players = $this->catalog->playersByIds($playerIds);
 
         $result = [];
@@ -501,6 +527,7 @@ class BuildClubShow
                     $events,
                     $players,
                     $locale,
+                    $playerStats,
                 );
             }
         }

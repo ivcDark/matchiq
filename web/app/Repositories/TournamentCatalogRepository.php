@@ -270,6 +270,27 @@ class TournamentCatalogRepository
     }
 
     /**
+     * Статистика игроков команды по матчам (`match_player_stats`): минуты, удары, оценка, ЛИМ и `extra` (передачи, воздух).
+     *
+     * @param  list<int>  $matchIds
+     * @return Collection<int, MatchPlayerStat>
+     */
+    public function teamPlayerStats(int $teamId, array $matchIds): Collection
+    {
+        $rows = new Collection;
+        foreach (array_chunk($matchIds, 500) as $chunk) {
+            $rows = $rows->concat(
+                MatchPlayerStat::query()
+                    ->where('team_id', $teamId)
+                    ->whereIn('match_id', $chunk)
+                    ->get(['match_id', 'player_id', 'minutes', 'shots', 'rating', 'is_motm', 'extra']),
+            );
+        }
+
+        return $rows;
+    }
+
+    /**
      * Число матчей в заявках игроков среди переданных матчей.
      *
      * @param  list<int>  $playerIds

@@ -5,10 +5,16 @@ namespace Tests\Feature;
 use App\Enums\CompetitionStatus;
 use App\Enums\CompetitionType;
 use App\Enums\MatchEventType;
+use App\Enums\MatchSide;
 use App\Enums\MatchStatus;
 use App\Enums\StageType;
+use App\Enums\StatsPeriod;
 use App\Models\Competition;
 use App\Models\FootballMatch;
+use App\Models\MatchPlayerStat;
+use App\Models\MatchTeam;
+use App\Models\MatchTeamStat;
+use App\Models\Player;
 use App\Models\Round;
 use App\Models\Season;
 use App\Models\Stage;
@@ -165,6 +171,8 @@ class ClubPageTest extends TestCase
         $this->assertNull($total['shots']);
         $this->assertNull($total['possession']);
         $this->assertNull($total['rating']);
+        $this->assertNull($total['minutes']);
+        $this->assertSame(0, $total['penalty_goals']);
         $this->assertSame('premier-league', $props['stats']['overall']['rows'][0]['key']);
         $this->assertSame(1, $props['stats']['home']['total']['apps']);
         $this->assertSame(1, $props['stats']['away']['total']['apps']);
@@ -191,6 +199,80 @@ class ClubPageTest extends TestCase
 
         $this->assertSame(1, $props['goals']['premier-league']['home']['matches']);
         $this->assertSame(1, $props['goals']['premier-league']['away']['matches']);
+    }
+
+    /** @param  array<string, mixed>  $metrics */
+    private function teamStat(FootballMatch $match, string $team, array $metrics, ?float $rating): void
+    {
+        $teamId = $this->teams[$team]->id;
+        $side = $match->home_team_id === $teamId ? MatchSide::Home : MatchSide::Away;
+        MatchTeamStat::create(['match_id' => $match->id, 'team_id' => $teamId, 'period' => StatsPeriod::FullTime] + $metrics);
+        MatchTeamStat::create(['match_id' => $match->id, 'team_id' => $teamId, 'period' => StatsPeriod::FirstHalf, 'shots' => 99, 'possession_pct' => 99]);
+        MatchTeam::create(['match_id' => $match->id, 'team_id' => $teamId, 'side' => $side, 'rating' => $rating]);
+    }
+
+    /** @param  array<string, mixed>  $attrs */
+    private function playerStat(FootballMatch $match, string $team, Player $player, array $attrs): void
+    {
+        MatchPlayerStat::create(['match_id' => $match->id, 'team_id' => $this->teams[$team]->id, 'player_id' => $player->id] + $attrs);
+    }
+
+    public function test_tournament_stats_average_team_metrics_and_sum_minutes_with_penalty_goals(): void
+    {
+        $matches = $this->playRounds();
+        $cup = $this->addCup();
+        $cupMatch = $this->match('zenit', 'cska', '2026-11-20 14:00:00', [1, 1], 1, ['season' => $cup->currentSeason]);
+        $sobolev = $this->player('sobolev', 'А. Соболев');
+        $glushenkov = $this->player('glushenkov', 'М. Глушенков');
+
+        $this->event($matches['zenit-spartak'], 'zenit', MatchEventType::Goal, $sobolev);
+        $this->event($matches['zenit-spartak'], 'zenit', MatchEventType::PenaltyGoal, $sobolev);
+        $this->event($matches['dynamo-zenit'], 'dynamo', MatchEventType::PenaltyGoal, $this->player('dyn', 'Д. Динамовец'));
+        $this->event($cupMatch, 'zenit', MatchEventType::PenaltyGoal, $glushenkov);
+        $this->starter($matches['zenit-spartak'], 'zenit', $sobolev);
+
+        $this->teamStat($matches['zenit-spartak'], 'zenit', ['shots' => 14, 'possession_pct' => 60, 'pass_accuracy_pct' => 90], 7.0);
+        $this->teamStat($matches['zenit-spartak'], 'spartak', ['shots' => 1, 'possession_pct' => 40], 5.0);
+        $this->teamStat($matches['dynamo-zenit'], 'zenit', ['shots' => 6, 'possession_pct' => 50, 'pass_accuracy_pct' => 80], 6.5);
+        $this->teamStat($cupMatch, 'zenit', ['shots' => 8, 'possession_pct' => 45, 'aerials_won' => 7], 7.2);
+
+        $this->playerStat($matches['zenit-spartak'], 'zenit', $sobolev, ['minutes' => 90, 'shots' => 3, 'rating' => 7.5, 'is_motm' => true, 'extra' => ['passes_total' => 40, 'passes_accurate' => 20, 'duels_aerial_won' => 2]]);
+        $this->playerStat($matches['zenit-spartak'], 'zenit', $glushenkov, ['minutes' => 0, 'shots' => 9, 'rating' => 9.9]);
+        $this->playerStat($matches['dynamo-zenit'], 'zenit', $glushenkov, ['minutes' => 98, 'shots' => 1, 'rating' => 6.5, 'extra' => ['passes_total' => 10, 'passes_accurate' => 10, 'duels_aerial_won' => 1]]);
+        $this->playerStat($matches['dynamo-zenit'], 'zenit', $sobolev, ['minutes' => 45, 'shots' => 0, 'rating' => 6.0, 'extra' => ['passes_total' => 10, 'passes_accurate' => 5, 'duels_aerial_won' => 0]]);
+        $this->playerStat($cupMatch, 'zenit', $sobolev, ['minutes' => 120, 'shots' => 2, 'rating' => 7.0]);
+
+        $stats = $this->props()['stats']['overall'];
+        $rpl = $stats['rows'][0];
+        $cupRow = $stats['rows'][1];
+
+        $this->assertSame(['premier-league', 2, 4, 1, 3, 10.0, 55.0, 85.0, 188, 6.75], [
+            $rpl['key'], $rpl['apps'], $rpl['goals'], $rpl['penalty_goals'], $rpl['conceded'],
+            $rpl['shots'], $rpl['possession'], $rpl['passing'], $rpl['minutes'], $rpl['rating'],
+        ]);
+        $this->assertSame(['cup', 1, 1, 1, 8.0, 45.0, null, 120, 7.2], [
+            $cupRow['key'], $cupRow['apps'], $cupRow['goals'], $cupRow['penalty_goals'],
+            $cupRow['shots'], $cupRow['possession'], $cupRow['passing'], $cupRow['minutes'], $cupRow['rating'],
+        ]);
+        $this->assertArrayNotHasKey('aerial', $cupRow);
+
+        $total = $stats['total'];
+        $this->assertSame([3, 5, 2, 9.3, 51.7, 85.0, 308, 6.9], [
+            $total['apps'], $total['goals'], $total['penalty_goals'], $total['shots'], $total['possession'],
+            $total['passing'], $total['minutes'], $total['rating'],
+        ]);
+
+        $away = $this->props()['stats']['away'];
+        $this->assertSame([6.0, 50.0, 80.0, 98, 6.5], [
+            $away['total']['shots'], $away['total']['possession'], $away['total']['passing'], $away['total']['minutes'], $away['total']['rating'],
+        ]);
+
+        $players = collect($this->props()['players']['premier-league']['overall'])->keyBy('name');
+        $s = $players['А. Соболев'];
+        $this->assertSame([2, 1, 1, 135, 2, 1], [$s['apps'], $s['starts'], $s['subs'], $s['minutes'], $s['goals'], $s['pens']]);
+        $this->assertSame([1.5, 50.0, 1.0, 1, 6.75], [$s['shots'], $s['passing'], $s['aerial'], $s['mom'], $s['rating']]);
+        $g = $players['М. Глушенков'];
+        $this->assertSame([1, 98, 6.5, 1.0, 100.0, 0], [$g['apps'], $g['minutes'], $g['rating'], $g['shots'], $g['passing'], $g['mom']]);
     }
 
     public function test_second_competition_adds_all_matches_tab_and_aggregates(): void
