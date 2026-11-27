@@ -3,9 +3,8 @@ import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const props = defineProps({
-    /** { position, teams, zone, zone_label, played, wins, draws, losses, gf, ga, gd, pts, form, behind_leader, neighbors, tournament, tournament_id } */
+    /** { round, position, teams, zone, zone_label, played, wins, draws, losses, gf, ga, gd, pts, form, behind_leader, neighbors, tournament, tournament_id } */
     standing: { type: Object, required: true },
-    round: { type: Number, required: true },
 });
 
 const FORM_TITLES = { В: 'Победа', Н: 'Ничья', П: 'Поражение' };
@@ -64,7 +63,7 @@ const kpis = computed(() => [
             </span>
         </div>
 
-        <dl class="miq-club-kpis" :aria-label="`После ${round} тура`">
+        <dl class="miq-club-kpis" :aria-label="`После ${standing.round} тура`">
             <div v-for="kpi in kpis" :key="kpi.label" class="miq-club-kpi">
                 <dt>{{ kpi.label }}</dt>
                 <dd>{{ kpi.value }}</dd>

@@ -5,7 +5,16 @@ namespace Tests\Feature;
 use App\Enums\CompetitionStatus;
 use App\Enums\CompetitionType;
 use App\Enums\MatchEventType;
+use App\Enums\MatchStatus;
+use App\Enums\StageType;
 use App\Models\Competition;
+use App\Models\FootballMatch;
+use App\Models\Round;
+use App\Models\Season;
+use App\Models\Stage;
+use App\Models\StageGroup;
+use App\Models\StageTeam;
+use App\Models\StandingZone;
 use App\Models\Team;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -68,7 +77,7 @@ class ClubPageTest extends TestCase
                 ->where('club.tournament_id', null)
                 ->where('standing.position', null)
                 ->where('standing.neighbors', [])
-                ->where('cup', null)
+                ->where('competitions', [])
                 ->where('last_match', null)
                 ->where('next_match', null)
                 ->where('calendar', [])
@@ -201,7 +210,8 @@ class ClubPageTest extends TestCase
         $this->assertSame(3, $props['stats']['overall']['total']['apps']);
         $this->assertSame(['premier-league', 'cup'], array_column($props['stats']['overall']['rows'], 'key'));
         $this->assertSame(['cup', 'premier-league', 'premier-league'], array_column($props['results'], 'tournament'));
-        $this->assertNull($props['cup'], 'данных о кубковой стадии в БД нет');
+        $this->assertSame(['premier-league', 'cup'], array_column($props['competitions'], 'key'));
+        $this->assertSame(['league', 'cup'], array_column($props['competitions'], 'kind'));
     }
 
     public function test_only_current_season_matches_are_shown(): void
@@ -265,6 +275,209 @@ class ClubPageTest extends TestCase
         $this->assertStringNotContainsString("id: 'stats'", $show);
         $this->assertStringContainsString('<ClubFixtures title="Календарь" mode="calendar" :matches="calendar"', $show);
         $this->assertStringContainsString('<ClubFixtures title="Результаты" mode="results" :matches="results"', $show);
-        $this->assertStringContainsString('<ClubCupStatus v-if="cup"', $show);
+        $this->assertStringContainsString('<ClubCupStatus v-else :cup="block"', $show);
+    }
+
+    private function cupStage(Competition $cup, StageType $type, string $name, int $order = 1): Stage
+    {
+        $season = $cup->currentSeason ?? Season::where('competition_id', $cup->id)->where('is_current', true)->first();
+
+        return Stage::create([
+            'season_id' => $season->id, 'name' => $name, 'type' => $type, 'stage_order' => $order,
+            'has_standings' => $type->hasStandings(),
+        ]);
+    }
+
+    private function cupCompetition(string $slug = 'cup', CompetitionType $type = CompetitionType::Cup): Competition
+    {
+        $cup = Competition::create([
+            'country_id' => $this->country->id, 'slug' => $slug, 'name' => 'Russian Cup', 'name_i18n' => ['ru' => 'Кубок России'],
+            'short_name' => 'Cup', 'short_name_i18n' => ['ru' => 'Кубок России'],
+            'type' => $type, 'status' => CompetitionStatus::Live, 'sort_order' => 20,
+        ]);
+        $this->createSeason($cup, '2026-2027', true);
+
+        return $cup->load('currentSeason');
+    }
+
+    /** @param  array<string, mixed>  $attrs */
+    private function stageMatch(Competition $cup, Stage $stage, string $home, string $away, string $kickoff, ?array $score, array $attrs = []): FootballMatch
+    {
+        return FootballMatch::create($attrs + [
+            'competition_id' => $cup->id, 'season_id' => $cup->currentSeason->id, 'stage_id' => $stage->id,
+            'home_team_id' => $this->teams[$home]->id, 'away_team_id' => $this->teams[$away]->id,
+            'kickoff_at' => $kickoff, 'status' => $score === null ? MatchStatus::Scheduled : MatchStatus::Finished,
+            'home_goals' => $score[0] ?? null, 'away_goals' => $score[1] ?? null,
+        ]);
+    }
+
+    private function competitionBlock(array $props, string $key): array
+    {
+        return collect($props['competitions'])->firstWhere('key', $key);
+    }
+
+    public function test_league_only_club_has_single_league_block_matching_standing(): void
+    {
+        $this->playRounds();
+        $props = $this->props();
+
+        $this->assertCount(1, $props['competitions']);
+        $block = $props['competitions'][0];
+        $this->assertSame(['premier-league', 'league', $this->competition->id, 'РПЛ'], [$block['key'], $block['kind'], $block['competition_id'], $block['name']]);
+        $this->assertSame($props['standing'], $block['standing']);
+        $this->assertSame(2, $block['standing']['round']);
+    }
+
+    public function test_cup_group_stage_shows_group_table_place_and_zone(): void
+    {
+        $this->playRounds();
+        $cup = $this->cupCompetition();
+        $stage = $this->cupStage($cup, StageType::Group, 'Группы');
+        $a = StageGroup::create(['stage_id' => $stage->id, 'name' => 'Группа A', 'group_order' => 1]);
+        $b = StageGroup::create(['stage_id' => $stage->id, 'name' => 'Группа B', 'group_order' => 2]);
+        foreach (['zenit', 'spartak', 'cska'] as $slug) {
+            StageTeam::create(['stage_id' => $stage->id, 'team_id' => $this->teams[$slug]->id, 'stage_group_id' => $a->id]);
+        }
+        StageTeam::create(['stage_id' => $stage->id, 'team_id' => $this->teams['dynamo']->id, 'stage_group_id' => $b->id]);
+        StandingZone::create(['stage_id' => $stage->id, 'from_position' => 1, 'to_position' => 2, 'code' => 'playoff', 'label' => 'Плей-офф']);
+
+        $this->stageMatch($cup, $stage, 'zenit', 'spartak', '2026-10-20 14:00:00', [3, 0], ['stage_group_id' => $a->id]);
+        $this->stageMatch($cup, $stage, 'cska', 'zenit', '2026-11-03 14:00:00', [1, 0], ['stage_group_id' => $a->id]);
+        $this->stageMatch($cup, $stage, 'dynamo', 'dynamo', '2026-11-03 14:00:00', [9, 0], ['stage_group_id' => $b->id, 'away_team_id' => $this->teams['spartak']->id]);
+        $this->stageMatch($cup, $stage, 'spartak', 'cska', '2026-12-08 14:00:00', null, ['stage_group_id' => $a->id]);
+        $this->stageMatch($cup, $stage, 'zenit', 'cska', '2026-12-09 14:00:00', null, ['stage_group_id' => $a->id]);
+
+        $props = $this->props();
+        $block = $this->competitionBlock($props, 'cup');
+
+        $this->assertSame(['premier-league', 'cup'], array_column($props['competitions'], 'key'));
+        $this->assertSame(['cup', 'Кубок России', 'group', 'Групповой этап'], [$block['kind'], $block['name'], $block['status'], $block['stage']]);
+        $this->assertSame(['Группа A', 1, 3, 'Плей-офф', 'playoff'], [
+            $block['group']['name'], $block['group']['place'], $block['group']['teams'], $block['group']['zone_label'], $block['group']['zone'],
+        ]);
+        $this->assertSame(['Зенит', 'ЦСКА', 'Спартак'], array_column($block['group']['table'], 'team'));
+        $this->assertSame([true, false, false], array_column($block['group']['table'], 'is_current'));
+        $this->assertSame(['playoff', 'playoff', null], array_column($block['group']['table'], 'zone'));
+        $this->assertSame('2026-12-09', $block['next']['date'] ?? null, 'ближайший матч клуба в кубке, не чужой матч группы');
+        $this->assertSame('Группа A', collect($props['calendar'])->firstWhere('tournament', 'cup')['stage']);
+    }
+
+    public function test_cup_knockout_status_won_lost_and_in_play(): void
+    {
+        $cup = $this->cupCompetition();
+        $stage = $this->cupStage($cup, StageType::Knockout, 'Плей-офф');
+        $r16 = Round::create(['stage_id' => $stage->id, 'number' => 1, 'type' => 'knockout_round', 'code' => 'R16', 'legs' => 1]);
+        $qf = Round::create(['stage_id' => $stage->id, 'number' => 2, 'type' => 'knockout_round', 'code' => 'QF', 'legs' => 1]);
+
+        $this->stageMatch($cup, $stage, 'zenit', 'spartak', '2026-09-20 14:00:00', [2, 1], ['round_id' => $r16->id]);
+        $props = $this->props();
+        $block = $this->competitionBlock($props, 'cup');
+        $this->assertSame(['advanced', '1/8 финала', 'Спартак', '2:1', 'won'], [
+            $block['status'], $block['stage'], $block['tie']['opponent'], $block['tie']['aggregate'], $block['tie']['result'],
+        ]);
+
+        $this->stageMatch($cup, $stage, 'cska', 'zenit', '2026-12-10 14:00:00', null, ['round_id' => $qf->id]);
+        $block = $this->competitionBlock($this->props(), 'cup');
+        $this->assertSame(['in_play', 'Четвертьфинал', 'ЦСКА', null], [$block['status'], $block['stage'], $block['tie']['opponent'], $block['tie']['aggregate']]);
+        $this->assertSame('2026-12-10', $block['next']['date']);
+
+        FootballMatch::where('round_id', $qf->id)->update(['status' => MatchStatus::Finished, 'home_goals' => 1, 'away_goals' => 1, 'home_pens' => 5, 'away_pens' => 3]);
+        $block = $this->competitionBlock($this->props(), 'cup');
+        $this->assertSame(['eliminated', 'Выбыл · Четвертьфинал', '1:1', '3:5', 'lost'], [
+            $block['status'], $block['status_label'], $block['tie']['aggregate'], $block['tie']['penalties'], $block['tie']['result'],
+        ]);
+    }
+
+    public function test_two_leg_tie_is_not_decided_until_both_legs_are_played(): void
+    {
+        $cup = $this->cupCompetition();
+        $stage = $this->cupStage($cup, StageType::Knockout, 'Плей-офф');
+        $round = Round::create(['stage_id' => $stage->id, 'number' => 1, 'type' => 'knockout_round', 'code' => 'SF', 'legs' => 2]);
+
+        $this->stageMatch($cup, $stage, 'zenit', 'spartak', '2026-11-04 14:00:00', [0, 1], ['round_id' => $round->id, 'leg' => 1]);
+        $block = $this->competitionBlock($this->props(), 'cup');
+        $this->assertSame(['in_play', '0:1', null], [$block['status'], $block['tie']['aggregate'], $block['tie']['result']]);
+
+        $this->stageMatch($cup, $stage, 'spartak', 'zenit', '2026-11-11 14:00:00', [0, 3], ['round_id' => $round->id, 'leg' => 2]);
+        $block = $this->competitionBlock($this->props(), 'cup');
+        $this->assertSame(['advanced', '3:1', 'won'], [$block['status'], $block['tie']['aggregate'], $block['tie']['result']]);
+    }
+
+    public function test_cup_final_win_is_marked_as_winner(): void
+    {
+        $cup = $this->cupCompetition();
+        $stage = $this->cupStage($cup, StageType::Knockout, 'Плей-офф');
+        $final = Round::create(['stage_id' => $stage->id, 'number' => 1, 'type' => 'knockout_round', 'code' => 'F', 'legs' => 1]);
+        $this->stageMatch($cup, $stage, 'zenit', 'cska', '2026-11-20 14:00:00', [1, 0], ['round_id' => $final->id]);
+
+        $block = $this->competitionBlock($this->props(), 'cup');
+        $this->assertSame(['winner', 'Победитель'], [$block['status'], $block['status_label']]);
+    }
+
+    public function test_registered_cup_without_matches_is_still_listed(): void
+    {
+        $this->playRounds();
+        $cup = $this->cupCompetition();
+        $stage = $this->cupStage($cup, StageType::Group, 'Группы');
+        StageTeam::create(['stage_id' => $stage->id, 'team_id' => $this->teams['zenit']->id]);
+
+        $props = $this->props();
+        $block = $this->competitionBlock($props, 'cup');
+
+        $this->assertSame(['premier-league', 'cup'], array_column($props['competitions'], 'key'));
+        $this->assertSame('group', $block['status']);
+        $this->assertNull($block['group']['place']);
+        $this->assertSame(['premier-league', 'cup', 'all'], array_column($props['tournaments'], 'key'));
+    }
+
+    public function test_friendly_competitions_and_friendly_stages_are_excluded(): void
+    {
+        $this->playRounds();
+        $friendly = $this->cupCompetition('club-friendlies', CompetitionType::Friendly);
+        $friendlyStage = $this->cupStage($friendly, StageType::Friendly, 'Товарищеские');
+        $this->stageMatch($friendly, $friendlyStage, 'zenit', 'cska', '2026-11-20 14:00:00', [5, 0]);
+        $this->stageMatch($friendly, $friendlyStage, 'zenit', 'dynamo', '2026-12-20 14:00:00', null);
+
+        $cup = $this->cupCompetition('cup');
+        $cupFriendly = $this->cupStage($cup, StageType::Friendly, 'Спарринг');
+        $this->stageMatch($cup, $cupFriendly, 'zenit', 'spartak', '2026-11-21 14:00:00', [4, 0]);
+
+        $props = $this->props();
+
+        $this->assertSame(['premier-league'], array_column($props['competitions'], 'key'));
+        $this->assertSame([['key' => 'premier-league', 'name' => 'РПЛ']], $props['tournaments']);
+        $this->assertCount(2, $props['results']);
+        $this->assertCount(1, $props['calendar']);
+        $this->assertSame(['premier-league'], array_column($props['stats']['overall']['rows'], 'key'));
+        $this->assertSame(2, $props['stats']['overall']['total']['apps']);
+    }
+
+    public function test_competition_without_current_season_activity_is_not_listed(): void
+    {
+        $this->playRounds();
+        $cup = $this->cupCompetition();
+        $old = $this->createSeason($cup, '2025-2026', false);
+        $oldStage = Stage::create(['season_id' => $old->id, 'name' => 'Плей-офф', 'type' => StageType::Knockout, 'stage_order' => 1]);
+        $this->stageMatch($cup, $oldStage, 'zenit', 'cska', '2026-05-20 14:00:00', [1, 0], ['season_id' => $old->id]);
+
+        $this->assertSame(['premier-league'], array_column($this->props()['competitions'], 'key'));
+    }
+
+    public function test_last_next_match_is_back_in_its_own_row_not_in_a_side_column(): void
+    {
+        $show = file_get_contents(resource_path('js/Pages/Clubs/Show.vue'));
+        $this->assertStringNotContainsString('miq-club-side', $show);
+        $this->assertStringContainsString('<div class="miq-club-comps">', $show);
+        $this->assertStringContainsString('<ClubStandingSpot v-if="block.kind === \'league\'"', $show);
+
+        $compsEnd = strpos($show, '</div>', strpos($show, 'miq-club-comps'));
+        $lastNext = strpos($show, '<ClubLastNext');
+        $filters = strpos($show, 'miq-club-filters');
+        $this->assertGreaterThan($compsEnd, $lastNext, 'Последний/Следующий матч — под блоками турниров');
+        $this->assertLessThan($filters, $lastNext);
+
+        $css = file_get_contents(resource_path('css/app.css'));
+        $this->assertStringNotContainsString('miq-club-side', $css);
+        $this->assertStringContainsString('.miq-club-comps', $css);
     }
 }

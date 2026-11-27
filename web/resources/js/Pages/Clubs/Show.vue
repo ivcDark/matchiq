@@ -17,7 +17,7 @@ import { computed, ref, watch } from 'vue';
 const props = defineProps({
     club: { type: Object, required: true },
     standing: { type: Object, required: true },
-    cup: { type: Object, default: null },
+    competitions: { type: Array, default: () => [] },
     tournaments: { type: Array, default: () => [] },
     last_match: { type: Object, default: null },
     next_match: { type: Object, default: null },
@@ -79,7 +79,7 @@ const tablesStats = computed(() => props.stats[context.value]);
                         <p class="miq-tt-kicker">{{ [club.country, club.city].filter(Boolean).join(' · ') }}</p>
                         <h1 class="miq-display text-xl font-bold leading-tight text-miq-ink sm:text-2xl">{{ club.name }}</h1>
                     </div>
-                    <p class="miq-club-head-pos" :title="`${standing.tournament}, после ${club.round} тура`">
+                    <p v-if="standing.tournament" class="miq-club-head-pos" :title="`${standing.tournament}, после ${club.round} тура`">
                         <span class="num-display text-lg leading-none text-miq-ink">{{ standing.position ?? '—' }}</span>
                         <span class="text-xs text-miq-muted">место · {{ standing.tournament }} · {{ standing.pts }} очк.</span>
                         <span class="hidden text-xs text-miq-muted sm:inline">· сезон {{ club.season }}</span>
@@ -96,13 +96,14 @@ const tablesStats = computed(() => props.stats[context.value]);
                 role="tabpanel"
                 aria-labelledby="club-tab-summary"
             >
-                <div class="miq-club-grid">
-                    <ClubStandingSpot :standing="standing" :round="club.round" />
-                    <div class="miq-club-side">
-                        <ClubLastNext :last="last_match" :next="next_match" :team="club.name" />
-                        <ClubCupStatus v-if="cup" :cup="cup" :team="club.name" />
-                    </div>
+                <div class="miq-club-comps">
+                    <template v-for="block in competitions" :key="block.key">
+                        <ClubStandingSpot v-if="block.kind === 'league'" :standing="block.standing" />
+                        <ClubCupStatus v-else :cup="block" :team="club.name" />
+                    </template>
                 </div>
+
+                <ClubLastNext :last="last_match" :next="next_match" :team="club.name" />
 
                 <div class="miq-club-filters">
                     <TournamentContextTabs v-model="context" label="Матчи" />

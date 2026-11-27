@@ -4,16 +4,20 @@ namespace App\Services\Clubs;
 
 use App\Domains\Matches\LeagueTable;
 use App\Domains\Tournaments\FinishedMatch;
+use App\Domains\Tournaments\RoundLabel;
 use App\Domains\Tournaments\SeasonLabel;
 use App\Enums\CompetitionStatus;
+use App\Enums\CompetitionType;
 use App\Enums\MatchEventType;
 use App\Enums\MatchResult;
 use App\Enums\MatchStatus;
+use App\Enums\StageType;
 use App\Http\Responses\Clubs\ClubPlayersPayload;
 use App\Http\Responses\Clubs\ClubShowResponse;
 use App\Models\Competition;
 use App\Models\FootballMatch;
 use App\Models\Season;
+use App\Models\StageTeam;
 use App\Models\Team;
 use App\Repositories\CompetitionCatalogRepository;
 use App\Repositories\MatchCatalogRepository;
@@ -22,7 +26,9 @@ use Illuminate\Support\Collection;
 
 /**
  * Страница клуба: место в таблице, матчи, голы, карточки и игроки считаются из матчей и событий БД.
- * Кубок и показатели, которых в БД нет (удары, владение, рейтинги, минуты), — пустые значения.
+ * Турниры клуба — все нетоварищеские соревнования текущего сезона, где у команды есть матчи или заявка на этап:
+ * для лиги — место в таблице, для кубка — группа или стадия плей-офф. Показатели, которых в БД нет
+ * (удары, владение, рейтинги, минуты), — пустые значения.
  */
 class BuildClubShow
 {
@@ -36,6 +42,7 @@ class BuildClubShow
         private readonly CompetitionCatalogRepository $competitions,
         private readonly MatchCatalogRepository $matches,
         private readonly TournamentCatalogRepository $catalog,
+        private readonly BuildClubCupStatus $cups,
     ) {}
 
     public function handle(int $teamId): ?ClubShowResponse
@@ -47,20 +54,45 @@ class BuildClubShow
 
         $locale = config('matchiq.ui_locale');
         $teamMatches = $this->catalog->matchesForTeam($team->id);
-        $competitions = $this->competitions->visibleByIds($teamMatches->pluck('competition_id')->unique()->values()->all());
+        $stageTeams = $this->catalog->stageTeamsForTeam($team->id);
+
+        $candidates = $teamMatches->pluck('competition_id')
+            ->merge($stageTeams->map(fn ($st) => $st->stage?->season?->competition_id))
+            ->filter()->unique()->values()->all();
+
+        $visible = $this->competitions->visibleByIds($candidates)
+            ->reject(fn (Competition $c) => $c->type === CompetitionType::Friendly);
 
         $seasons = [];
-        foreach ($competitions as $competition) {
+        foreach ($visible as $competition) {
             $seasons[$competition->id] = $this->matches->currentSeason($competition->id);
         }
 
         $scoped = $teamMatches->filter(
-            fn (FootballMatch $m) => isset($seasons[$m->competition_id]) && $seasons[$m->competition_id]->id === $m->season_id,
+            fn (FootballMatch $m) => isset($seasons[$m->competition_id])
+                && $seasons[$m->competition_id]?->id === $m->season_id
+                && $m->stage?->type !== StageType::Friendly,
         )->values();
 
-        $primary = $competitions
-            ->sortBy(fn (Competition $c) => $c->status === CompetitionStatus::Live ? 0 : 1)
-            ->first();
+        $participation = $stageTeams->filter(
+            fn ($st) => $st->stage !== null
+                && $st->stage->type !== StageType::Friendly
+                && isset($seasons[$st->stage->season?->competition_id])
+                && $seasons[$st->stage->season->competition_id]?->id === $st->stage->season_id,
+        )->values();
+
+        $present = $scoped->pluck('competition_id')
+            ->merge($participation->map(fn ($st) => $st->stage->season->competition_id))
+            ->unique()->all();
+
+        $competitions = $visible
+            ->filter(fn (Competition $c) => in_array($c->id, $present, true))
+            ->sortBy([
+                fn (Competition $a, Competition $b) => ($a->type === CompetitionType::League ? 0 : 1) <=> ($b->type === CompetitionType::League ? 0 : 1),
+                fn (Competition $a, Competition $b) => ($a->status === CompetitionStatus::Live ? 0 : 1) <=> ($b->status === CompetitionStatus::Live ? 0 : 1),
+            ]);
+
+        $primary = $competitions->first();
 
         $keys = $competitions->mapWithKeys(fn (Competition $c) => [$c->id => $c->slug])->all();
         $tournaments = $this->tournaments($competitions, $locale);
@@ -75,10 +107,14 @@ class BuildClubShow
         $primarySeason = $primary === null ? null : $seasons[$primary->id];
         $primaryScoped = $primary === null ? new Collection : $scoped->where('competition_id', $primary->id);
 
+        $blocks = $this->blocks($team, $competitions, $seasons, $scoped, $participation, $fixtures['upcoming'], $locale);
+        $standing = collect($blocks)->first(fn (array $b) => $b['kind'] === 'league' && $b['competition_id'] === $primary?->id)['standing']
+            ?? $this->emptyStanding($primary, $locale);
+
         return new ClubShowResponse([
             'club' => $this->club($team, $primary, $primarySeason, $primaryScoped, $locale),
-            'standing' => $this->standing($team, $primary, $primarySeason, $locale),
-            'cup' => null,
+            'standing' => $standing,
+            'competitions' => $blocks,
             'tournaments' => $tournaments,
             'last_match' => $fixtures['played'][0] ?? null,
             'next_match' => $fixtures['upcoming'][0] ?? null,
@@ -88,6 +124,44 @@ class BuildClubShow
             'goals' => $this->goals($finished, $team, $keys, $tournaments),
             'players' => $this->players($team, $finished, $keys, $tournaments, $locale),
         ]);
+    }
+
+    /**
+     * Блоки сводки по турнирам клуба: таблица лиги или статус в кубке.
+     *
+     * @param  Collection<int, Competition>  $competitions
+     * @param  array<int, ?Season>  $seasons
+     * @param  Collection<int, FootballMatch>  $scoped
+     * @param  Collection<int, StageTeam>  $participation
+     * @param  list<array<string, mixed>>  $upcoming
+     * @return list<array<string, mixed>>
+     */
+    private function blocks(Team $team, Collection $competitions, array $seasons, Collection $scoped, Collection $participation, array $upcoming, string $locale): array
+    {
+        $blocks = [];
+        foreach ($competitions as $competition) {
+            $name = $competition->localized('short_name', $locale) ?: $competition->localized('name', $locale);
+            $inCompetition = $scoped->where('competition_id', $competition->id)->values();
+
+            if ($competition->type === CompetitionType::League) {
+                $blocks[] = [
+                    'key' => $competition->slug,
+                    'kind' => 'league',
+                    'competition_id' => $competition->id,
+                    'name' => $name,
+                    'standing' => $this->standing($team, $competition, $seasons[$competition->id], $inCompetition, $locale),
+                ];
+
+                continue;
+            }
+
+            $stageTeams = $participation->filter(fn ($st) => $st->stage->season->competition_id === $competition->id)->values();
+            $next = collect($upcoming)->first(fn (array $row) => $row['tournament'] === $competition->slug);
+
+            $blocks[] = $this->cups->handle($team, $competition, $inCompetition, $stageTeams, $next, $name, $locale);
+        }
+
+        return $blocks;
     }
 
     /**
@@ -131,15 +205,29 @@ class BuildClubShow
     }
 
     /** @return array<string, mixed> */
-    private function standing(Team $team, ?Competition $primary, ?Season $season, string $locale): array
+    private function emptyStanding(?Competition $competition, string $locale): array
     {
-        $empty = [
-            'tournament_id' => $primary?->id,
-            'tournament' => $primary === null ? '' : ($primary->localized('short_name', $locale) ?: $primary->localized('name', $locale)),
+        $league = $competition?->type === CompetitionType::League ? $competition : null;
+
+        return [
+            'tournament_id' => $league?->id,
+            'tournament' => $league === null ? '' : ($league->localized('short_name', $locale) ?: $league->localized('name', $locale)),
+            'round' => 0,
             'position' => null, 'teams' => 0, 'zone' => null, 'zone_label' => null,
             'played' => 0, 'wins' => 0, 'draws' => 0, 'losses' => 0, 'gf' => 0, 'ga' => 0, 'gd' => 0, 'pts' => 0,
             'form' => [], 'behind_leader' => null, 'neighbors' => [],
         ];
+    }
+
+    /**
+     * @param  Collection<int, FootballMatch>  $inCompetition
+     * @return array<string, mixed>
+     */
+    private function standing(Team $team, Competition $competition, ?Season $season, Collection $inCompetition, string $locale): array
+    {
+        $empty = $this->emptyStanding($competition, $locale);
+        $empty['round'] = (int) ($inCompetition->filter(fn (FootballMatch $m) => FinishedMatch::is($m))
+            ->map(fn (FootballMatch $m) => $m->round?->number ?? 0)->max() ?? 0);
 
         if ($season === null) {
             return $empty;
@@ -198,7 +286,7 @@ class BuildClubShow
                 'id' => $m->id,
                 'tournament' => $keys[$m->competition_id],
                 'tournament_name' => $competition->localized('short_name', $locale) ?: $competition->localized('name', $locale),
-                'stage' => $m->round?->number === null ? '' : $m->round->number.' тур',
+                'stage' => RoundLabel::label($m->round, $m->stageGroup, $m->stage),
                 'date' => $m->kickoff_at->toDateString(),
                 'time' => $m->kickoff_at->format('H:i'),
                 'venue' => $isHome ? 'home' : 'away',

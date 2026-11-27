@@ -3,6 +3,7 @@
 namespace App\Repositories;
 
 use App\Enums\MatchEventType;
+use App\Enums\MatchStatus;
 use App\Enums\PlayerPosition;
 use App\Enums\StatsPeriod;
 use App\Models\FootballMatch;
@@ -13,6 +14,8 @@ use App\Models\MatchTeamStat;
 use App\Models\Player;
 use App\Models\Season;
 use App\Models\Stage;
+use App\Models\StageTeam;
+use App\Models\StandingZone;
 use App\Models\Team;
 use Illuminate\Support\Collection;
 
@@ -63,11 +66,46 @@ class TournamentCatalogRepository
     public function matchesForTeam(int $teamId): Collection
     {
         return FootballMatch::query()
-            ->with(['homeTeam', 'awayTeam', 'round', 'competition'])
+            ->with(['homeTeam', 'awayTeam', 'round', 'competition', 'stage', 'stageGroup', 'tie'])
             ->where(fn ($q) => $q->where('home_team_id', $teamId)->orWhere('away_team_id', $teamId))
             ->orderBy('kickoff_at')
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * Участие команды в этапах турниров (заявка в группу или лигу), в том числе без сыгранных матчей.
+     *
+     * @return Collection<int, StageTeam>
+     */
+    public function stageTeamsForTeam(int $teamId): Collection
+    {
+        return StageTeam::query()
+            ->with(['stage.season', 'group'])
+            ->where('team_id', $teamId)
+            ->get();
+    }
+
+    /**
+     * Завершённые матчи этапа (или одной его группы) со счётом.
+     *
+     * @return Collection<int, FootballMatch>
+     */
+    public function finishedInStage(int $stageId, ?int $groupId = null): Collection
+    {
+        return FootballMatch::query()
+            ->where('stage_id', $stageId)
+            ->where('status', MatchStatus::Finished)
+            ->whereNotNull('home_goals')
+            ->whereNotNull('away_goals')
+            ->when($groupId !== null, fn ($q) => $q->where('stage_group_id', $groupId))
+            ->get(['id', 'home_team_id', 'away_team_id', 'home_goals', 'away_goals', 'kickoff_at']);
+    }
+
+    /** @return Collection<int, StandingZone> */
+    public function zonesForStage(int $stageId): Collection
+    {
+        return StandingZone::query()->where('stage_id', $stageId)->orderBy('from_position')->get();
     }
 
     /**
