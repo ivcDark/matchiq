@@ -4,6 +4,7 @@ namespace App\Services\Tournaments;
 
 use App\Domains\Matches\LeagueTable;
 use App\Domains\Tournaments\FinishedMatch;
+use App\Domains\Tournaments\PlayerLeaders;
 use App\Domains\Tournaments\SeasonLabel;
 use App\Domains\Tournaments\TeamStatsLeaders;
 use App\Enums\MatchResult;
@@ -22,7 +23,7 @@ use Illuminate\Support\Collection;
 /**
  * Страница турнира: таблица, форма, расписание, результаты и бомбардиры считаются из матчей и событий БД.
  * «Лучшие команды» — средние по `match_team_stats` (владение, удары, точность пасов, карточки, рейтинг состава).
- * Статистики, которой в БД нет (борьба в воздухе, минуты, скорострелы, вратари), отдаём пустыми блоками.
+ * «Скорострельные», вратари, минуты и рейтинги игроков — из `match_player_stats` (см. `PlayerLeaders`); без данных блоки пустые.
  */
 class BuildTournamentShow
 {
@@ -100,12 +101,7 @@ class BuildTournamentShow
             'teamForm' => $this->teamForm($finished, $standingsByContext['overall'], $name),
             'schedule' => $this->schedule($matches, $name),
             'results' => $this->results($finished, $name),
-            'leaders' => $leaders['lists'] + [
-                'fastScorers' => [],
-                'goalkeepers' => [],
-                'minutes' => [],
-                'ratings' => [],
-            ],
+            'leaders' => $leaders['lists'] + $this->playerLeaders($finished, $teams, $locale),
             'attackDefense' => $this->attackDefense($standingsByContext['overall']),
             'teamStats' => $this->teamStats($finished, $name),
             'contribution' => ['overall' => $leaders['contribution'], 'home' => [], 'away' => []],
@@ -312,6 +308,28 @@ class BuildTournamentShow
         }
 
         return TeamStatsLeaders::compute($rows, $names);
+    }
+
+    /**
+     * @param  Collection<int, FootballMatch>  $finished
+     * @param  Collection<int, Team>  $teams
+     * @return array{fastScorers: list<array<string, mixed>>, goalkeepers: list<array<string, mixed>>, minutes: list<array<string, mixed>>, ratings: list<array<string, mixed>>}
+     */
+    private function playerLeaders(Collection $finished, Collection $teams, string $locale): array
+    {
+        $matchIds = $finished->pluck('id')->all();
+        $totals = $this->catalog->playerTotals($matchIds);
+        if ($totals === []) {
+            return ['fastScorers' => [], 'goalkeepers' => [], 'minutes' => [], 'ratings' => []];
+        }
+
+        $players = [];
+        foreach ($this->catalog->playersByIds(array_unique(array_column($totals, 'player_id'))) as $id => $player) {
+            $players[$id] = ['name' => $player->localized('name', $locale), 'position' => $player->position?->value];
+        }
+        $teamNames = $teams->map(fn (Team $t) => $t->localized('name', $locale))->all();
+
+        return PlayerLeaders::compute($totals, $this->catalog->goalkeeperMatches($matchIds), $players, $teamNames, self::THRESHOLDS);
     }
 
     /**

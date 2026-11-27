@@ -8,10 +8,12 @@ use App\Enums\MatchSide;
 use App\Enums\PlayerPosition;
 use App\Enums\StatsPeriod;
 use App\Models\FootballMatch;
+use App\Models\MatchPlayerStat;
 use App\Models\MatchPrediction;
 use App\Models\MatchTeam;
 use App\Models\MatchTeamStat;
 use App\Models\ModelVersion;
+use App\Models\Player;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\Feature\Concerns\CreatesLeagueData;
@@ -275,6 +277,64 @@ class TournamentPageTest extends TestCase
         }
         $this->assertEmpty((array) $props['teamStats']);
         $this->assertSame([], $props['zones']);
+    }
+
+    private function playerStat(FootballMatch $match, string $team, Player $player, int $minutes, int $goals = 0, ?float $rating = null, array $extra = []): void
+    {
+        MatchPlayerStat::create([
+            'match_id' => $match->id, 'team_id' => $this->teams[$team]->id, 'player_id' => $player->id,
+            'minutes' => $minutes, 'goals' => $goals, 'rating' => $rating, 'extra' => $extra === [] ? null : $extra,
+        ]);
+    }
+
+    public function test_player_leaders_come_from_match_player_stats_with_ui_thresholds(): void
+    {
+        $zenit = $this->match('zenit', 'spartak', '2026-10-01 14:00:00', [2, 0], 1);
+        $scorer = $this->player('scorer', 'А. Соболев');
+        $bench = $this->player('bench', 'К. Запасной');
+        $keeper = $this->player('keeper', 'И. Вратарь', PlayerPosition::Goalkeeper);
+        $this->match('zenit', 'spartak', '2026-12-01 14:00:00', null, 3);
+
+        for ($i = 0; $i < 10; $i++) {
+            $m = $this->match('zenit', 'cska', '2026-10-1'.$i.' 14:00:00', [1, $i % 2], 2 + $i);
+            $this->playerStat($m, 'zenit', $scorer, 90, $i < 4 ? 1 : 0, 7.0 + $i / 10);
+            $this->playerStat($m, 'zenit', $keeper, 90, 0, 6.5, ['goals_conceded' => $i % 2]);
+            $this->playerStat($m, 'zenit', $bench, 5, 0, 6.0);
+        }
+        $this->playerStat($zenit, 'zenit', $scorer, 90, 0, null);
+
+        $leaders = $this->get("/tournaments/{$this->competition->id}")->viewData('page')['props']['leaders'];
+
+        $this->assertSame(
+            ['rank' => 1, 'name' => 'А. Соболев', 'team' => 'Зенит', 'position' => 'FW', 'minutes' => 990, 'goals' => 4, 'goals_per_90' => 0.36, 'minutes_per_goal' => 248],
+            $leaders['fastScorers'][0],
+        );
+        $this->assertCount(1, $leaders['fastScorers'], 'у запасного и вратаря мало минут или нет голов');
+
+        $this->assertSame(
+            ['rank' => 1, 'name' => 'И. Вратарь', 'team' => 'Зенит', 'position' => 'GK', 'minutes' => 900, 'clean_sheets' => 5, 'clean_sheets_per_90' => 0.5, 'minutes_per_clean_sheet' => 180],
+            $leaders['goalkeepers'][0],
+        );
+
+        $this->assertSame(['А. Соболев', 'И. Вратарь', 'К. Запасной'], array_column($leaders['minutes'], 'name'));
+        $this->assertSame([11, 10, 10], array_column($leaders['minutes'], 'matches'));
+        $this->assertSame([990, 900, 50], array_column($leaders['minutes'], 'minutes'));
+
+        $this->assertSame(['А. Соболев', 'И. Вратарь', 'К. Запасной'], array_column($leaders['ratings'], 'name'));
+        $this->assertSame([7.45, 6.5, 6.0], array_column($leaders['ratings'], 'rating'));
+        $this->assertSame([10, 10, 10], array_column($leaders['ratings'], 'matches'));
+    }
+
+    public function test_player_leaders_ignore_unfinished_matches(): void
+    {
+        $this->playRounds();
+        $scheduled = $this->match('zenit', 'spartak', '2026-12-10 14:00:00', null, 4);
+        $player = $this->player('ghost', 'Н. Призрак');
+        $this->playerStat($scheduled, 'zenit', $player, 90, 1, 8.0);
+
+        $leaders = $this->get("/tournaments/{$this->competition->id}")->viewData('page')['props']['leaders'];
+
+        $this->assertSame([], $leaders['minutes']);
     }
 
     public function test_seasons_list_and_season_query_switch_displayed_data(): void

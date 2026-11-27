@@ -3,10 +3,12 @@
 namespace App\Repositories;
 
 use App\Enums\MatchEventType;
+use App\Enums\PlayerPosition;
 use App\Enums\StatsPeriod;
 use App\Models\FootballMatch;
 use App\Models\MatchEvent;
 use App\Models\MatchLineup;
+use App\Models\MatchPlayerStat;
 use App\Models\MatchTeamStat;
 use App\Models\Player;
 use App\Models\Season;
@@ -235,6 +237,72 @@ class TournamentCatalogRepository
             ->pluck('apps', 'player_id')
             ->map(fn ($n) => (int) $n)
             ->all();
+    }
+
+    /**
+     * Итоги игроков по матчам (`match_player_stats`): минуты, матчи с минутами, голы и оценки — на игрока и команду.
+     *
+     * @param  list<int>  $matchIds
+     * @return list<array{player_id: int, team_id: int, minutes: int, matches: int, goals: int, rated: int, rating_sum: float}>
+     */
+    public function playerTotals(array $matchIds): array
+    {
+        $totals = [];
+        foreach (array_chunk($matchIds, 500) as $chunk) {
+            $rows = MatchPlayerStat::query()
+                ->selectRaw('player_id, team_id, sum(minutes) as minutes, sum(case when minutes > 0 then 1 else 0 end) as matches')
+                ->selectRaw('sum(goals) as goals, sum(case when rating is not null then 1 else 0 end) as rated, sum(rating) as rating_sum')
+                ->whereIn('match_id', $chunk)
+                ->groupBy('player_id', 'team_id')
+                ->get();
+
+            foreach ($rows as $r) {
+                $key = $r->player_id.':'.$r->team_id;
+                $acc = $totals[$key] ?? ['player_id' => (int) $r->player_id, 'team_id' => (int) $r->team_id, 'minutes' => 0, 'matches' => 0, 'goals' => 0, 'rated' => 0, 'rating_sum' => 0.0];
+                $totals[$key] = [
+                    'player_id' => $acc['player_id'],
+                    'team_id' => $acc['team_id'],
+                    'minutes' => $acc['minutes'] + (int) $r->minutes,
+                    'matches' => $acc['matches'] + (int) $r->matches,
+                    'goals' => $acc['goals'] + (int) $r->goals,
+                    'rated' => $acc['rated'] + (int) $r->rated,
+                    'rating_sum' => $acc['rating_sum'] + (float) $r->rating_sum,
+                ];
+            }
+        }
+
+        return array_values($totals);
+    }
+
+    /**
+     * Матчи вратарей (позиция игрока GK) с минутами на поле и пропущенными голами из `extra.goals_conceded`.
+     *
+     * @param  list<int>  $matchIds
+     * @return list<array{player_id: int, team_id: int, minutes: int, goals_conceded: ?int}>
+     */
+    public function goalkeeperMatches(array $matchIds): array
+    {
+        $rows = [];
+        foreach (array_chunk($matchIds, 500) as $chunk) {
+            $stats = MatchPlayerStat::query()
+                ->join('players', 'players.id', '=', 'match_player_stats.player_id')
+                ->where('players.position', PlayerPosition::Goalkeeper->value)
+                ->where('match_player_stats.minutes', '>', 0)
+                ->whereIn('match_player_stats.match_id', $chunk)
+                ->get(['match_player_stats.player_id', 'match_player_stats.team_id', 'match_player_stats.minutes', 'match_player_stats.extra']);
+
+            foreach ($stats as $s) {
+                $conceded = $s->extra['goals_conceded'] ?? null;
+                $rows[] = [
+                    'player_id' => (int) $s->player_id,
+                    'team_id' => (int) $s->team_id,
+                    'minutes' => (int) $s->minutes,
+                    'goals_conceded' => is_numeric($conceded) ? (int) $conceded : null,
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     /**
