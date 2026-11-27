@@ -31,7 +31,10 @@ class MatchCatalogRepository
         }
 
         return FootballMatch::query()
-            ->with(['homeTeam', 'awayTeam', 'competition', 'currentPrediction'])
+            ->with([
+                'homeTeam', 'awayTeam', 'competition',
+                'currentPrediction.outcomes.marketType.outcomes',
+            ])
             ->whereIn('competition_id', $competitionIds)
             ->where('kickoff_at', '>=', $from)
             ->where('kickoff_at', '<', $to)
@@ -211,6 +214,27 @@ class MatchCatalogRepository
             ->where('locale', $locale)
             ->latest('generated_at')
             ->first();
+    }
+
+    /**
+     * Последнее превью каждого матча (одним запросом) для главной.
+     *
+     * @param  list<int>  $matchIds
+     * @return Collection<int, MatchPreview> ключ — match_id
+     */
+    public function previewsForMatches(array $matchIds, string $locale): Collection
+    {
+        if ($matchIds === []) {
+            return new Collection;
+        }
+
+        return MatchPreview::query()
+            ->whereIn('match_id', $matchIds)
+            ->where('locale', $locale)
+            ->orderBy('generated_at')
+            ->orderBy('id')
+            ->get()
+            ->keyBy('match_id');
     }
 
     /**

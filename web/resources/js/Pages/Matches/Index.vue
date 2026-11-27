@@ -1,5 +1,10 @@
 <script setup>
+import MatchOfDay from '@/Components/MatchOfDay.vue';
+import MatchProbTiles from '@/Components/MatchProbTiles.vue';
+import ModelTrustStrip from '@/Components/ModelTrustStrip.vue';
+import TeamLogo from '@/Components/TeamLogo.vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import { bestMarkets, firstSentence, hasResultProbs, maxResultProb } from '@/lib/matchProbs';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -21,10 +26,17 @@ const props = defineProps({
             standings: [],
             scorers: [],
             hotScorers: [],
-            news: [],
         }),
     },
+    /** Точность модели для полосы доверия; `is_placeholder` — значение-заглушка, пока нет реальной метрики. */
+    modelStats: {
+        type: Object,
+        default: () => ({ hit_rate: null, is_placeholder: false }),
+    },
 });
+
+/** Сколько лиг выводим чипами в sticky-строке; остальные — в поповере «Все лиги». */
+const TOP_LEAGUE_CHIPS = 7;
 
 const periods = [
     { id: 'yesterday', label: 'Вчера' },
@@ -73,15 +85,16 @@ function countryFlagSrcset(country) {
     return code ? `https://flagcdn.com/w40/${code}.png 2x` : null;
 }
 
-const mobileWidgetTabs = [
+const railTabs = [
     { id: 'standings', label: 'Таблица' },
     { id: 'scorers', label: 'Бомбардиры' },
-    { id: 'hot', label: 'Скорострелы' },
-    { id: 'news', label: 'Новости' },
+    { id: 'previews', label: 'Превью', mobileOnly: true },
 ];
 
 const soonHint = ref(null);
-const mobileWidget = ref('standings');
+const railTab = ref('standings');
+const leaguesOpen = ref(false);
+const filterBarRoot = ref(null);
 /** Активная страна в горизонтальных табах (не аккордеон). */
 const activeCountry = ref(null);
 let soonTimer = null;
@@ -238,19 +251,26 @@ const activeCountryLeagues = computed(
     () => activeCountryGroup.value?.leagues ?? [],
 );
 
-const selectedChips = computed(() => {
-    if (isAllMode.value) {
-        return [{ id: 'all', label: 'Все', removable: false }];
-    }
-    return selectedLeagueIds.value.map((id) => {
-        const league = leagueById.value.get(id);
-        return {
-            id,
-            label: league?.short || league?.name || id,
-            removable: true,
-        };
-    });
+/** Топ-лиги чипами: сначала live по sort_order, затем «скоро»; не больше TOP_LEAGUE_CHIPS. */
+const topLeagues = computed(() => {
+    const rank = (l) => (l.status === 'live' ? 0 : 1);
+    return [...props.leagues]
+        .sort((a, b) => rank(a) - rank(b) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .slice(0, TOP_LEAGUE_CHIPS);
 });
+
+/** Выбранные live-лиги, не попавшие в топ-чипы: показываем рядом с × (снять). */
+const extraSelectedLeagues = computed(() => {
+    const top = new Set(topLeagues.value.map((l) => l.id));
+    return selectedLeagueIds.value
+        .filter((id) => !top.has(id))
+        .map((id) => leagueById.value.get(id))
+        .filter(Boolean);
+});
+
+const hiddenLeaguesCount = computed(
+    () => Math.max(0, props.leagues.length - topLeagues.value.length),
+);
 
 const leagueHint = computed(() => {
     if (isAllMode.value) {
@@ -393,10 +413,19 @@ function currentLeaguesParam() {
     return isAllMode.value ? ['all'] : selectedLeagueIds.value;
 }
 
+function toggleLeagues() {
+    leaguesOpen.value = !leaguesOpen.value;
+    if (leaguesOpen.value) {
+        calendarOpen.value = false;
+        syncActiveCountry();
+    }
+}
+
 function selectAll() {
     if (isAllMode.value) {
         return;
     }
+    leaguesOpen.value = false;
     navigate({ leagues: ['all'] });
 }
 
@@ -447,6 +476,7 @@ function selectPeriod(periodId) {
 function toggleCalendar() {
     calendarOpen.value = !calendarOpen.value;
     if (calendarOpen.value) {
+        leaguesOpen.value = false;
         syncCalendarMonth();
     }
 }
@@ -483,18 +513,29 @@ function selectCalendarDay(day) {
 }
 
 function onDocumentPointerDown(event) {
-    if (!calendarOpen.value || !calendarRoot.value) return;
-    if (!calendarRoot.value.contains(event.target)) {
+    if (calendarOpen.value && calendarRoot.value && !calendarRoot.value.contains(event.target)) {
+        calendarOpen.value = false;
+    }
+    if (leaguesOpen.value && filterBarRoot.value && !filterBarRoot.value.contains(event.target)) {
+        leaguesOpen.value = false;
+    }
+}
+
+function onDocumentKeydown(event) {
+    if (event.key === 'Escape') {
+        leaguesOpen.value = false;
         calendarOpen.value = false;
     }
 }
 
 onMounted(() => {
     document.addEventListener('pointerdown', onDocumentPointerDown);
+    document.addEventListener('keydown', onDocumentKeydown);
 });
 
 onBeforeUnmount(() => {
     document.removeEventListener('pointerdown', onDocumentPointerDown);
+    document.removeEventListener('keydown', onDocumentKeydown);
     clearTimeout(soonTimer);
 });
 
@@ -577,15 +618,6 @@ function scoreText(match) {
     return `${match.score_home}∶${match.score_away}`;
 }
 
-/** П1 / X / П2 — все три вероятности исхода, если заданы. */
-function hasResultProbs(match) {
-    return (
-        typeof match.prob_home === 'number' &&
-        typeof match.prob_draw === 'number' &&
-        typeof match.prob_away === 'number'
-    );
-}
-
 /** Нормализация формы: В/Н/П (legacy W/D/L тоже). */
 function normalizeFormResult(result) {
     const s = String(result || '').trim().toUpperCase();
@@ -622,27 +654,6 @@ function formAriaLabel(results, side) {
     return `${sideLabel}: ${labels.join(', ')}`;
 }
 
-function resultProbMaxKey(match) {
-    if (!hasResultProbs(match)) return null;
-    const vals = [
-        { key: 'home', value: match.prob_home },
-        { key: 'draw', value: match.prob_draw },
-        { key: 'away', value: match.prob_away },
-    ];
-    vals.sort((a, b) => b.value - a.value);
-    return vals[0].key;
-}
-
-/** Топ-рынок для тизера справа (демо); у завершённых скрываем. */
-function topMarket(match) {
-    if (match.status === 'finished') return null;
-    const m = match.top_market;
-    if (!m || typeof m.label !== 'string' || typeof m.prob !== 'number') {
-        return null;
-    }
-    return m;
-}
-
 /** Ссылка на матч с league для возврата на тот же фильтр. */
 function matchShowHref(match) {
     const base = route('matches.show', match.id);
@@ -660,6 +671,56 @@ function gdText(gd) {
     return String(gd);
 }
 
+/** Строка команды в матче: логотип, имя, форма палочками, голы. */
+function teamLines(match) {
+    return [
+        { side: 'home', name: match.home, logo: match.home_logo, goals: match.score_home, form: formResults(match, 'home') },
+        { side: 'away', name: match.away, logo: match.away_logo, goals: match.score_away, form: formResults(match, 'away') },
+    ];
+}
+
+const upcomingMatches = computed(() => {
+    const list = [];
+    for (const group of matchesByLeague.value) {
+        for (const match of group.matches) {
+            if (match.status === 'finished') continue;
+            list.push({ match, leagueLabel: group.label });
+        }
+    }
+    return list;
+});
+
+/** «Матч дня»: максимальный max(П1, Х, П2) среди несыгранных; без прогнозов — ближайший по времени. */
+const featured = computed(() => {
+    const list = upcomingMatches.value;
+    if (list.length === 0) return null;
+
+    const withProbs = list.filter((x) => hasResultProbs(x.match));
+    if (withProbs.length > 0) {
+        return withProbs.reduce((best, x) => (maxResultProb(x.match) > maxResultProb(best.match) ? x : best));
+    }
+
+    return list.reduce((best, x) => (
+        kickoffSortValue(x.match.kickoff_at) < kickoffSortValue(best.match.kickoff_at) ? x : best
+    ));
+});
+
+/** «Превью матчей» в рейле: заголовок — первое предложение AI-превью, иначе вопрос-заглушка. */
+const previewItems = computed(() => {
+    const items = upcomingMatches.value.map(({ match, leagueLabel }) => {
+        const text = typeof match.preview === 'string' ? match.preview.trim() : '';
+        return {
+            id: match.id,
+            href: matchShowHref(match),
+            title: text ? firstSentence(text) : `${match.home} — ${match.away}: кто возьмёт верх?`,
+            meta: `${leagueLabel} · ${formatKickoff(match.kickoff_at)}`,
+            hasPreview: text !== '',
+        };
+    });
+    items.sort((a, b) => Number(b.hasPreview) - Number(a.hasPreview));
+    return items.slice(0, 5);
+});
+
 const listKey = computed(
     () => `${props.selectedLeagues.join(',')}-${selectedDateKey.value}`,
 );
@@ -669,152 +730,205 @@ const listKey = computed(
     <Head title="Матчи" />
 
     <AppLayout>
-        <!-- Tournament / league menu ABOVE matches -->
         <section
             id="tournaments"
-            class="animate-miq-fade-up scroll-mt-4"
-            style="animation-delay: 60ms"
+            ref="filterBarRoot"
+            class="miq-filterbar"
             aria-label="Лиги"
         >
-            <div class="miq-panel">
+            <div class="miq-filterbar-inner">
                 <div
-                    class="miq-selected-chips px-3 pt-2.5"
-                    role="list"
-                    aria-label="Выбранные турниры"
+                    class="miq-filterbar-row"
+                    role="listbox"
+                    aria-label="Переключатель лиг"
+                    aria-multiselectable="true"
                 >
-                    <span
-                        v-for="chip in selectedChips"
-                        :key="chip.id"
-                        class="miq-chip"
-                        role="listitem"
+                    <button
+                        type="button"
+                        role="option"
+                        class="miq-league-all"
+                        :class="{ 'is-active': isAllMode }"
+                        :aria-selected="isAllMode"
+                        @click="selectAll"
                     >
-                        <span>{{ chip.label }}</span>
+                        Все
+                    </button>
+
+                    <div class="miq-league-nav-sep" aria-hidden="true" />
+
+                    <button
+                        v-for="league in topLeagues"
+                        :key="league.id"
+                        type="button"
+                        role="option"
+                        class="miq-league-pill"
+                        :class="{
+                            'is-active': isLeagueSelected(league.id) && league.status === 'live',
+                            'is-soon': league.status === 'soon',
+                        }"
+                        :aria-selected="isLeagueSelected(league.id)"
+                        :aria-disabled="league.status === 'soon'"
+                        :title="league.name"
+                        @click="selectLeague(league)"
+                    >
+                        <img
+                            v-if="countryFlagUrl(league.country)"
+                            class="miq-league-tab-flag"
+                            :src="countryFlagUrl(league.country)"
+                            :srcset="countryFlagSrcset(league.country)"
+                            alt=""
+                            width="18"
+                            height="14"
+                            loading="lazy"
+                            decoding="async"
+                            aria-hidden="true"
+                        />
+                        <span class="truncate">{{ league.short || league.name }}</span>
+                        <span v-if="league.status === 'soon'" class="miq-league-pill-soon">скоро</span>
+                    </button>
+
+                    <span
+                        v-for="league in extraSelectedLeagues"
+                        :key="`extra-${league.id}`"
+                        class="miq-chip"
+                        :title="league.name"
+                    >
+                        <span>{{ league.short || league.name }}</span>
                         <button
-                            v-if="chip.removable"
                             type="button"
                             class="miq-chip-remove"
-                            :aria-label="`Убрать ${chip.label}`"
-                            @click="removeLeague(chip.id)"
+                            :aria-label="`Убрать ${league.short || league.name}`"
+                            @click="removeLeague(league.id)"
                         >
                             ×
                         </button>
                     </span>
                 </div>
 
-                <div class="miq-panel-head">
-                    <h2 class="miq-panel-title">Турниры</h2>
-                    <p
-                        v-if="soonHint"
-                        class="animate-miq-fade text-xs font-medium text-miq-warn"
-                        role="status"
+                <button
+                    type="button"
+                    class="miq-filterbar-more"
+                    :class="{ 'is-open': leaguesOpen }"
+                    aria-haspopup="dialog"
+                    :aria-expanded="leaguesOpen"
+                    @click="toggleLeagues"
+                >
+                    <span>Все лиги</span>
+                    <span v-if="hiddenLeaguesCount > 0" class="miq-league-tab-count" aria-hidden="true">
+                        +{{ hiddenLeaguesCount }}
+                    </span>
+                    <svg
+                        class="miq-trust-chevron"
+                        :class="{ 'is-open': leaguesOpen }"
+                        viewBox="0 0 20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
                     >
-                        {{ soonHint }}
-                    </p>
+                        <path d="M5 7.5l5 5 5-5" />
+                    </svg>
+                </button>
+            </div>
+
+            <p
+                v-if="soonHint"
+                class="miq-filterbar-toast animate-miq-fade"
+                role="status"
+            >
+                {{ soonHint }}
+            </p>
+
+            <div
+                v-if="leaguesOpen"
+                class="miq-filterpop animate-miq-fade"
+                role="dialog"
+                aria-label="Все лиги"
+            >
+                <div class="miq-league-nav" role="tablist" aria-label="Страны">
+                    <button
+                        v-for="group in leaguesByCountry"
+                        :key="group.country"
+                        type="button"
+                        role="tab"
+                        class="miq-league-tab"
+                        :class="{
+                            'is-active': activeCountry === group.country,
+                            'has-pick': group.selectedCount > 0,
+                        }"
+                        :aria-selected="activeCountry === group.country"
+                        @click="setActiveCountry(group.country)"
+                    >
+                        <img
+                            v-if="countryFlagUrl(group.country)"
+                            class="miq-league-tab-flag"
+                            :src="countryFlagUrl(group.country)"
+                            :srcset="countryFlagSrcset(group.country)"
+                            alt=""
+                            width="20"
+                            height="15"
+                            loading="lazy"
+                            decoding="async"
+                            aria-hidden="true"
+                        />
+                        <span
+                            v-else
+                            class="miq-league-tab-flag miq-league-tab-flag--empty"
+                            aria-hidden="true"
+                        />
+                        <span>{{ group.country }}</span>
+                        <span
+                            v-if="group.selectedCount > 0"
+                            class="miq-league-tab-count"
+                            aria-hidden="true"
+                        >
+                            {{ group.selectedCount }}
+                        </span>
+                        <span
+                            v-else-if="group.hasLive"
+                            class="miq-league-tab-dot"
+                            aria-hidden="true"
+                        />
+                    </button>
                 </div>
 
                 <div
-                    class="miq-league-picker animate-miq-stagger"
-                    role="listbox"
-                    aria-label="Переключатель лиг"
-                    aria-multiselectable="true"
+                    v-if="activeCountryGroup"
+                    class="miq-league-pills mt-2"
+                    role="group"
+                    :aria-label="activeCountryGroup.country"
                 >
-                    <div class="miq-league-nav" role="tablist" aria-label="Страны">
-                        <button
-                            type="button"
-                            role="option"
-                            class="miq-league-all"
-                            :class="{ 'is-active': isAllMode }"
-                            :aria-selected="isAllMode"
-                            @click="selectAll"
-                        >
-                            Все
-                        </button>
-
-                        <div class="miq-league-nav-sep" aria-hidden="true" />
-
-                        <button
-                            v-for="group in leaguesByCountry"
-                            :key="group.country"
-                            type="button"
-                            role="tab"
-                            class="miq-league-tab"
-                            :class="{
-                                'is-active': activeCountry === group.country,
-                                'has-pick': group.selectedCount > 0,
-                            }"
-                            :aria-selected="activeCountry === group.country"
-                            @click="setActiveCountry(group.country)"
-                        >
-                            <img
-                                v-if="countryFlagUrl(group.country)"
-                                class="miq-league-tab-flag"
-                                :src="countryFlagUrl(group.country)"
-                                :srcset="countryFlagSrcset(group.country)"
-                                alt=""
-                                width="20"
-                                height="15"
-                                loading="lazy"
-                                decoding="async"
-                                aria-hidden="true"
-                            />
-                            <span
-                                v-else
-                                class="miq-league-tab-flag miq-league-tab-flag--empty"
-                                aria-hidden="true"
-                            />
-                            <span>{{ group.country }}</span>
-                            <span
-                                v-if="group.selectedCount > 0"
-                                class="miq-league-tab-count"
-                                aria-hidden="true"
-                            >
-                                {{ group.selectedCount }}
-                            </span>
-                            <span
-                                v-else-if="group.hasLive"
-                                class="miq-league-tab-dot"
-                                aria-hidden="true"
-                            />
-                        </button>
-                    </div>
-
-                    <div
-                        v-if="activeCountryGroup"
-                        class="miq-league-pills"
-                        role="group"
-                        :aria-label="activeCountryGroup.country"
+                    <button
+                        v-for="league in activeCountryLeagues"
+                        :key="league.id"
+                        type="button"
+                        role="option"
+                        class="miq-league-pill"
+                        :class="{
+                            'is-active': isLeagueSelected(league.id) && league.status === 'live',
+                            'is-soon': league.status === 'soon',
+                        }"
+                        :aria-selected="isLeagueSelected(league.id)"
+                        :aria-disabled="league.status === 'soon'"
+                        :title="league.name"
+                        @click="selectLeague(league)"
                     >
-                        <button
-                            v-for="league in activeCountryLeagues"
-                            :key="league.id"
-                            type="button"
-                            role="option"
-                            class="miq-league-pill"
-                            :class="{
-                                'is-active': isLeagueSelected(league.id) && league.status === 'live',
-                                'is-soon': league.status === 'soon',
-                            }"
-                            :aria-selected="isLeagueSelected(league.id)"
-                            :aria-disabled="league.status === 'soon'"
-                            :title="league.name"
-                            @click="selectLeague(league)"
+                        <span class="truncate">{{ league.short || league.name }}</span>
+                        <span
+                            v-if="league.status === 'soon'"
+                            class="miq-league-pill-soon"
                         >
-                            <span class="truncate">{{ league.short || league.name }}</span>
-                            <span
-                                v-if="league.status === 'soon'"
-                                class="miq-league-pill-soon"
-                            >
-                                скоро
-                            </span>
-                        </button>
-                    </div>
+                            скоро
+                        </span>
+                    </button>
                 </div>
             </div>
         </section>
 
         <template v-if="hasLiveLeagues">
-            <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(17rem,1fr)] lg:items-start">
-                <!-- Left: matches -->
+            <div class="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1.65fr)_minmax(17rem,1fr)] lg:items-start">
                 <div class="min-w-0">
                     <section aria-label="Дата матчей" class="relative">
                         <div
@@ -910,7 +1024,17 @@ const listKey = computed(
                         </div>
                     </section>
 
-                    <section class="mt-4" aria-label="Матчи" :key="listKey">
+                    <MatchOfDay
+                        v-if="featured"
+                        :key="`motd-${featured.match.id}`"
+                        class="mt-3"
+                        :match="featured.match"
+                        :href="matchShowHref(featured.match)"
+                        :league-label="featured.leagueLabel"
+                        :time="formatKickoff(featured.match.kickoff_at)"
+                    />
+
+                    <section class="mt-3" aria-label="Матчи" :key="listKey">
                         <div class="miq-panel">
                             <div class="miq-panel-head">
                                 <h2 class="miq-panel-title">Матчи</h2>
@@ -965,141 +1089,66 @@ const listKey = computed(
                                                 :href="matchShowHref(match)"
                                                 class="miq-match-row px-3.5 py-3"
                                             >
-                                                <div class="miq-match-row-inner">
-                                                    <!-- Line 1: time/status · home — away · score -->
-                                                    <div class="miq-match-line1">
-                                                        <div class="miq-match-time">
-                                                            <p
-                                                                v-if="match.status === 'live'"
-                                                                class="text-xs font-bold uppercase tracking-wide text-miq-live"
-                                                            >
-                                                                Live
-                                                            </p>
-                                                            <p
-                                                                v-else
-                                                                class="text-sm font-semibold tabular-nums text-miq-ink-soft"
-                                                            >
-                                                                {{ formatKickoff(match.kickoff_at) }}
-                                                            </p>
-                                                            <p
-                                                                class="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted"
-                                                            >
-                                                                {{ statusLabel(match.status) }}
-                                                            </p>
-                                                        </div>
-
-                                                        <p class="miq-match-fixture miq-display">
-                                                            <span class="miq-team-name">{{ match.home }}</span>
-                                                            <span class="miq-fixture-sep" aria-hidden="true">—</span>
-                                                            <span class="miq-team-name">{{ match.away }}</span>
+                                                <div class="miq-hm">
+                                                    <div class="miq-hm-time">
+                                                        <p
+                                                            v-if="match.status === 'live'"
+                                                            class="text-xs font-bold uppercase tracking-wide text-miq-live"
+                                                        >
+                                                            Live
                                                         </p>
+                                                        <p
+                                                            v-else
+                                                            class="text-sm font-semibold tabular-nums text-miq-ink-soft"
+                                                        >
+                                                            {{ formatKickoff(match.kickoff_at) }}
+                                                        </p>
+                                                        <p class="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-miq-muted">
+                                                            {{ statusLabel(match.status) }}
+                                                        </p>
+                                                    </div>
 
-                                                        <div class="miq-match-score" aria-label="Счёт">
+                                                    <div class="miq-hm-teams">
+                                                        <div
+                                                            v-for="t in teamLines(match)"
+                                                            :key="t.side"
+                                                            class="miq-hm-team"
+                                                        >
+                                                            <TeamLogo :src="t.logo" :name="t.name" :size="22" />
+                                                            <span class="miq-team-name miq-display" :title="t.name">{{ t.name }}</span>
                                                             <span
-                                                                v-if="scoreText(match)"
-                                                                class="miq-match-score-val"
-                                                                :class="{ 'is-live': match.status === 'live' }"
+                                                                v-if="t.form.length"
+                                                                class="miq-form-sticks"
+                                                                role="img"
+                                                                :aria-label="formAriaLabel(t.form, t.side)"
                                                             >
-                                                                {{ scoreText(match) }}
+                                                                <span
+                                                                    v-for="(result, idx) in t.form"
+                                                                    :key="`${match.id}-${t.side}-${idx}`"
+                                                                    class="miq-form-stick"
+                                                                    :class="formStickClass(result)"
+                                                                    :title="result"
+                                                                ></span>
                                                             </span>
                                                             <span
-                                                                v-else
-                                                                class="miq-match-score-dash"
-                                                                aria-hidden="true"
-                                                            >—</span>
+                                                                class="miq-hm-goals"
+                                                                :class="{ 'is-live': match.status === 'live' }"
+                                                                :aria-label="`Счёт: ${t.goals ?? 'нет'}`"
+                                                            >{{ t.goals ?? '' }}</span>
                                                         </div>
                                                     </div>
 
-                                                    <!-- Line 2: form sticks (labeled) · П1/X/П2 + top market (hidden for LIVE) -->
-                                                    <div class="miq-match-line2">
-                                                        <div class="miq-match-forms">
-                                                            <div
-                                                                v-if="formResults(match, 'home').length"
-                                                                class="miq-form-block"
-                                                                role="group"
-                                                                :aria-label="formAriaLabel(formResults(match, 'home'), 'home')"
-                                                            >
-                                                                <span class="miq-form-label" :title="match.home">{{ match.home }}</span>
-                                                                <div class="miq-form-sticks">
-                                                                    <span
-                                                                        v-for="(result, idx) in formResults(match, 'home')"
-                                                                        :key="`h-${match.id}-${idx}`"
-                                                                        class="miq-form-stick"
-                                                                        :class="formStickClass(result)"
-                                                                        :title="result"
-                                                                    ></span>
-                                                                </div>
-                                                            </div>
-                                                            <div
-                                                                v-if="formResults(match, 'away').length"
-                                                                class="miq-form-block"
-                                                                role="group"
-                                                                :aria-label="formAriaLabel(formResults(match, 'away'), 'away')"
-                                                            >
-                                                                <span class="miq-form-label" :title="match.away">{{ match.away }}</span>
-                                                                <div class="miq-form-sticks">
-                                                                    <span
-                                                                        v-for="(result, idx) in formResults(match, 'away')"
-                                                                        :key="`a-${match.id}-${idx}`"
-                                                                        class="miq-form-stick"
-                                                                        :class="formStickClass(result)"
-                                                                        :title="result"
-                                                                    ></span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        <div
-                                                            v-if="match.status !== 'live'"
-                                                            class="miq-match-bets"
-                                                            :class="{
-                                                                'is-empty': !hasResultProbs(match) && !topMarket(match),
-                                                            }"
+                                                    <div v-if="match.status !== 'finished'" class="miq-hm-bets">
+                                                        <MatchProbTiles :match="match" />
+                                                        <span
+                                                            v-if="bestMarkets(match, 1).length"
+                                                            class="miq-market-chip"
+                                                            :title="bestMarkets(match, 1)[0].market"
                                                         >
-                                                            <div
-                                                                v-if="hasResultProbs(match)"
-                                                                class="miq-result-probs"
-                                                                role="group"
-                                                                :aria-label="`П1 ${match.prob_home}% · X ${match.prob_draw}% · П2 ${match.prob_away}%`"
-                                                            >
-                                                                <span
-                                                                    class="miq-odds-chip is-home"
-                                                                    :class="{
-                                                                        'is-top': resultProbMaxKey(match) === 'home',
-                                                                    }"
-                                                                >
-                                                                    <span class="miq-odds-label">П1</span>
-                                                                    <span class="miq-odds-val">{{ match.prob_home }}%</span>
-                                                                </span>
-                                                                <span
-                                                                    class="miq-odds-chip is-draw"
-                                                                    :class="{
-                                                                        'is-top': resultProbMaxKey(match) === 'draw',
-                                                                    }"
-                                                                >
-                                                                    <span class="miq-odds-label">X</span>
-                                                                    <span class="miq-odds-val">{{ match.prob_draw }}%</span>
-                                                                </span>
-                                                                <span
-                                                                    class="miq-odds-chip is-away"
-                                                                    :class="{
-                                                                        'is-top': resultProbMaxKey(match) === 'away',
-                                                                    }"
-                                                                >
-                                                                    <span class="miq-odds-label">П2</span>
-                                                                    <span class="miq-odds-val">{{ match.prob_away }}%</span>
-                                                                </span>
-                                                            </div>
-
-                                                            <span
-                                                                v-if="topMarket(match)"
-                                                                class="miq-market-chip"
-                                                            >
-                                                                <span class="miq-market-label">{{ topMarket(match).label }}</span>
-                                                                <span class="miq-market-dot" aria-hidden="true">·</span>
-                                                                <span class="miq-odds-val">{{ topMarket(match).prob }}%</span>
-                                                            </span>
-                                                        </div>
+                                                            <span class="miq-market-label">{{ bestMarkets(match, 1)[0].label }}</span>
+                                                            <span class="miq-market-dot" aria-hidden="true">·</span>
+                                                            <span class="miq-odds-val">{{ bestMarkets(match, 1)[0].prob }}%</span>
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </Link>
@@ -1111,23 +1160,22 @@ const listKey = computed(
                     </section>
                 </div>
 
-                <!-- Right: informative widgets (desktop stack / mobile tabs) -->
                 <aside class="min-w-0 space-y-4" aria-label="Обзор лиги">
                     <div class="lg:hidden">
                         <div
                             class="flex gap-1 rounded-md border border-miq-line/80 bg-white/60 p-0.5"
                             role="tablist"
-                            aria-label="Виджеты"
+                            aria-label="Блоки справа"
                         >
                             <button
-                                v-for="tab in mobileWidgetTabs"
+                                v-for="tab in railTabs"
                                 :key="tab.id"
                                 type="button"
                                 role="tab"
                                 class="miq-widget-tab"
-                                :class="{ 'is-active': mobileWidget === tab.id }"
-                                :aria-selected="mobileWidget === tab.id"
-                                @click="mobileWidget = tab.id"
+                                :class="{ 'is-active': railTab === tab.id }"
+                                :aria-selected="railTab === tab.id"
+                                @click="railTab = tab.id"
                             >
                                 {{ tab.label }}
                             </button>
@@ -1136,11 +1184,27 @@ const listKey = computed(
 
                     <section
                         class="miq-panel"
-                        :class="{ 'hidden lg:block': mobileWidget !== 'standings' }"
-                        aria-label="Турнирная таблица"
+                        :class="{ 'hidden lg:block': railTab === 'previews' }"
+                        aria-label="Таблица и бомбардиры"
                     >
-                        <div class="miq-panel-head">
-                            <h2 class="miq-panel-title">Таблица</h2>
+                        <div class="miq-panel-head miq-rail-head">
+                            <div class="miq-rail-tabs hidden lg:flex" role="tablist" aria-label="Таблица или бомбардиры">
+                                <button
+                                    v-for="tab in railTabs.filter((t) => !t.mobileOnly)"
+                                    :key="tab.id"
+                                    type="button"
+                                    role="tab"
+                                    class="miq-rail-tab"
+                                    :class="{ 'is-active': railTab === tab.id }"
+                                    :aria-selected="railTab === tab.id"
+                                    @click="railTab = tab.id"
+                                >
+                                    {{ tab.label }}
+                                </button>
+                            </div>
+                            <h2 class="miq-panel-title lg:hidden">
+                                {{ railTab === 'scorers' ? 'Бомбардиры' : 'Таблица' }}
+                            </h2>
                             <Link
                                 v-if="widgets?.league?.tournament_id"
                                 :href="route('tournaments.show', widgets.league.tournament_id)"
@@ -1165,7 +1229,8 @@ const listKey = computed(
                                 {{ widgetLeagueLabel }}
                             </p>
                         </div>
-                        <div class="overflow-x-auto">
+
+                        <div v-if="railTab !== 'scorers'" class="overflow-x-auto">
                             <table class="w-full min-w-[16rem] text-left text-sm">
                                 <thead>
                                     <tr class="border-b border-miq-line/60 text-[10px] uppercase tracking-wider text-miq-muted">
@@ -1217,18 +1282,8 @@ const listKey = computed(
                                 </tbody>
                             </table>
                         </div>
-                    </section>
 
-                    <section
-                        class="miq-panel"
-                        :class="{ 'hidden lg:block': mobileWidget !== 'scorers' }"
-                        aria-label="Лучшие бомбардиры"
-                    >
-                        <div class="miq-panel-head">
-                            <h2 class="miq-panel-title">Бомбардиры</h2>
-                            <p class="text-xs text-miq-muted">Лига</p>
-                        </div>
-                        <ul class="divide-y divide-miq-line/50">
+                        <ul v-else class="divide-y divide-miq-line/50">
                             <li v-if="!widgets.scorers?.length" class="px-3.5 py-4 text-sm text-miq-muted">
                                 Данные появятся после загрузки событий матчей
                             </li>
@@ -1260,17 +1315,42 @@ const listKey = computed(
 
                     <section
                         class="miq-panel"
-                        :class="{ 'hidden lg:block': mobileWidget !== 'hot' }"
-                        aria-label="Скорострелы"
+                        :class="{ 'hidden lg:block': railTab !== 'previews' }"
+                        aria-label="Превью матчей"
                     >
                         <div class="miq-panel-head">
-                            <h2 class="miq-panel-title">Скорострелы</h2>
-                            <p class="text-xs text-miq-muted">Гол/90 · год</p>
+                            <h2 class="miq-panel-title">Превью матчей</h2>
+                            <p class="text-xs text-miq-muted">AI</p>
                         </div>
                         <ul class="divide-y divide-miq-line/50">
-                            <li v-if="!widgets.hotScorers?.length" class="px-3.5 py-4 text-sm text-miq-muted">
-                                Пока нет данных
+                            <li v-if="!previewItems.length" class="px-3.5 py-4 text-sm text-miq-muted">
+                                Нет предстоящих матчей для превью
                             </li>
+                            <li v-for="item in previewItems" :key="item.id">
+                                <Link :href="item.href" class="miq-preview-item">
+                                    <p class="text-sm font-semibold leading-snug text-miq-ink">
+                                        {{ item.title }}
+                                    </p>
+                                    <p class="mt-1 flex items-center gap-1.5 text-[11px] text-miq-muted">
+                                        <span
+                                            class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                                            :class="item.hasPreview
+                                                ? 'bg-miq-mist-deep/80 text-miq-pitch-deep'
+                                                : 'bg-miq-mist-deep/50 text-miq-muted'"
+                                        >{{ item.hasPreview ? 'AI' : 'скоро' }}</span>
+                                        <span class="truncate">{{ item.meta }}</span>
+                                    </p>
+                                </Link>
+                            </li>
+                        </ul>
+                    </section>
+
+                    <details v-if="widgets.hotScorers?.length" class="miq-panel miq-rail-details">
+                        <summary class="miq-panel-head cursor-pointer select-none">
+                            <h2 class="miq-panel-title">Скорострелы</h2>
+                            <p class="text-xs text-miq-muted">топ мира · Гол/90 · год</p>
+                        </summary>
+                        <ul class="divide-y divide-miq-line/50">
                             <li
                                 v-for="row in widgets.hotScorers"
                                 :key="row.pos"
@@ -1300,40 +1380,15 @@ const listKey = computed(
                                 </div>
                             </li>
                         </ul>
-                    </section>
-
-                    <section
-                        class="miq-panel"
-                        :class="{ 'hidden lg:block': mobileWidget !== 'news' }"
-                        aria-label="Новости"
-                    >
-                        <div class="miq-panel-head">
-                            <h2 class="miq-panel-title">Новости</h2>
-                            <p class="text-xs text-miq-muted">Промо</p>
-                        </div>
-                        <ul class="divide-y divide-miq-line/50">
-                            <li v-if="!widgets.news?.length" class="px-3.5 py-4 text-sm text-miq-muted">
-                                Пока нет новостей
-                            </li>
-                            <li
-                                v-for="item in widgets.news"
-                                :key="item.id"
-                                class="px-3.5 py-3"
-                            >
-                                <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-miq-muted">
-                                    <span class="rounded bg-miq-mist-deep/80 px-1.5 py-0.5 text-miq-pitch-deep">
-                                        {{ item.tag }}
-                                    </span>
-                                    <span>{{ item.ago }}</span>
-                                </div>
-                                <p class="mt-1.5 text-sm font-semibold leading-snug text-miq-ink">
-                                    {{ item.title }}
-                                </p>
-                            </li>
-                        </ul>
-                    </section>
+                    </details>
                 </aside>
             </div>
+
+            <ModelTrustStrip
+                class="mt-5"
+                :hit-rate="modelStats?.hit_rate ?? null"
+                :is-placeholder="Boolean(modelStats?.is_placeholder)"
+            />
         </template>
 
         <section

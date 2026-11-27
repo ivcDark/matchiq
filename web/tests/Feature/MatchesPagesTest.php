@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\CompetitionStatus;
 use App\Enums\CompetitionType;
+use App\Enums\MarketCategory;
+use App\Enums\MarketSubject;
 use App\Enums\MatchEventType;
 use App\Enums\MatchStatus;
 use App\Enums\StageType;
@@ -13,10 +15,11 @@ use App\Models\Country;
 use App\Models\FootballMatch;
 use App\Models\MatchEvent;
 use App\Models\MatchPlayerStat;
+use App\Models\MarketType;
 use App\Models\MatchPrediction;
+use App\Models\MatchPreview;
 use App\Models\MatchTeamStat;
 use App\Models\ModelVersion;
-use App\Models\NewsItem;
 use App\Models\Player;
 use App\Models\Round;
 use App\Models\Season;
@@ -131,6 +134,8 @@ class MatchesPagesTest extends TestCase
                 ->where('matches.1.score_home', null)
                 ->where('matches.1.prob_home', null)
                 ->where('matches.1.top_market', null)
+                ->where('matches.1.top_markets', [])
+                ->where('matches.1.preview', null)
                 ->where('widgets.league.label', 'Россия · Премьер-лига')
                 ->where('widgets.league.tournament_id', $this->competition->id));
     }
@@ -269,7 +274,7 @@ class MatchesPagesTest extends TestCase
                 ->where('widgets.standings.2.team', 'Спартак')
                 ->where('widgets.scorers', [])
                 ->where('widgets.hotScorers', [])
-                ->where('widgets.news', []));
+                ->missing('widgets.news'));
     }
 
     public function test_index_scorers_widget_counts_goals_from_events(): void
@@ -344,37 +349,51 @@ class MatchesPagesTest extends TestCase
                 ->where('widgets.hotScorers.1.goals_per_90', 0.3));
     }
 
-    public function test_index_news_widget_lists_published_items_newest_first(): void
+    public function test_index_row_exposes_logos_top_markets_and_preview(): void
     {
-        NewsItem::create([
-            'slug' => 'older',
-            'tag' => 'РПЛ',
-            'title' => 'Старая новость',
-            'published_at' => '2026-11-25 12:00:00',
-        ]);
-        $fresh = NewsItem::create([
-            'slug' => 'fresh',
-            'tag' => 'MatchIQ',
-            'title' => 'Свежая новость',
-            'published_at' => '2026-11-27 09:00:00',
-        ]);
-        NewsItem::create([
-            'slug' => 'future',
-            'tag' => 'РПЛ',
-            'title' => 'Ещё не вышла',
-            'published_at' => '2026-11-28 09:00:00',
+        $this->teams['zenit']->update(['logo_url' => 'https://img.test/zenit.png']);
+        $version = ModelVersion::create(['code' => 'poisson_v1', 'name' => 'Poisson', 'version' => '1']);
+        $match = $this->makeMatch('zenit', 'spartak', '2026-11-27 16:00:00');
+        $prediction = MatchPrediction::create([
+            'match_id' => $match->id, 'model_version_id' => $version->id, 'is_current' => true,
+            'p_home' => 0.5, 'p_draw' => 0.3, 'p_away' => 0.2, 'generated_at' => now(),
         ]);
 
-        $this->get('/')
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->has('widgets.news', 2)
-                ->where('widgets.news.0.id', $fresh->id)
-                ->where('widgets.news.0.tag', 'MatchIQ')
-                ->where('widgets.news.0.title', 'Свежая новость')
-                ->where('widgets.news.0.ago', $fresh->published_at->locale('ru')->diffForHumans())
-                ->where('widgets.news.1.title', 'Старая новость')
-                ->where('widgets.hotScorers', []));
+        $totals = MarketType::create([
+            'code' => 'total_goals', 'category' => MarketCategory::Totals, 'name' => 'Total goals', 'name_i18n' => ['ru' => 'Тотал голов'],
+            'period' => StatsPeriod::FullTime, 'subject' => MarketSubject::Match, 'has_line' => true, 'is_popular' => true,
+        ]);
+        $totals->outcomes()->createMany([
+            ['outcome_key' => 'over', 'label' => 'Over', 'label_i18n' => ['ru' => 'ТБ'], 'sort_order' => 1],
+            ['outcome_key' => 'under', 'label' => 'Under', 'label_i18n' => ['ru' => 'ТМ'], 'sort_order' => 2],
+        ]);
+        $results = MarketType::create([
+            'code' => '1x2', 'category' => MarketCategory::Results, 'name' => '1X2',
+            'period' => StatsPeriod::FullTime, 'subject' => MarketSubject::Match, 'has_line' => false, 'is_popular' => true,
+        ]);
+        $prediction->outcomes()->createMany([
+            ['market_type_id' => $totals->id, 'outcome_key' => 'over', 'line' => 2.5, 'probability' => 0.67],
+            ['market_type_id' => $totals->id, 'outcome_key' => 'under', 'line' => 2.5, 'probability' => 0.33],
+            ['market_type_id' => $results->id, 'outcome_key' => 'home', 'line' => null, 'probability' => 0.5],
+        ]);
+        MatchPreview::create([
+            'match_id' => $match->id, 'match_prediction_id' => $prediction->id, 'locale' => 'ru',
+            'preview_text' => 'Зенит дома фаворит. Спартак пропускает мало.', 'generated_at' => now(),
+        ]);
+
+        $this->get('/')->assertOk()->assertInertia(fn ($page) => $page
+            ->where('matches.0.home_logo', 'https://img.test/zenit.png')
+            ->where('matches.0.away_logo', null)
+            ->where('matches.0.top_market', ['label' => 'ТБ 2.5', 'market' => 'Тотал голов', 'prob' => 67])
+            ->has('matches.0.top_markets', 2)
+            ->where('matches.0.preview', 'Зенит дома фаворит. Спартак пропускает мало.'));
+    }
+
+    public function test_index_exposes_model_hit_rate_placeholder(): void
+    {
+        $this->get('/')->assertInertia(fn ($page) => $page
+            ->where('modelStats.hit_rate', 99)
+            ->where('modelStats.is_placeholder', true));
     }
 
     public function test_index_without_active_leagues_returns_empty_lists(): void

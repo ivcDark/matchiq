@@ -13,6 +13,7 @@ final readonly class MatchesIndexResponse implements Responsable
      * @param  list<array<string, mixed>>  $leagues
      * @param  list<array<string, mixed>>  $matches
      * @param  array<string, mixed>  $widgets
+     * @param  array{hit_rate: int|float|null, is_placeholder: bool}  $modelStats
      */
     public function __construct(
         private array $leagues,
@@ -20,6 +21,7 @@ final readonly class MatchesIndexResponse implements Responsable
         private LeagueSelection $selection,
         private DayFilter $day,
         private array $widgets,
+        private array $modelStats,
     ) {}
 
     public function toResponse($request)
@@ -31,6 +33,7 @@ final readonly class MatchesIndexResponse implements Responsable
             'period' => $this->day->period?->value,
             'date' => $this->day->date->toDateString(),
             'widgets' => $this->widgets,
+            'modelStats' => $this->modelStats,
         ])->toResponse($request);
     }
 }

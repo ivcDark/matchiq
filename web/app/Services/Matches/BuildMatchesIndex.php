@@ -11,7 +11,6 @@ use App\Http\Responses\Matches\LeaguePayload;
 use App\Http\Responses\Matches\MatchesIndexResponse;
 use App\Http\Responses\Matches\MatchRowPayload;
 use App\Models\Competition;
-use App\Models\NewsItem;
 use App\Repositories\CompetitionCatalogRepository;
 use App\Repositories\MatchCatalogRepository;
 
@@ -26,8 +25,6 @@ class BuildMatchesIndex
 
     /** Порог минут за год для «Скорострелов»: около трёх полных матчей, иначе лидирует один гол за считанные минуты. */
     private const HOT_SCORERS_MIN_MINUTES = 300;
-
-    private const NEWS_WIDGET_ROWS = 5;
 
     public function __construct(
         private readonly CompetitionCatalogRepository $competitions,
@@ -54,30 +51,36 @@ class BuildMatchesIndex
             $listed->flatMap(fn ($m) => [$m->home_team_id, $m->away_team_id])->unique()->values()->all(),
         ));
 
+        $previews = $this->matches->previewsForMatches($listed->pluck('id')->all(), (string) config('matchiq.ui_locale'));
+
         $widgetSlug = $selection->widgetSlug($activeSlugs);
 
         return new MatchesIndexResponse(
             leagues: $visible->map(fn (Competition $c) => LeaguePayload::make($c))->values()->all(),
-            matches: $listed->map(fn ($m) => MatchRowPayload::make($m, $form))->values()->all(),
+            matches: $listed->map(fn ($m) => MatchRowPayload::make($m, $form, $previews->get($m->id)))->values()->all(),
             selection: $selection,
             day: $day,
             widgets: $this->widgets(
                 $widgetSlug === null ? null : $active->get($widgetSlug),
                 $this->hotScorers($active->pluck('id')->all()),
             ),
+            modelStats: [
+                'hit_rate' => config('matchiq.model_hit_rate_placeholder'),
+                'is_placeholder' => true,
+            ],
         );
     }
 
     /**
      * Таблица считается по сыгранным матчам; бомбардиры — из событий матчей.
-     * Скорострелы (голы на минуту) — кросс-лига за год, не зависят от выбранной лиги. Новости — промо из news_items.
+     * Скорострелы (голы на минуту) — кросс-лига за год, не зависят от выбранной лиги (в правом рейле свёрнуты).
      *
      * @param  list<array{pos: int, player: string, team: string, league: string, goals: int, minutes: int, goals_per_90: float, minutes_per_goal: int}>  $hotScorers
      * @return array<string, mixed>
      */
     private function widgets(?Competition $competition, array $hotScorers): array
     {
-        $empty = ['league' => null, 'standings' => [], 'scorers' => [], 'hotScorers' => $hotScorers, 'news' => $this->news()];
+        $empty = ['league' => null, 'standings' => [], 'scorers' => [], 'hotScorers' => $hotScorers];
 
         if ($competition === null) {
             return $empty;
@@ -120,7 +123,6 @@ class BuildMatchesIndex
             'standings' => $standings,
             'scorers' => $scorers,
             'hotScorers' => $hotScorers,
-            'news' => $empty['news'],
         ];
     }
 
@@ -151,30 +153,6 @@ class BuildMatchesIndex
             'goals_per_90' => $row['goals_per_90'],
             'minutes_per_goal' => $row['minutes_per_goal'],
         ], $rows, array_keys($rows));
-    }
-
-    /**
-     * Карточки блока «Новости»: последние опубликованные, не больше пяти.
-     *
-     * @return list<array{id: int, tag: string, title: string, ago: string}>
-     */
-    private function news(): array
-    {
-        $locale = (string) config('matchiq.ui_locale');
-
-        return NewsItem::query()
-            ->where('published_at', '<=', now())
-            ->orderByDesc('published_at')
-            ->orderByDesc('id')
-            ->limit(self::NEWS_WIDGET_ROWS)
-            ->get()
-            ->map(fn (NewsItem $item) => [
-                'id' => $item->id,
-                'tag' => $item->tag,
-                'title' => $item->title,
-                'ago' => $item->published_at->locale($locale)->diffForHumans(),
-            ])
-            ->all();
     }
 
     /** @return array<string, mixed> */
