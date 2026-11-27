@@ -119,10 +119,11 @@ const ariaSort = (column) => (sortKey.value === column.key ? (sortDir.value === 
                             <span class="font-semibold text-miq-ink">{{ player.name }}</span>
                             <span class="ml-1 text-[11px] text-miq-muted">{{ player.age }}</span>
                             <span
+                                v-if="player.position"
                                 class="miq-tt-pos"
                                 :data-pos="player.position"
-                                :title="POSITIONS[player.position].full"
-                            >{{ POSITIONS[player.position].short }}</span>
+                                :title="POSITIONS[player.position]?.full"
+                            >{{ POSITIONS[player.position]?.short }}</span>
                         </td>
                         <td
                             v-for="column in COLUMNS"

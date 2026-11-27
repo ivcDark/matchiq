@@ -9,8 +9,7 @@ use App\Models\FootballMatch;
 final class MatchHeaderPayload
 {
     /**
-     * Шапка страницы матча — только то, что есть в БД. Ссылки на страницы клуба/турнира пока null:
-     * эти страницы на демо-данных и не привязаны к реальным id.
+     * Шапка страницы матча — только то, что есть в БД. Ссылки на клуб и турнир — id команды и лиги.
      *
      * @return array<string, mixed>
      */
@@ -28,8 +27,8 @@ final class MatchHeaderPayload
             'tournament_id' => $league['tournament_id'],
             'home' => $match->homeTeam->localized('name', $locale),
             'away' => $match->awayTeam->localized('name', $locale),
-            'home_club_id' => null,
-            'away_club_id' => null,
+            'home_club_id' => $match->home_team_id,
+            'away_club_id' => $match->away_team_id,
             'kickoff_at' => $match->kickoff_at->toIso8601String(),
             'status' => $match->status->value,
             'minute' => $match->minute,

@@ -64,6 +64,29 @@ class MatchDomainTest extends TestCase
             array_intersect_key($table[0], array_flip(['played', 'wins', 'draws', 'losses', 'gf', 'ga', 'gd'])));
     }
 
+    public function test_league_table_form_is_chronological_and_limited_and_side_filters(): void
+    {
+        $matches = new Collection([
+            $this->match(3, 2, 1, 0, 1, '2026-08-15'),
+            $this->match(1, 1, 2, 1, 0, '2026-08-01'),
+            $this->match(2, 2, 1, 2, 2, '2026-08-08'),
+        ]);
+
+        $table = collect(LeagueTable::compute($matches))->keyBy('team_id');
+        $this->assertSame(['В', 'Н', 'В'], $table[1]['form']);
+        $this->assertSame(['П', 'Н', 'П'], $table[2]['form']);
+
+        $home = collect(LeagueTable::compute($matches, 'home'))->keyBy('team_id');
+        $this->assertSame(1, $home[1]['played']);
+        $this->assertSame(2, $home[2]['played']);
+        $this->assertSame(3, $home[1]['pts']);
+        $this->assertSame(['Н', 'П'], $home[2]['form']);
+
+        $away = collect(LeagueTable::compute($matches, 'away'))->keyBy('team_id');
+        $this->assertSame(2, $away[1]['played']);
+        $this->assertSame(1, $away[2]['played']);
+    }
+
     public function test_team_form_returns_last_results_before_date_oldest_first(): void
     {
         $form = new TeamForm(new Collection([

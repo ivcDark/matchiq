@@ -130,7 +130,31 @@ class MatchesPagesTest extends TestCase
                 ->where('matches.1.prob_home', null)
                 ->where('matches.1.top_market', null)
                 ->where('widgets.league.label', 'Россия · Премьер-лига')
-                ->where('widgets.league.tournament_id', null));
+                ->where('widgets.league.tournament_id', $this->competition->id));
+    }
+
+    public function test_home_links_to_tournament_and_clubs_resolve_to_real_pages(): void
+    {
+        $this->makeMatch('zenit', 'spartak', '2026-11-01 16:00:00', MatchStatus::Finished, [3, 0]);
+        $this->makeMatch('zenit', 'cska', '2026-11-27 16:00:00');
+
+        $props = $this->get('/')->viewData('page')['props'];
+
+        $tournamentId = $props['widgets']['league']['tournament_id'];
+        $this->assertNotNull($tournamentId);
+        $this->get(route('tournaments.show', $tournamentId))->assertOk()->assertInertia(fn ($page) => $page
+            ->component('Tournaments/Show')->where('tournament.id', $tournamentId));
+
+        $this->assertNotEmpty($props['widgets']['standings']);
+        foreach ($props['widgets']['standings'] as $row) {
+            $this->assertIsInt($row['team_id']);
+            $this->get(route('clubs.show', $row['team_id']))->assertOk()->assertInertia(fn ($page) => $page
+                ->component('Clubs/Show')->where('club.id', $row['team_id'])->where('club.name', $row['team']));
+        }
+
+        $index = file_get_contents(resource_path('js/Pages/Matches/Index.vue'));
+        $this->assertStringContainsString("route('clubs.show', row.team_id)", $index);
+        $this->assertStringContainsString("route('tournaments.show', widgets.league.tournament_id)", $index);
     }
 
     public function test_index_hidden_competitions_are_not_exposed(): void
@@ -235,6 +259,8 @@ class MatchesPagesTest extends TestCase
                 ->where('matches.0.form_away', ['Н'])
                 ->has('widgets.standings', 3)
                 ->where('widgets.standings.0.team', 'Зенит')
+                ->where('widgets.standings.0.team_id', $this->teams['zenit']->id)
+                ->where('widgets.standings.2.team_id', $this->teams['spartak']->id)
                 ->where('widgets.standings.0.pts', 4)
                 ->where('widgets.standings.0.played', 2)
                 ->where('widgets.standings.0.gd', 3)
@@ -301,7 +327,8 @@ class MatchesPagesTest extends TestCase
                 ->where('match.venue', null)
                 ->where('match.referee', null)
                 ->where('match.weather', null)
-                ->where('match.home_club_id', null)
+                ->where('match.home_club_id', $this->teams['zenit']->id)
+                ->where('match.away_club_id', $this->teams['spartak']->id)
                 ->where('match.form_home', ['В'])
                 ->where('match.form_away', ['П'])
                 ->where('returnLeague', 'premier-league')

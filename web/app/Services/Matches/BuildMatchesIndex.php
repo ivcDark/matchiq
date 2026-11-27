@@ -87,6 +87,7 @@ class BuildMatchesIndex
         $standings = array_map(fn (array $row) => [
             'pos' => $row['pos'],
             'team' => $teams[$row['team_id']]->localized('name', $locale),
+            'team_id' => $row['team_id'],
             'played' => $row['played'],
             'gd' => $row['gd'],
             'pts' => $row['pts'],

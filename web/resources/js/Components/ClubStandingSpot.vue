@@ -21,7 +21,12 @@ const kpis = computed(() => [
     { label: 'Очки', value: props.standing.pts },
     {
         label: 'От лидера',
-        value: props.standing.behind_leader === 0 ? 'лидер' : `−${props.standing.behind_leader}`,
+        value:
+            props.standing.behind_leader === null
+                ? '—'
+                : props.standing.behind_leader === 0
+                  ? 'лидер'
+                  : `−${props.standing.behind_leader}`,
     },
 ]);
 </script>
@@ -31,6 +36,7 @@ const kpis = computed(() => [
         <div class="miq-panel-head">
             <h2 class="miq-panel-title">{{ standing.tournament }} · таблица</h2>
             <Link
+                v-if="standing.tournament_id"
                 :href="`${route('tournaments.show', standing.tournament_id)}#standings`"
                 class="text-xs font-semibold text-miq-pitch hover:underline"
             >Вся таблица</Link>
@@ -38,7 +44,7 @@ const kpis = computed(() => [
 
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-2.5">
             <p class="flex items-baseline gap-1.5">
-                <span class="num-display text-3xl leading-none text-miq-ink">{{ standing.position }}</span>
+                <span class="num-display text-3xl leading-none text-miq-ink">{{ standing.position ?? '—' }}</span>
                 <span class="text-sm text-miq-muted">место из {{ standing.teams }}</span>
             </p>
             <span

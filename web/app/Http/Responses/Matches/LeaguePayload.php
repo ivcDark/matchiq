@@ -8,9 +8,9 @@ final class LeaguePayload
 {
     /**
      * `id` — slug лиги: именно им фронт фильтрует матчи и строит `?league=`.
-     * `tournament_id` пока null: страница турнира работает на демо-данных и не привязана к реальной лиге.
+     * `tournament_id` — id лиги: по нему открывается страница турнира `/tournaments/{id}`.
      *
-     * @return array{id: string, country: string, country_code: ?string, name: string, short: string, status: string, sort_order: int, tournament_id: null}
+     * @return array{id: string, country: string, country_code: ?string, name: string, short: string, status: string, sort_order: int, tournament_id: int}
      */
     public static function make(Competition $competition): array
     {
@@ -25,7 +25,7 @@ final class LeaguePayload
             'short' => $competition->localized('short_name', $locale) ?: $name,
             'status' => $competition->status->value,
             'sort_order' => $competition->sort_order,
-            'tournament_id' => null,
+            'tournament_id' => $competition->id,
         ];
     }
 

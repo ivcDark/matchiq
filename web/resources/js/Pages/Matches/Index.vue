@@ -1188,7 +1188,13 @@ const listKey = computed(
                                             </span>
                                         </td>
                                         <td class="truncate px-1 py-2 font-medium text-miq-ink">
-                                            {{ row.team }}
+                                            <Link
+                                                v-if="row.team_id"
+                                                :href="route('clubs.show', row.team_id)"
+                                                class="miq-club-link block truncate"
+                                                :title="`${row.team} — страница клуба`"
+                                            >{{ row.team }}</Link>
+                                            <span v-else class="block truncate">{{ row.team }}</span>
                                         </td>
                                         <td class="px-2 py-2 text-right tabular-nums text-miq-muted">
                                             {{ row.played }}
