@@ -3,7 +3,6 @@
 namespace App\Repositories;
 
 use App\Enums\CompetitionScope;
-use App\Enums\CompetitionStatus;
 use App\Enums\CompetitionType;
 use App\Enums\ExternalEntityType;
 use App\Enums\UpsertOutcome;
@@ -30,7 +29,8 @@ class CompetitionRepository
     }
 
     /**
-     * Соревнования для регулярного ingest: явный список slug'ов либо все `live` с внешним id провайдера.
+     * Соревнования для регулярного ingest: явный список slug'ов (override из env) либо все с `ingest_enabled`
+     * и внешним id провайдера. Витринный `status` не учитывается.
      *
      * @param  list<string>  $slugs
      * @return Collection<int, Competition>
@@ -41,16 +41,42 @@ class CompetitionRepository
             ->when(
                 $slugs !== [],
                 fn ($q) => $q->whereIn('slug', $slugs),
-                fn ($q) => $q->where('status', CompetitionStatus::Live->value)->whereIn(
-                    'id',
-                    ExternalId::where('source_provider_id', $providerId)
-                        ->where('entity_type', ExternalEntityType::Competition->value)
-                        ->select('entity_id'),
-                ),
+                fn ($q) => $q->where('ingest_enabled', true)->whereIn('id', $this->externalCompetitionIds($providerId)),
             )
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * Внешние id лиг у провайдера для соревнований с `ingest_enabled` (фильтр `league_ids` в sync_catalog).
+     *
+     * @return list<string>
+     */
+    public function enabledExternalIds(int $providerId): array
+    {
+        return ExternalId::where('source_provider_id', $providerId)
+            ->where('entity_type', ExternalEntityType::Competition->value)
+            ->whereIn('entity_id', Competition::where('ingest_enabled', true)->select('id'))
+            ->orderBy('entity_id')
+            ->pluck('external_id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+    }
+
+    public function setIngestEnabled(Competition $competition, bool $enabled): Competition
+    {
+        $competition->forceFill(['ingest_enabled' => $enabled])->save();
+
+        return $competition;
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<ExternalId> */
+    private function externalCompetitionIds(int $providerId)
+    {
+        return ExternalId::where('source_provider_id', $providerId)
+            ->where('entity_type', ExternalEntityType::Competition->value)
+            ->select('entity_id');
     }
 
     /**

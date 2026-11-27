@@ -12,7 +12,8 @@ return [
     'schedule' => [
         'enabled' => filter_var(env('INGEST_SCHEDULE_ENABLED', true), FILTER_VALIDATE_BOOL),
 
-        // Slug'и соревнований через запятую. Пусто — все с competitions.status = live и внешним id SStats.
+        // Override: slug'и соревнований через запятую. Пусто — все с competitions.ingest_enabled = true и внешним id SStats
+        // (флаг ingest_enabled не зависит от витринного competitions.status).
         'competitions' => array_values(array_filter(array_map('trim', explode(',', (string) env('INGEST_COMPETITIONS', ''))))),
 
         // Расписание и результаты: короткое окно вокруг сегодняшней даты (часовой пояс приложения, Москва), часто.
@@ -41,20 +42,21 @@ return [
         ],
 
         // Справочники и структура сезона — не чаще раза в сутки.
+        // catalog: по умолчанию лиги включённых соревнований (--league-id); country/league — override-фильтры из env.
         'catalog' => [
             'daily_at' => $str('INGEST_CATALOG_DAILY_AT', '04:00'),
-            'country' => $str('INGEST_CATALOG_COUNTRY', 'Russia'),
-            'league' => $str('INGEST_CATALOG_LEAGUE', 'Premier League'),
+            'country' => $str('INGEST_CATALOG_COUNTRY', ''),
+            'league' => $str('INGEST_CATALOG_LEAGUE', ''),
         ],
         'structure' => [
             'daily_at' => $str('INGEST_STRUCTURE_DAILY_AT', '04:10'),
         ],
 
-        // Составы клубов (/Ls/Players по команде): по запросу на клуб, поэтому раз в сутки и по умолчанию только РПЛ.
-        // INGEST_SQUADS_COMPETITIONS — slug'и через запятую; Кубок России: `ingest:dispatch sync_squads --competition=russian-cup`.
+        // Составы клубов (/Ls/Players по команде): по запросу на клуб, поэтому раз в сутки. По умолчанию — включённые
+        // соревнования (ingest_enabled), команды с teams.ingest_enabled. INGEST_SQUADS_COMPETITIONS — override (slug'и через запятую).
         'squads' => [
             'daily_at' => $str('INGEST_SQUADS_DAILY_AT', '04:20'),
-            'competitions' => array_values(array_filter(array_map('trim', explode(',', $str('INGEST_SQUADS_COMPETITIONS', 'premier-league'))))),
+            'competitions' => array_values(array_filter(array_map('trim', explode(',', $str('INGEST_SQUADS_COMPETITIONS', ''))))),
         ],
 
         'reap_stuck' => [

@@ -31,6 +31,7 @@ class Team extends Model
         'primary_color',
         'secondary_color',
         'is_active',
+        'ingest_enabled',
     ];
 
     protected function casts(): array
@@ -42,6 +43,7 @@ class Team extends Model
             'city_i18n' => 'array',
             'founded_year' => 'integer',
             'is_active' => 'boolean',
+            'ingest_enabled' => 'boolean',
         ];
     }
 

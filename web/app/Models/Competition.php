@@ -29,6 +29,7 @@ class Competition extends Model
         'participant_type',
         'tier',
         'status',
+        'ingest_enabled',
         'sort_order',
         'logo_url',
     ];
@@ -42,6 +43,7 @@ class Competition extends Model
             'scope' => CompetitionScope::class,
             'participant_type' => ParticipantType::class,
             'status' => CompetitionStatus::class,
+            'ingest_enabled' => 'boolean',
             'tier' => 'integer',
             'sort_order' => 'integer',
         ];

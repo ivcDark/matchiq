@@ -238,7 +238,7 @@ class IngestDispatch extends Command
     }
 
     /**
-     * Составы клубов: команды выбирает Laravel (все команды текущего сезона соревнования либо явные `--team`),
+     * Составы клубов: команды выбирает Laravel (команды текущего сезона соревнования с `teams.ingest_enabled` либо явные `--team`),
      * в collector уходят внешние id команд.
      *
      * @return array{0: array, 1: int}
@@ -266,7 +266,7 @@ class IngestDispatch extends Command
                         : throw new InvalidArgumentException("Команда {$ref} не найдена (slug или внешний id SStats; сначала sync_structure)."));
             }
         } else {
-            $teamIds = $teams->idsInSeason($season->id);
+            $teamIds = $teams->idsInSeason($season->id, onlyIngestEnabled: true);
             $map = $externalIds->externalIdsFor($provider->id, ExternalEntityType::Team, $teamIds);
             $externalTeamIds = array_values(array_filter(array_map(fn (int $id) => $map[$id] ?? null, $teamIds)));
         }

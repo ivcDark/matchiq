@@ -29,17 +29,18 @@ class IngestRunScheduled extends Command
             return self::FAILURE;
         }
 
+        $provider = $providers->ensure(SourceProviderCode::Sstats);
+
         if ($job === 'catalog') {
-            return $this->dispatchCatalog();
+            return $this->dispatchCatalog($competitions, $provider->id);
         }
 
-        $provider = $providers->ensure(SourceProviderCode::Sstats);
         $slugs = $job === 'squads'
             ? config('ingest.schedule.squads.competitions', [])
             : config('ingest.schedule.competitions', []);
         $targets = $competitions->forScheduledIngest($provider->id, $slugs);
         if ($targets->isEmpty()) {
-            $this->warn('Нет соревнований для ingest (status = live с внешним id SStats или INGEST_COMPETITIONS).');
+            $this->warn('Нет соревнований для ingest (competitions.ingest_enabled с внешним id SStats или INGEST_COMPETITIONS).');
 
             return self::SUCCESS;
         }
@@ -52,20 +53,27 @@ class IngestRunScheduled extends Command
         return $failed === 0 ? self::SUCCESS : self::FAILURE;
     }
 
-    private function dispatchCatalog(): int
+    /** Фильтры из INGEST_CATALOG_COUNTRY / _LEAGUE — override; иначе лиги соревнований с `ingest_enabled` по внешним id. */
+    private function dispatchCatalog(CompetitionRepository $competitions, int $providerId): int
     {
         $country = (string) config('ingest.schedule.catalog.country');
         $league = (string) config('ingest.schedule.catalog.league');
-        if ($country === '' && $league === '') {
-            $this->warn('sync_catalog пропущен: не заданы INGEST_CATALOG_COUNTRY / INGEST_CATALOG_LEAGUE.');
+        $leagueIds = [];
 
-            return self::SUCCESS;
+        if ($country === '' && $league === '') {
+            $leagueIds = $competitions->enabledExternalIds($providerId);
+            if ($leagueIds === []) {
+                $this->warn('sync_catalog пропущен: нет соревнований с ingest_enabled и внешним id SStats, INGEST_CATALOG_COUNTRY / INGEST_CATALOG_LEAGUE не заданы.');
+
+                return self::SUCCESS;
+            }
         }
 
         return $this->call('ingest:dispatch', array_filter([
             'type' => 'sync_catalog',
             '--country' => $country,
             '--league' => $league,
+            '--league-id' => $leagueIds,
             '--scheduled' => true,
         ]));
     }

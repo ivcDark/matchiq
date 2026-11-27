@@ -199,7 +199,7 @@ class ScheduleTest extends TestCase
         ]);
     }
 
-    /** Лига со статусом live, сезон и одна пара команд; при `$finished` — ещё и завершённый матч без деталей. */
+    /** Лига со статусом live и ingest_enabled, сезон и одна пара команд; при `$finished` — ещё и завершённый матч без деталей. */
     private function seedCompetition(bool $finished = false): void
     {
         $apply = app(ApplyIngestionResult::class);
@@ -242,7 +242,7 @@ class ScheduleTest extends TestCase
         }
 
         IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
-        Competition::query()->update(['status' => CompetitionStatus::Live]);
+        Competition::query()->update(['status' => CompetitionStatus::Live, 'ingest_enabled' => true]);
     }
 
     public function test_run_scheduled_fixtures_uses_short_window_and_scheduled_trigger(): void
@@ -275,10 +275,10 @@ class ScheduleTest extends TestCase
         $this->assertSame(['from' => '2026-11-26', 'to' => '2026-12-01'], $publisher->sent[0]['payload']['window']);
     }
 
-    public function test_run_scheduled_skips_hidden_competitions_unless_listed_explicitly(): void
+    public function test_run_scheduled_skips_disabled_competitions_unless_listed_explicitly(): void
     {
         $this->seedCompetition();
-        Competition::query()->update(['status' => CompetitionStatus::Hidden]);
+        Competition::query()->update(['ingest_enabled' => false]);
         $publisher = $this->fakePublisher();
 
         $this->artisan('ingest:run-scheduled', ['job' => 'fixtures_full'])->assertSuccessful();
@@ -288,6 +288,63 @@ class ScheduleTest extends TestCase
         $this->artisan('ingest:run-scheduled', ['job' => 'fixtures_full'])->assertSuccessful();
         $this->assertCount(1, $publisher->sent);
         $this->assertArrayNotHasKey('window', $publisher->sent[0]['payload']);
+    }
+
+    public function test_ingest_flag_is_independent_from_display_status(): void
+    {
+        $this->seedCompetition();
+        $publisher = $this->fakePublisher();
+
+        Competition::query()->update(['status' => CompetitionStatus::Hidden]);
+        $this->artisan('ingest:run-scheduled', ['job' => 'fixtures_full'])->assertSuccessful();
+        $this->assertCount(1, $publisher->sent, 'hidden + ingest_enabled грузится');
+
+        IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+        Competition::query()->update(['status' => CompetitionStatus::Live, 'ingest_enabled' => false]);
+        $this->artisan('ingest:run-scheduled', ['job' => 'fixtures_full'])->assertSuccessful();
+        $this->assertCount(1, $publisher->sent, 'live без ingest_enabled не грузится');
+    }
+
+    public function test_new_competitions_are_disabled_by_default_and_migration_enables_rpl_and_cup(): void
+    {
+        $competition = Competition::create(['slug' => 'x', 'name' => 'X', 'type' => 'league']);
+        $this->assertFalse($competition->fresh()->ingest_enabled);
+
+        Competition::create(['slug' => 'premier-league', 'name' => 'RPL', 'type' => 'league']);
+        Competition::create(['slug' => 'russian-cup', 'name' => 'Cup', 'type' => 'cup']);
+        $this->seed(\Database\Seeders\IngestFlagsSeeder::class);
+
+        $this->assertSame(['premier-league', 'russian-cup'], Competition::where('ingest_enabled', true)->orderBy('slug')->pluck('slug')->all());
+    }
+
+    public function test_every_competition_job_respects_ingest_enabled(): void
+    {
+        $this->seedCompetition(finished: true);
+        Competition::query()->update(['ingest_enabled' => false]);
+        $publisher = $this->fakePublisher();
+
+        foreach (['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'structure', 'squads'] as $job) {
+            $this->artisan('ingest:run-scheduled', ['job' => $job])->assertSuccessful();
+        }
+        $this->assertSame([], $publisher->sent);
+
+        Competition::query()->update(['ingest_enabled' => true]);
+        foreach (['fixtures', 'fixtures_full', 'details_missing', 'details_recent', 'structure', 'squads'] as $i => $job) {
+            IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+            $this->artisan('ingest:run-scheduled', ['job' => $job])->assertSuccessful();
+            $this->assertCount($i + 1, $publisher->sent, $job);
+        }
+    }
+
+    public function test_squads_skip_teams_with_ingest_disabled(): void
+    {
+        $this->seedCompetition(finished: true);
+        $publisher = $this->fakePublisher();
+        \App\Models\Team::where('name', 'Spartak Moscow')->update(['ingest_enabled' => false]);
+
+        $this->artisan('ingest:run-scheduled', ['job' => 'squads'])->assertSuccessful();
+
+        $this->assertSame(['TeAm0001'], $publisher->sent[0]['payload']['team_external_ids']);
     }
 
     public function test_run_scheduled_does_not_fail_when_previous_run_is_still_active(): void
@@ -356,6 +413,24 @@ class ScheduleTest extends TestCase
         $this->artisan('ingest:run-scheduled', ['job' => 'details_missing'])->assertSuccessful();
 
         $this->assertSame([], $publisher->sent);
+    }
+
+    public function test_run_scheduled_catalog_uses_enabled_competitions_by_default(): void
+    {
+        $this->seedCompetition();
+        $publisher = $this->fakePublisher();
+        config(['ingest.schedule.catalog.country' => '', 'ingest.schedule.catalog.league' => '']);
+        IngestionRun::query()->delete();
+
+        $this->artisan('ingest:run-scheduled', ['job' => 'catalog'])->assertSuccessful();
+        $filters = $publisher->sent[0]['payload']['filters'];
+        $this->assertSame(['AbCd1234'], $filters['league_ids']);
+        $this->assertSame('', $filters['country']);
+
+        IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+        Competition::query()->update(['ingest_enabled' => false]);
+        $this->artisan('ingest:run-scheduled', ['job' => 'catalog'])->assertSuccessful();
+        $this->assertCount(1, $publisher->sent, 'нет включённых соревнований и нет env-фильтров — пропуск');
     }
 
     public function test_run_scheduled_catalog_uses_configured_filters(): void

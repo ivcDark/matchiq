@@ -29,7 +29,7 @@ class TeamRepository
      *
      * @return list<int>
      */
-    public function idsInSeason(int $seasonId): array
+    public function idsInSeason(int $seasonId, bool $onlyIngestEnabled = false): array
     {
         $stageTeams = StageTeam::query()
             ->whereIn('stage_id', Stage::where('season_id', $seasonId)->select('id'))
@@ -37,7 +37,14 @@ class TeamRepository
         $home = FootballMatch::where('season_id', $seasonId)->pluck('home_team_id');
         $away = FootballMatch::where('season_id', $seasonId)->pluck('away_team_id');
 
-        return $stageTeams->merge($home)->merge($away)->filter()->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
+        $ids = $stageTeams->merge($home)->merge($away)->filter()->map(fn ($id) => (int) $id)->unique()->sort()->values();
+
+        if ($onlyIngestEnabled && $ids->isNotEmpty()) {
+            $enabled = Team::whereIn('id', $ids)->where('ingest_enabled', true)->pluck('id')->map(fn ($id) => (int) $id);
+            $ids = $ids->intersect($enabled)->values();
+        }
+
+        return $ids->all();
     }
 
     /** @return array{0: Team, 1: UpsertOutcome} */
