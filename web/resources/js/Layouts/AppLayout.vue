@@ -32,6 +32,12 @@ const navItems = computed(() => [
         href: route('leaderboard'),
         active: route().current('leaderboard'),
     },
+    {
+        key: 'news',
+        label: 'Новости',
+        href: route('news.index'),
+        active: route().current('news.*'),
+    },
 ]);
 
 watch(
