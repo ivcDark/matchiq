@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sort"
 
@@ -15,6 +16,18 @@ type Publisher interface {
 }
 
 const ResultRoutingKey = "result"
+
+// maxBatchBytes — мягкий предел размера batch (контракт: ≤ 1 МБ). Детали матчей тяжёлые: режем по размеру, а не только по числу сущностей.
+const maxBatchBytes = 900 << 10
+
+func entitySize(e dto.Entity) int {
+	b, err := json.Marshal(e)
+	if err != nil {
+		return 0
+	}
+
+	return len(b)
+}
 
 // Runner выполняет команду: сборщик → батчи → done / failed.
 type Runner struct {
@@ -70,10 +83,23 @@ func (r *Runner) publishOutput(ctx context.Context, cmd dto.Command, out *Output
 	}
 
 	var batches []dto.Batch
-	for start := 0; start < len(out.Entities); start += size {
-		end := min(start+size, len(out.Entities))
-		batches = append(batches, dto.Batch{Entities: out.Entities[start:end]})
+	var current []dto.Entity
+	currentBytes := 0
+	flush := func() {
+		if len(current) > 0 {
+			batches = append(batches, dto.Batch{Entities: current})
+			current, currentBytes = nil, 0
+		}
 	}
+	for _, e := range out.Entities {
+		n := entitySize(e)
+		if len(current) >= size || (len(current) > 0 && currentBytes+n > maxBatchBytes) {
+			flush()
+		}
+		current = append(current, e)
+		currentBytes += n
+	}
+	flush()
 	if len(batches) == 0 && len(out.Errors) > 0 {
 		batches = append(batches, dto.Batch{})
 	}

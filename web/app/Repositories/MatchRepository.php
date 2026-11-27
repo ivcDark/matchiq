@@ -20,6 +20,35 @@ class MatchRepository
     }
 
     /**
+     * Матчи сезона для загрузки деталей: завершённые, свежие первыми.
+     *
+     * @param  bool  $missingOnly  только без загруженных деталей (нет строк match_teams)
+     * @return Collection<int, FootballMatch>
+     */
+    public function selectFinishedForDetails(int $seasonId, ?int $stageId, ?string $from, ?string $to, bool $missingOnly, int $limit): Collection
+    {
+        return FootballMatch::where('season_id', $seasonId)
+            ->where('status', MatchStatus::Finished)
+            ->when($stageId !== null, fn ($q) => $q->where('stage_id', $stageId))
+            ->when($from !== null, fn ($q) => $q->where('kickoff_at', '>=', $from.' 00:00:00'))
+            ->when($to !== null, fn ($q) => $q->where('kickoff_at', '<=', $to.' 23:59:59'))
+            ->when($missingOnly, fn ($q) => $q->whereDoesntHave('matchTeams'))
+            ->orderByDesc('kickoff_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return Collection<int, FootballMatch>
+     */
+    public function findMany(array $ids): Collection
+    {
+        return FootballMatch::whereIn('id', $ids)->get();
+    }
+
+    /**
      * Кандидаты для сопоставления нового external_id: та же пара в сезоне в окне ±1 день от начала.
      *
      * @return Collection<int, FootballMatch>

@@ -12,10 +12,13 @@ use App\Enums\IngestionPhase;
 use App\Enums\IngestionStatus;
 use App\Models\IngestionRun;
 use App\Repositories\IngestionRunRepository;
+use App\Services\Ingestion\Entity\CoachUpserter;
 use App\Services\Ingestion\Entity\CompetitionUpserter;
 use App\Services\Ingestion\Entity\CountryUpserter;
 use App\Services\Ingestion\Entity\EntityUpserter;
+use App\Services\Ingestion\Entity\MatchDetailsUpserter;
 use App\Services\Ingestion\Entity\MatchUpserter;
+use App\Services\Ingestion\Entity\PlayerUpserter;
 use App\Services\Ingestion\Entity\SeasonUpserter;
 use App\Services\Ingestion\Entity\StageUpserter;
 use App\Services\Ingestion\Entity\TeamUpserter;
@@ -42,8 +45,11 @@ class ApplyIngestionResult
         StageUpserter $stages,
         TeamUpserter $teams,
         MatchUpserter $matches,
+        PlayerUpserter $players,
+        CoachUpserter $coaches,
+        MatchDetailsUpserter $matchDetails,
     ) {
-        foreach ([$countries, $competitions, $seasons, $stages, $teams, $matches] as $upserter) {
+        foreach ([$countries, $competitions, $seasons, $stages, $teams, $matches, $players, $coaches, $matchDetails] as $upserter) {
             $this->upserters[$upserter->type()->value] = $upserter;
         }
     }
@@ -94,6 +100,7 @@ class ApplyIngestionResult
 
                 $result = DB::transaction(fn () => $upserter->upsert($entity, $context));
                 $local->recordOutcome($entity->type->value, $result->outcome);
+                $local->recordChildren($result->children);
             } catch (IngestionEntityException $e) {
                 $local->recordFailure($entity->type->value);
                 $errors[] = [$entity->type->value, $entity->externalId, $e->phase, $e->getMessage(), $e->context];

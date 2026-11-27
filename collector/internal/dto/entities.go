@@ -9,16 +9,23 @@ const (
 	EntityStage       = "stage"
 	EntityTeam        = "team"
 	EntityMatch       = "match"
+	EntityPlayer      = "player"
+	EntityCoach       = "coach"
+	// EntityMatchDetails — составы, события и статистика одного матча (дочерние сущности внутри data).
+	EntityMatchDetails = "match_details"
 )
 
 // EntityRank задаёт порядок зависимостей: справочники → сезоны → стадии/команды → матчи.
 var EntityRank = map[string]int{
-	EntityCountry:     1,
-	EntityCompetition: 2,
-	EntitySeason:      3,
-	EntityTeam:        4,
-	EntityStage:       5,
-	EntityMatch:       6,
+	EntityCountry:      1,
+	EntityCompetition:  2,
+	EntitySeason:       3,
+	EntityTeam:         4,
+	EntityStage:        5,
+	EntityMatch:        6,
+	EntityPlayer:       7,
+	EntityCoach:        7,
+	EntityMatchDetails: 8,
 }
 
 // Значения enum'ов совпадают с Laravel (CountryKind, CompetitionType, CompetitionScope, StageType).

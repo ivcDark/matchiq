@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * Значения = job_type сообщений ingest и `ingestion_runs.kind` (varchar(16)).
+ * Значения = job_type сообщений ingest и `ingestion_runs.kind` (varchar(32)).
  */
 enum IngestionKind: string
 {
@@ -17,4 +17,6 @@ enum IngestionKind: string
     case SyncStructure = 'sync_structure';
     /** Расписание и результаты матчей сезона/стадии за окно дат. */
     case SyncFixtures = 'sync_fixtures';
+    /** Составы, события, командная и игровая статистика выбранных матчей. */
+    case SyncMatchDetails = 'sync_match_details';
 }

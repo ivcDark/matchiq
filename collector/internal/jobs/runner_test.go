@@ -16,6 +16,10 @@ type fakeSource struct {
 	fixtures  []sstats.LsFixture
 	gotQuery  *sstats.FixturesQuery
 	err       error
+
+	info       map[string]sstats.LsGameInfo
+	lineups    map[string]sstats.LsGameLineups
+	detailsErr map[string]error
 }
 
 func (f fakeSource) Leagues(context.Context, string) ([]sstats.LsLeague, error) {
@@ -33,6 +37,17 @@ func (f fakeSource) Fixtures(_ context.Context, q sstats.FixturesQuery) ([]sstat
 		*f.gotQuery = q
 	}
 	return f.fixtures, f.err
+}
+
+func (f fakeSource) GameInfo(_ context.Context, id string) (sstats.LsGameInfo, error) {
+	if err := f.detailsErr[id]; err != nil {
+		return sstats.LsGameInfo{}, err
+	}
+	return f.info[id], f.err
+}
+
+func (f fakeSource) GameLineups(_ context.Context, id string) (sstats.LsGameLineups, error) {
+	return f.lineups[id], f.err
 }
 
 type counter struct{}

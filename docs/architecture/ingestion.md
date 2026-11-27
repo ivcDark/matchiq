@@ -182,7 +182,7 @@ collector/
 
 ## Реализация первого среза (каталог и структура сезона)
 
-Реализовано в `collector/` и `web/`: `sync_catalog`, `sync_structure`, `sync_fixtures` (см. ниже); остальные job types (`match_stats`, `lineups`, `live`, scheduler) — следующие срезы. Расписание матчей в коде — `sync_fixtures`, а не `schedule` из наброска.
+Реализовано в `collector/` и `web/`: `sync_catalog`, `sync_structure`, `sync_fixtures`, `sync_match_details` (см. ниже); остальные job types (`live`, scheduler) — следующие срезы. Расписание матчей в коде — `sync_fixtures`, а не `schedule` из наброска.
 
 **Отличия от наброска выше (источник правды — код):**
 
@@ -201,6 +201,19 @@ collector/
 - Laravel: `MatchUpserter` → `MatchRepository`/`RoundRepository`. Команды, стадии и сезон резолвятся по `external_ids` (их должны создать `sync_catalog`/`sync_structure`; иначе ошибка `match` по строке матча); `competition_id` берётся из сезона, стадия обязана принадлежать сезону; тур (`rounds`) создаётся по номеру только для «Round N». Новый `external_id` сначала ищет ещё не привязанный матч той же пары в сезоне в ±1 день (страховка от дублей), иначе создаёт. Поля, которых источник не отдаёт (площадка, судья, погода, `tie_id`, `finished_at`, `minute`), не трогаются.
 - Запуск: `php artisan ingest:dispatch sync_fixtures --competition=<slug|id> [--season=<slug>] [--stage=<id|название>] [--from=YYYY-MM-DD] [--to=YYYY-MM-DD]`. Фильтры соревнования/сезона те же, что у `sync_structure`; блокировка прогона — на (провайдер, соревнование, `sync_fixtures`).
 
+**`sync_match_details` — составы, события и статистика матча** (эндпоинты SStats `/Ls/GameInfo` и `/Ls/GameLineups`, по два запроса на матч):
+
+- Payload: `{"competition": {"id", "external_id"}, "season_external_id": "...", "match_external_ids": ["..."], "context": {...}}`. Список матчей выбирает Laravel (завершённые, свежие первыми), Go получает готовые внешние id; максимум 500 матчей на прогон. Сбой одного матча (сеть, пустой ответ, неизвестный код действия) уходит в `errors[]` и не останавливает прогон; `401/403` и исчерпанный лимит запросов — `failed` целиком (`retryable` у лимита).
+- Сущности батчей (порядок по зависимостям): `country` (4) → `coach`, `player` (7) → `match_details` (8). `match_details` — одна самодостаточная сущность на матч (`external_id` = id матча): `match_external_id`, `teams[]` (сторона, команда, схема `formation`, тренер), `lineup[]`, `events[]`, `team_stats[]`, `player_stats[]`. Игроки и тренеры идут отдельными сущностями с `external_ids`; `has_profile = false` означает, что профиля SStats не было и уже известные поля в БД не затираются. Батчи ограничены и по числу сущностей (`COLLECTOR_BATCH_SIZE`), и по размеру (~900 КБ при лимите контракта 1 МБ).
+- Составы: `lineup[]` — игрок, команда, `is_starter`, `position` (GK/DF/MF/FW), `shirt_number`, `line` (индекс линии построения из `formationRow`, 0 = вратарь; хранится числовой строкой), `minute_in`/`minute_out` (из замен). Координат x/y в API нет, только номер линии. Запас — `kind = 1`, тренеры (`kind = 2`) — в `coach`; отсутствующие (`kind = 3/4`) пока не загружаются.
+- События (`match_events`, ключ синхронизации — `sort_order`): `1` жёлтая, `2` красная (жёлтая + красная одного игрока = `second_yellow`), `3` гол, `4` автогол, `6/7` замена (пара выход/выход → один `substitution` с игроком-«out» и связанным «in»), `8` голевая передача (приклеивается к голу как `related_player`), `10` гол с пенальти, `11` незабитый пенальти, `47` — «вне поля» (карточка тренера; сохраняется с `details.not_on_pitch`). `5` (назначен пенальти) пропускается, период 4 (серия пенальти) пропускается. Любой другой код — ошибка нормализации матча.
+- Командная статистика (`match_team_stats`, ключ `team_id:period`): SStats отдаёт пары `{home, away}` по периодам `full_time | first_half | second_half`; считаются владение, удары, удары в створ, угловые, фолы, карточки, пасы (точность = точные/всего·100), `xg`, `xga` (= xG соперника); остальное — в `extra`.
+- Игровая статистика (`match_player_stats`, ключ — игрок): минуты, голы, передачи, пенальти, удары, `xg`, `xa` (точность `decimal(5,2)`), карточки, `rating`, `is_motm` (`isBestRating`), `xGOT` и прочие показатели — в `extra`. Игрок страны не имеет — берётся страна его команды (`players.country_id` NOT NULL).
+- Laravel: `MatchDetailsUpserter` (`PlayerUpserter`, `CoachUpserter`, репозитории `MatchTeam/MatchLineup/MatchEvent/MatchStats`). Матч, команды и сезон резолвятся по `external_ids`; сущность `match_details` атомарна — любая битая ссылка откатывает весь матч и пишет `ingestion_run_errors`. Дочерние секции синхронизируются целиком: непустая секция приводится к состоянию из ответа (лишние строки удаляются), пустая секция ничего не удаляет. Счётчики дочерних таблиц (`match_team`, `match_lineup`, `match_event`, `match_team_stat`, `match_player_stat`) идут только в `stats.by_entity`, в общие `created/updated/unchanged` входят `country`, `coach`, `player`, `match_details`. Сравнение JSON-полей (`details`, `extra`) не зависит от порядка ключей (jsonb в PostgreSQL его переставляет), поэтому повторная загрузка даёт `unchanged`.
+- Запуск: `php artisan ingest:dispatch sync_match_details --competition=<slug|id> [--season=<slug>] [--stage=<id|название>] [--from=YYYY-MM-DD] [--to=YYYY-MM-DD] [--limit=N] [--missing]` или `--match=<внешний id>` (можно несколько) вместо выборки по сезону. По умолчанию `--limit=50`, максимум 500; `--missing` берёт только матчи, по которым деталей ещё нет. `ingestion_runs.kind` расширен до varchar(32).
+- Проверено вживую на РПЛ 2026-2027: `--limit=1`, затем `--limit=3` (6 `match_teams`, 135 игроков в составах, 6 тренеров, 46 событий, 18 строк командной и 91 игровой статистики, 3 MOTM); повторный прогон тех же матчей — 170 `unchanged`, 0 ошибок.
+- TODO: отсутствующие игроки (`kind = 3/4`) → `player_absences`; судья/стадион/зрители; события серии пенальти; VAR и «гол отменён» (сейчас неизвестные коды — ошибки); xG/xA точнее `decimal(5,2)` (xGOT и остальное — в `extra`); координаты x/y (API даёт только линию); scheduler и расширение выборки за пределы smoke; сопоставление игроков-дублей между источниками.
+
 **Запуск локально:**
 
 ```bash
@@ -209,9 +222,10 @@ docker compose exec app php artisan ingest:dispatch sync_catalog --country=Russi
 docker compose exec app php artisan ingest:consume          # слушает ingest.results (Ctrl+C — выход)
 docker compose exec app php artisan ingest:dispatch sync_structure --competition=premier-league
 docker compose exec app php artisan ingest:dispatch sync_fixtures --competition=premier-league --stage=Main   # весь сезон; окно — --from/--to
+docker compose exec app php artisan ingest:dispatch sync_match_details --competition=premier-league --limit=3   # составы, события, статистика; --match=<id> — конкретный матч
 ```
 
-Нужные env: `SSTATS_API_KEY` (collector), `RABBITMQ_HOST/PORT/USER/PASSWORD/VHOST` (web), `COLLECTOR_RABBITMQ_URL` (collector), опционально `SSTATS_RATE_PER_MINUTE`, `COLLECTOR_PREFETCH`, `COLLECTOR_BATCH_SIZE`. Ответы `/Ls/Leagues`, `/Ls/SeasonStructure`, `/Ls/List` проверены вживую с реальным ключом на РПЛ 2026-2027 (240 матчей, стадия Main).
+Нужные env: `SSTATS_API_KEY` (collector), `RABBITMQ_HOST/PORT/USER/PASSWORD/VHOST` (web), `COLLECTOR_RABBITMQ_URL` (collector), опционально `SSTATS_RATE_PER_MINUTE`, `COLLECTOR_PREFETCH`, `COLLECTOR_BATCH_SIZE`. Ответы `/Ls/Leagues`, `/Ls/SeasonStructure`, `/Ls/List`, `/Ls/GameInfo`, `/Ls/GameLineups` проверены вживую с реальным ключом на РПЛ 2026-2027 (240 матчей, стадия Main).
 
 ## Роль Laravel (код — в `web/app`)
 

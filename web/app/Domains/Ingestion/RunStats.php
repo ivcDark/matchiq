@@ -38,6 +38,20 @@ final class RunStats
         $this->bump($entityType, $outcome->value);
     }
 
+    /**
+     * Дочерние записи сущности (строки составов, событий и т.п.): только в `by_entity`, общие счётчики не растут.
+     *
+     * @param  array<string, array<string, int>>  $children
+     */
+    public function recordChildren(array $children): void
+    {
+        foreach ($children as $name => $outcomes) {
+            foreach ($outcomes as $outcome => $count) {
+                $this->bumpEntityOnly($name, $outcome, $count);
+            }
+        }
+    }
+
     public function recordFailure(?string $entityType): void
     {
         $this->bump($entityType ?? 'unknown', 'failed');
@@ -48,7 +62,12 @@ final class RunStats
     {
         foreach ($other->data['by_entity'] as $type => $counters) {
             foreach (self::COUNTERS as $counter) {
-                $this->bump($type, $counter, (int) ($counters[$counter] ?? 0));
+                $count = (int) ($counters[$counter] ?? 0);
+                if (isset($other->data['children'][$type])) {
+                    $this->bumpEntityOnly($type, $counter, $count);
+                } else {
+                    $this->bump($type, $counter, $count);
+                }
             }
         }
     }
@@ -89,5 +108,17 @@ final class RunStats
         $byEntity = $this->data['by_entity'][$entityType] ?? array_fill_keys(self::COUNTERS, 0);
         $byEntity[$counter] += $by;
         $this->data['by_entity'][$entityType] = $byEntity;
+    }
+
+    private function bumpEntityOnly(string $name, string $counter, int $by): void
+    {
+        if ($by === 0) {
+            return;
+        }
+
+        $byEntity = $this->data['by_entity'][$name] ?? array_fill_keys(self::COUNTERS, 0);
+        $byEntity[$counter] += $by;
+        $this->data['by_entity'][$name] = $byEntity;
+        $this->data['children'][$name] = true;
     }
 }

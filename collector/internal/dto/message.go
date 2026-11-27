@@ -15,6 +15,8 @@ const (
 	JobSyncCatalog   = "sync_catalog"
 	JobSyncStructure = "sync_structure"
 	JobSyncFixtures  = "sync_fixtures"
+
+	JobSyncMatchDetails = "sync_match_details"
 )
 
 const (

@@ -31,6 +31,17 @@ func (e *StatusError) Error() string {
 	return fmt.Sprintf("sstats: http %d: %s", e.Code, e.Message)
 }
 
+// APIError — HTTP 200 со status=error в теле (например, неизвестный матч). Повтор бессмыслен.
+type APIError struct{ Message string }
+
+func (e *APIError) Error() string {
+	if e.Message == "" {
+		return "sstats: status=error"
+	}
+
+	return "sstats: status=error: " + e.Message
+}
+
 func (e *StatusError) Retryable() bool {
 	return e.Code >= 500 || e.Code == http.StatusTooManyRequests
 }
@@ -146,6 +157,16 @@ func (s *Session) Fixtures(ctx context.Context, f FixturesQuery) ([]LsFixture, e
 	return nil, fmt.Errorf("sstats: /Ls/List вернул больше %d страниц", fixturesMaxPages)
 }
 
+// GameInfo — события и командная статистика матча.
+func (s *Session) GameInfo(ctx context.Context, matchID string) (LsGameInfo, error) {
+	return get[LsGameInfo](ctx, s, "/Ls/GameInfo", url.Values{"id": {matchID}})
+}
+
+// GameLineups — составы, статистика игроков и профили людей матча.
+func (s *Session) GameLineups(ctx context.Context, matchID string) (LsGameLineups, error) {
+	return get[LsGameLineups](ctx, s, "/Ls/GameLineups", url.Values{"id": {matchID}})
+}
+
 func get[T any](ctx context.Context, s *Session, path string, q url.Values) (T, error) {
 	var zero T
 	body, err := s.do(ctx, path, q)
@@ -156,6 +177,9 @@ func get[T any](ctx context.Context, s *Session, path string, q url.Values) (T, 
 	var env envelope[T]
 	if err := json.Unmarshal(body, &env); err != nil {
 		return zero, fmt.Errorf("sstats: decode %s: %w", path, err)
+	}
+	if strings.EqualFold(env.Status, "error") {
+		return zero, &APIError{Message: env.Message}
 	}
 
 	return env.Data, nil

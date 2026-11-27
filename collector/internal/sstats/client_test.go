@@ -114,3 +114,42 @@ func TestFixturesPaginatesAndSendsFilters(t *testing.T) {
 		t.Fatalf("decoded = %+v", got[0])
 	}
 }
+
+func TestGameInfoParsesStatisticsAndAPIStatusError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("id") {
+		case "Mat00001":
+			if r.URL.Path != "/Ls/GameInfo" {
+				t.Errorf("unexpected path %s", r.URL.Path)
+			}
+			_, _ = w.Write([]byte(`{"status":"OK","data":{"game":{"id":"Mat00001","homeTeamId":"A","awayTeamId":"B"},"events":[{"time":"12","actions":[{"actionType":3}]}],
+				"statistics":{"fullTime":{"metrics":[{"id":1}],"expectedGoals":{"home":"1.5","away":0.25},"otherStats":{"Goal kicks":{"home":"8","away":"11"}}}}}}`))
+		default:
+			_, _ = w.Write([]byte(`{"status":"error","message":"match not found"}`))
+		}
+	}))
+	defer srv.Close()
+
+	s := NewClient(Options{BaseURL: srv.URL, APIKey: "k"}).Session()
+	info, err := s.GameInfo(context.Background(), "Mat00001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := info.Statistics["fullTime"]
+	xg := full.Metrics["expectedGoals"]
+	if info.Game.HomeTeamID != "A" || len(info.Events) != 1 || info.Events[0].Time != 12 || xg.Home == nil || *xg.Home != 1.5 || *xg.Away != 0.25 {
+		t.Fatalf("info = %+v", info)
+	}
+	if _, isMetric := full.Metrics["metrics"]; isMetric || full.OtherStats["Goal kicks"]["away"] != "11" {
+		t.Fatalf("statistics = %+v", full)
+	}
+
+	_, err = s.GameInfo(context.Background(), "Nope0000")
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || !strings.Contains(err.Error(), "match not found") {
+		t.Fatalf("err = %v", err)
+	}
+	if s.Requests() != 2 {
+		t.Fatalf("status=error must not be retried, requests = %d", s.Requests())
+	}
+}

@@ -38,6 +38,33 @@ class ExternalIdRepository
             ->value('external_id');
     }
 
+    /**
+     * @param  list<int>  $entityIds
+     * @return array<int, string> entity_id → external_id
+     */
+    public function externalIdsFor(int $providerId, ExternalEntityType $type, array $entityIds): array
+    {
+        return ExternalId::where('source_provider_id', $providerId)
+            ->where('entity_type', $type->value)
+            ->whereIn('entity_id', $entityIds)
+            ->pluck('external_id', 'entity_id')
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $externalIds
+     * @return array<string, int> external_id → entity_id (только найденные)
+     */
+    public function entityIdsFor(int $providerId, ExternalEntityType $type, array $externalIds): array
+    {
+        return ExternalId::where('source_provider_id', $providerId)
+            ->where('entity_type', $type->value)
+            ->whereIn('external_id', $externalIds)
+            ->pluck('entity_id', 'external_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
     public function isLinked(int $providerId, ExternalEntityType $type, int $entityId): bool
     {
         return ExternalId::where('source_provider_id', $providerId)
