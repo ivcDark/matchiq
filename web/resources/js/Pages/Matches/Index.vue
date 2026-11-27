@@ -670,7 +670,12 @@ const listKey = computed(
 
     <AppLayout>
         <!-- Tournament / league menu ABOVE matches -->
-        <section class="animate-miq-fade-up" style="animation-delay: 60ms" aria-label="Лиги">
+        <section
+            id="tournaments"
+            class="animate-miq-fade-up scroll-mt-4"
+            style="animation-delay: 60ms"
+            aria-label="Лиги"
+        >
             <div class="miq-panel">
                 <div
                     class="miq-selected-chips px-3 pt-2.5"

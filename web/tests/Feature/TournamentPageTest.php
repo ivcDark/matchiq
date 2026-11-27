@@ -412,12 +412,16 @@ class TournamentPageTest extends TestCase
         $this->get("/tournaments/{$soon->id}")->assertOk();
     }
 
-    public function test_site_header_has_no_tournaments_link(): void
+    public function test_site_header_has_main_menu_without_broken_links(): void
     {
         $layout = file_get_contents(resource_path('js/Layouts/AppLayout.vue'));
 
-        $this->assertStringNotContainsString('Турниры', $layout);
+        foreach (['Матчи', 'Турниры', 'Клубы', 'Рейтинг'] as $label) {
+            $this->assertStringContainsString("label: '$label'", $layout);
+        }
+        $this->assertStringContainsString("route('matches.index')}#tournaments", $layout);
         $this->assertStringNotContainsString('tournaments.show', $layout);
+        $this->assertStringNotContainsString("route('clubs.show'", $layout);
     }
 
     public function test_page_has_section_nav_with_stats_by_default(): void
