@@ -325,6 +325,30 @@ class ClubPageTest extends TestCase
         $this->assertSame(1, $rows['Ушедший']['yellow'], 'статистика ушедшего игрока сохраняется');
     }
 
+    public function test_players_rows_carry_shirt_number_and_age_instead_of_height_and_weight(): void
+    {
+        $matches = $this->playRounds();
+        $sobolev = $this->player('sobolev', 'А. Соболев');
+        $sobolev->update(['birth_date' => now()->subYears(25)->subDay()->toDateString()]);
+        $this->event($matches['zenit-spartak'], 'zenit', MatchEventType::Goal, $sobolev, null, 10);
+        $this->event($matches['zenit-spartak'], 'zenit', MatchEventType::Goal, $this->player('nobody', 'Без номера'), null, 20);
+        $this->starter($matches['zenit-spartak'], 'zenit', $sobolev)->update(['shirt_number' => 9]);
+        $this->starter($matches['dynamo-zenit'], 'zenit', $sobolev)->update(['shirt_number' => 19]);
+
+        $rows = collect($this->props()['players']['premier-league']['overall'])->keyBy('name');
+
+        $this->assertSame(19, $rows['А. Соболев']['number'], 'берётся номер из самого свежего матча');
+        $this->assertSame(25, $rows['А. Соболев']['age']);
+        $this->assertNull($rows['Без номера']['number']);
+        $this->assertArrayNotHasKey('height', $rows['А. Соболев']);
+        $this->assertArrayNotHasKey('weight', $rows['А. Соболев']);
+
+        $table = file_get_contents(resource_path('js/Components/ClubPlayersTable.vue'));
+        $this->assertStringContainsString("key: 'age'", $table);
+        $this->assertStringNotContainsString("key: 'height'", $table);
+        $this->assertStringContainsString('player.number', $table);
+    }
+
     public function test_club_without_roster_keeps_only_players_with_appearances_and_no_squad_flag(): void
     {
         $matches = $this->playRounds();

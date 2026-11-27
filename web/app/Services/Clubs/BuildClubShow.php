@@ -519,6 +519,7 @@ class BuildClubShow
         $roster = $this->catalog->currentSquad($team->id);
         $playerIds = array_values(array_unique(array_merge($playerIds, $roster->keys()->all())));
         $players = $this->catalog->playersByIds($playerIds);
+        $shirtNumbers = $this->catalog->latestShirtNumbers($team->id);
 
         $result = [];
         foreach ($this->slices($finished, $team, $keys, $tournaments) as $key => $byContext) {
@@ -531,6 +532,7 @@ class BuildClubShow
                     $locale,
                     $playerStats,
                     $roster,
+                    $shirtNumbers,
                 );
             }
         }

@@ -17,14 +17,13 @@ const GROUPS = [
 ];
 
 const props = defineProps({
-    /** { name, position, age, height, weight, apps, starts, subs, minutes, goals, pens, assists, yellow, red, shots, passing, aerial, mom, rating, in_squad } */
+    /** { name, position, number, age, apps, starts, subs, minutes, goals, pens, assists, yellow, red, shots, passing, aerial, mom, rating, in_squad } */
     players: { type: Array, required: true },
     hint: { type: String, default: '' },
 });
 
 const COLUMNS = [
-    { key: 'height', label: 'см', title: 'Рост, см', hideMobile: true },
-    { key: 'weight', label: 'кг', title: 'Вес, кг', hideMobile: true },
+    { key: 'age', label: 'Возр.', title: 'Возраст, лет' },
     { key: 'apps', label: 'Выст', title: 'Матчей: в старте (и выходов на замену)', cell: (p) => (p.subs > 0 ? `${p.starts}(${p.subs})` : String(p.starts)) },
     { key: 'minutes', label: 'Мин', title: 'Сыграно минут' },
     { key: 'goals', label: 'Г', title: 'Голы (в скобках — с пенальти)', zero: true, good: true, cell: (p) => (p.goals === 0 ? '–' : p.pens > 0 ? `${p.goals} (${p.pens})` : String(p.goals)) },
@@ -149,7 +148,7 @@ const ariaSort = (column) => (sortKey.value === column.key ? (sortDir.value === 
                     <tr v-for="(player, index) in group.players" :key="`${player.name}-${index}`" :class="{ 'opacity-60': player.in_squad === false }">
                         <td class="is-left is-sticky">
                             <span class="font-semibold text-miq-ink">{{ player.name }}</span>
-                            <span class="ml-1 text-[11px] text-miq-muted">{{ player.age }}</span>
+                            <span class="ml-1 text-[11px] text-miq-muted">{{ player.number ?? '–' }}</span>
                             <span v-if="player.in_squad === false" class="ml-1 text-[11px] text-miq-muted" title="Сейчас не числится в составе клуба">не в составе</span>
                             <span
                                 v-if="player.position"

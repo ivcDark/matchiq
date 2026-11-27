@@ -25,9 +25,11 @@ final class ClubPlayersPayload
      * @param  Collection<int, MatchPlayerStat>  $playerStats
      * @param  Collection<int, SquadMembership>|null  $roster  действующий состав (по id игрока): в таблицу попадают
      *                                                         и игроки без выступлений, `in_squad` отличает их от ушедших
+     * @param  array<int, int>  $shirtNumbers  последний игровой номер игрока в клубе по заявкам на матчи (резерв, когда
+     *                                         в `squad_memberships.shirt_number` пусто); без данных `number` = null
      * @return list<array<string, mixed>>
      */
-    public static function make(array $matchIds, Collection $starters, Collection $events, Collection $players, string $locale, ?Collection $playerStats = null, ?Collection $roster = null): array
+    public static function make(array $matchIds, Collection $starters, Collection $events, Collection $players, string $locale, ?Collection $playerStats = null, ?Collection $roster = null, array $shirtNumbers = []): array
     {
         $stats = [];
         $position = [];
@@ -122,9 +124,8 @@ final class ClubPlayersPayload
             $rows[] = [
                 'name' => $player->localized('name', $locale),
                 'position' => $code,
+                'number' => $roster?->get($playerId)?->shirt_number ?? $shirtNumbers[$playerId] ?? null,
                 'age' => $player->birth_date?->age,
-                'height' => $player->height_cm,
-                'weight' => $player->weight_kg,
                 'apps' => $s['starts'] + $s['subs'],
                 'starts' => $s['starts'],
                 'subs' => $s['subs'],

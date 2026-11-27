@@ -400,6 +400,30 @@ class TournamentCatalogRepository
     }
 
     /**
+     * Последний известный игровой номер игрока в клубе — из заявок на матчи (`match_lineups`), самый свежий матч первым.
+     * `/Ls/Players` номер не отдаёт, поэтому `squad_memberships.shirt_number` остаётся пустым.
+     *
+     * @return array<int, int> player_id => номер
+     */
+    public function latestShirtNumbers(int $teamId): array
+    {
+        $numbers = [];
+        $rows = MatchLineup::query()
+            ->join('matches', 'matches.id', '=', 'match_lineups.match_id')
+            ->where('match_lineups.team_id', $teamId)
+            ->whereNotNull('match_lineups.shirt_number')
+            ->orderByDesc('matches.kickoff_at')
+            ->orderByDesc('match_lineups.id')
+            ->get(['match_lineups.player_id', 'match_lineups.shirt_number']);
+
+        foreach ($rows as $row) {
+            $numbers[(int) $row->player_id] ??= (int) $row->shirt_number;
+        }
+
+        return $numbers;
+    }
+
+    /**
      * @param  list<int>  $ids
      * @return Collection<int, Team>
      */
