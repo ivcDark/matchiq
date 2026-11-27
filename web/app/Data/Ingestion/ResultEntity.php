@@ -13,7 +13,7 @@ final readonly class ResultEntity
         public array $data,
     ) {}
 
-    /** Порядок зависимостей: справочники → сезоны → команды/стадии → матчи → игроки/тренеры → детали матча. */
+    /** Порядок зависимостей: справочники → сезоны → команды/стадии → группы/туры → участие в стадиях → матчи → игроки/тренеры → детали матча. */
     public function rank(): int
     {
         return match ($this->type) {
@@ -22,10 +22,12 @@ final readonly class ResultEntity
             ExternalEntityType::Season => 3,
             ExternalEntityType::Team => 4,
             ExternalEntityType::Stage => 5,
-            ExternalEntityType::Match => 6,
-            ExternalEntityType::Player, ExternalEntityType::Coach => 7,
-            ExternalEntityType::MatchDetails => 8,
-            default => 9,
+            ExternalEntityType::StageGroup, ExternalEntityType::Round => 6,
+            ExternalEntityType::StageTeam => 7,
+            ExternalEntityType::Match => 8,
+            ExternalEntityType::Player, ExternalEntityType::Coach => 9,
+            ExternalEntityType::MatchDetails => 10,
+            default => 11,
         };
     }
 }

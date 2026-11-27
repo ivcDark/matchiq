@@ -7,6 +7,9 @@ const (
 	EntityCompetition = "competition"
 	EntitySeason      = "season"
 	EntityStage       = "stage"
+	EntityStageGroup  = "stage_group"
+	EntityStageTeam   = "stage_team"
+	EntityRound       = "round"
 	EntityTeam        = "team"
 	EntityMatch       = "match"
 	EntityPlayer      = "player"
@@ -22,10 +25,13 @@ var EntityRank = map[string]int{
 	EntitySeason:       3,
 	EntityTeam:         4,
 	EntityStage:        5,
-	EntityMatch:        6,
-	EntityPlayer:       7,
-	EntityCoach:        7,
-	EntityMatchDetails: 8,
+	EntityStageGroup:   6,
+	EntityRound:        6,
+	EntityStageTeam:    7,
+	EntityMatch:        8,
+	EntityPlayer:       9,
+	EntityCoach:        9,
+	EntityMatchDetails: 10,
 }
 
 // Значения enum'ов совпадают с Laravel (CountryKind, CompetitionType, CompetitionScope, StageType).
@@ -39,7 +45,11 @@ const (
 	ScopeContinental = "continental"
 
 	StageTypeLeague   = "league"
+	StageTypeGroup    = "group"
 	StageTypeKnockout = "knockout"
+
+	RoundTypeMatchday      = "matchday"
+	RoundTypeKnockoutRound = "knockout_round"
 )
 
 type CountryData struct {
@@ -68,6 +78,29 @@ type StageData struct {
 	Type             string `json:"type"`
 	StageOrder       int    `json:"stage_order"`
 	HasStandings     bool   `json:"has_standings"`
+}
+
+// StageGroupData — группа стадии (одна из нескольких таблиц стадии).
+type StageGroupData struct {
+	StageExternalID string `json:"stage_external_id"`
+	Name            string `json:"name"`
+	GroupOrder      int    `json:"group_order"`
+}
+
+// StageTeamData — участие команды в стадии; GroupName пуст, если стадия без групп.
+type StageTeamData struct {
+	StageExternalID string `json:"stage_external_id"`
+	TeamExternalID  string `json:"team_external_id"`
+	GroupName       string `json:"group_name,omitempty"`
+}
+
+// RoundData — тур или раунд стадии. Code — канонический код раунда плей-офф (R32, QF, F, …), если распознан.
+type RoundData struct {
+	StageExternalID string `json:"stage_external_id"`
+	Number          int    `json:"number"`
+	Name            string `json:"name"`
+	Type            string `json:"type"`
+	Code            string `json:"code,omitempty"`
 }
 
 type TeamData struct {
@@ -126,6 +159,7 @@ type MatchData struct {
 	CompetitionExternalID string  `json:"competition_external_id,omitempty"`
 	SeasonExternalID      string  `json:"season_external_id"`
 	StageExternalID       string  `json:"stage_external_id"`
+	RoundExternalID       string  `json:"round_external_id,omitempty"`
 	RoundName             string  `json:"round_name,omitempty"`
 	RoundNumber           *int    `json:"round_number"`
 	HomeTeamExternalID    string  `json:"home_team_external_id"`

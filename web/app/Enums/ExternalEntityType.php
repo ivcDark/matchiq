@@ -9,6 +9,9 @@ enum ExternalEntityType: string
     case Season = 'season';
     case Stage = 'stage';
     case Round = 'round';
+    /** Группа стадии и участие команды в стадии: ключуются по (stage, name) и (stage, team), в external_ids не пишутся. */
+    case StageGroup = 'stage_group';
+    case StageTeam = 'stage_team';
     case Tie = 'tie';
     case Team = 'team';
     case Venue = 'venue';

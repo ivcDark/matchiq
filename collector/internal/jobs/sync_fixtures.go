@@ -112,6 +112,7 @@ func normalizeFixture(f sstats.LsFixture, p dto.FixturesPayload) (dto.Entity, *d
 		CompetitionExternalID: f.TournamentID,
 		SeasonExternalID:      seasonID,
 		StageExternalID:       stageID,
+		RoundExternalID:       f.RoundID.String(),
 		RoundName:             strings.TrimSpace(f.RoundName),
 		RoundNumber:           roundNumber(f.RoundName),
 		HomeTeamExternalID:    f.HomeTeamID,

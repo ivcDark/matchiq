@@ -20,6 +20,9 @@ use App\Services\Ingestion\Entity\MatchDetailsUpserter;
 use App\Services\Ingestion\Entity\MatchUpserter;
 use App\Services\Ingestion\Entity\PlayerUpserter;
 use App\Services\Ingestion\Entity\SeasonUpserter;
+use App\Services\Ingestion\Entity\RoundUpserter;
+use App\Services\Ingestion\Entity\StageGroupUpserter;
+use App\Services\Ingestion\Entity\StageTeamUpserter;
 use App\Services\Ingestion\Entity\StageUpserter;
 use App\Services\Ingestion\Entity\TeamUpserter;
 use App\Services\Ingestion\Exceptions\IngestionEntityException;
@@ -43,13 +46,16 @@ class ApplyIngestionResult
         CompetitionUpserter $competitions,
         SeasonUpserter $seasons,
         StageUpserter $stages,
+        StageGroupUpserter $stageGroups,
+        RoundUpserter $rounds,
+        StageTeamUpserter $stageTeams,
         TeamUpserter $teams,
         MatchUpserter $matches,
         PlayerUpserter $players,
         CoachUpserter $coaches,
         MatchDetailsUpserter $matchDetails,
     ) {
-        foreach ([$countries, $competitions, $seasons, $stages, $teams, $matches, $players, $coaches, $matchDetails] as $upserter) {
+        foreach ([$countries, $competitions, $seasons, $stages, $stageGroups, $rounds, $stageTeams, $teams, $matches, $players, $coaches, $matchDetails] as $upserter) {
             $this->upserters[$upserter->type()->value] = $upserter;
         }
     }

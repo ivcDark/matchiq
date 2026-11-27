@@ -15,6 +15,7 @@ use App\Repositories\MatchRepository;
 use App\Repositories\RoundRepository;
 use App\Repositories\SeasonRepository;
 use App\Repositories\StageRepository;
+use App\Repositories\StageTeamRepository;
 use App\Services\Ingestion\Exceptions\IngestionEntityException;
 use Illuminate\Support\Carbon;
 use Throwable;
@@ -26,6 +27,7 @@ class MatchUpserter implements EntityUpserter
         private readonly RoundRepository $rounds,
         private readonly SeasonRepository $seasons,
         private readonly StageRepository $stages,
+        private readonly StageTeamRepository $stageTeams,
         private readonly ExternalIdRepository $externalIds,
     ) {}
 
@@ -73,7 +75,8 @@ class MatchUpserter implements EntityUpserter
             $season->competition_id,
             $season->id,
             $stage->id,
-            $this->resolveRoundId($stage->id, $stage->type->hasStandings(), $data),
+            $this->resolveRoundId($stage->id, $stage->type->hasStandings(), $data, $context),
+            $this->resolveGroupId($stage->id, $homeId, $awayId),
             $homeId,
             $awayId,
             $kickoff,
@@ -108,8 +111,25 @@ class MatchUpserter implements EntityUpserter
             ->first(fn (FootballMatch $m) => ! $this->externalIds->isLinked($context->providerId, $this->type(), $m->id));
     }
 
-    private function resolveRoundId(int $stageId, bool $isTable, array $data): ?int
+    /** Группа матча — общая группа обеих команд в стадии; у стадий без групп и при расхождении — null. */
+    private function resolveGroupId(int $stageId, int $homeId, int $awayId): ?int
     {
+        $home = $this->stageTeams->groupIdOf($stageId, $homeId);
+
+        return $home !== null && $home === $this->stageTeams->groupIdOf($stageId, $awayId) ? $home : null;
+    }
+
+    private function resolveRoundId(int $stageId, bool $isTable, array $data, UpsertContext $context): ?int
+    {
+        $externalId = (string) ($data['round_external_id'] ?? '');
+        if ($externalId !== '') {
+            $linked = $this->externalIds->findEntityId($context->providerId, ExternalEntityType::Round, $externalId);
+            $round = $linked === null ? null : $this->rounds->find($linked);
+            if ($round !== null && $round->stage_id === $stageId) {
+                return $round->id;
+            }
+        }
+
         $number = $data['round_number'] ?? null;
         if (! is_int($number) || $number < 1) {
             return null;

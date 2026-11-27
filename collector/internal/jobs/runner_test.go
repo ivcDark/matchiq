@@ -13,6 +13,7 @@ type fakeSource struct {
 	leagues   []sstats.LsLeague
 	seasons   map[string][]sstats.LsSeason
 	structure sstats.LsSeasonStructure
+	standings []sstats.LsStandings
 	fixtures  []sstats.LsFixture
 	gotQuery  *sstats.FixturesQuery
 	err       error
@@ -30,6 +31,9 @@ func (f fakeSource) Seasons(_ context.Context, id string) ([]sstats.LsSeason, er
 }
 func (f fakeSource) SeasonStructure(context.Context, string) (sstats.LsSeasonStructure, error) {
 	return f.structure, f.err
+}
+func (f fakeSource) Standings(context.Context, string) ([]sstats.LsStandings, error) {
+	return f.standings, f.err
 }
 
 func (f fakeSource) Fixtures(_ context.Context, q sstats.FixturesQuery) ([]sstats.LsFixture, error) {
@@ -176,6 +180,91 @@ func TestSyncStructureStagesAndTeams(t *testing.T) {
 	done := msgs[len(msgs)-1].(dto.Done)
 	if done.BatchesTotal != 3 || done.EntitiesTotal != 5 {
 		t.Fatalf("done = %+v", done)
+	}
+}
+
+func TestSyncStructureGroupsRoundsAndStageTeams(t *testing.T) {
+	flex := func(n int) *sstats.FlexInt { v := sstats.FlexInt(n); return &v }
+	src := fakeSource{
+		structure: sstats.LsSeasonStructure{
+			Stages: []sstats.LsStage{
+				{ID: "GrStage1", Name: "Group Stage", StatsType: "table", SortOrder: flex(0)},
+				{ID: "KoStage1", Name: "Play Offs", StatsType: "draw", SortOrder: flex(1)},
+			},
+			Teams: []sstats.LsTeam{
+				{UniqueID: "TeAm0001", Name: "Zenit", CountryID: "189"},
+				{UniqueID: "TeAm0002", Name: "Spartak", CountryID: "189"},
+			},
+			StandingTables: []sstats.LsStandingTable{
+				{ID: "14593", StageID: "GrStage1", Name: "Group B", SortOrder: flex(1)},
+				{ID: "14592", StageID: "GrStage1", Name: "Group A", SortOrder: flex(0)},
+			},
+			Rounds: []sstats.LsRound{
+				{ID: "1", StageID: "GrStage1", Name: "Round 1", Number: flex(1), SortOrder: flex(1), Kind: 1},
+				{ID: "2", StageID: "KoStage1", Name: "Quarter-finals", SortOrder: flex(1), Kind: 2},
+				{ID: "3", StageID: "Unknown", Name: "Final", SortOrder: flex(1), Kind: 2},
+			},
+			StageTeams: []sstats.LsStageTeam{
+				{StageID: "GrStage1", TeamID: "TeAm0001"},
+				{StageID: "GrStage1", TeamID: "TeAm0002"},
+				{StageID: "KoStage1", TeamID: "TeAm0001"},
+			},
+		},
+		standings: []sstats.LsStandings{
+			{Table: sstats.LsStandingTable{StageID: "GrStage1", Name: "Group A"}, Rows: []sstats.LsStandingsRow{{TeamID: "TeAm0001"}}},
+			{Table: sstats.LsStandingTable{StageID: "GrStage1", Name: "Group B"}, Rows: []sstats.LsStandingsRow{{TeamID: "TeAm0002"}}},
+		},
+	}
+
+	msgs := runCommand(t, src, dto.JobSyncStructure, dto.StructurePayload{SeasonExternalID: "SeAs2025"}, 100)
+
+	var groups []dto.StageGroupData
+	var teams []dto.StageTeamData
+	var rounds []dto.RoundData
+	var stages []dto.StageData
+	for _, m := range msgs {
+		b, ok := m.(*dto.Batch)
+		if !ok {
+			continue
+		}
+		for _, e := range b.Entities {
+			switch d := e.Data.(type) {
+			case dto.StageGroupData:
+				groups = append(groups, d)
+			case dto.StageTeamData:
+				teams = append(teams, d)
+			case dto.RoundData:
+				rounds = append(rounds, d)
+			case dto.StageData:
+				stages = append(stages, d)
+			}
+		}
+	}
+
+	if stages[0].Type != dto.StageTypeGroup || !stages[0].HasStandings {
+		t.Fatalf("a table stage with several standing tables must be a group stage: %+v", stages[0])
+	}
+	if len(groups) != 2 || groups[0].Name != "Group A" || groups[0].GroupOrder != 1 || groups[1].Name != "Group B" {
+		t.Fatalf("groups = %+v", groups)
+	}
+	if len(teams) != 3 || teams[0].GroupName != "Group A" || teams[1].GroupName != "Group B" || teams[2].GroupName != "" {
+		t.Fatalf("stage teams = %+v", teams)
+	}
+	if len(rounds) != 2 || rounds[0].Type != dto.RoundTypeMatchday || rounds[0].Number != 1 ||
+		rounds[1].Type != dto.RoundTypeKnockoutRound || rounds[1].Code != "QF" || rounds[1].Number != 1 {
+		t.Fatalf("rounds = %+v", rounds)
+	}
+}
+
+func TestKnockoutRoundCode(t *testing.T) {
+	cases := map[string]string{
+		"Final": "F", "Semi-finals": "SF", "Quarter-finals": "QF", "1/8-finals": "R16",
+		"1/16-finals": "R32", "1/32-finals": "R64", "Play Offs": "",
+	}
+	for name, want := range cases {
+		if got := knockoutRoundCode(name); got != want {
+			t.Errorf("knockoutRoundCode(%q) = %q, want %q", name, got, want)
+		}
 	}
 }
 

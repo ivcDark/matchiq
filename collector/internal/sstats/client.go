@@ -116,6 +116,10 @@ func (s *Session) SeasonStructure(ctx context.Context, seasonID string) (LsSeaso
 	return get[LsSeasonStructure](ctx, s, "/Ls/SeasonStructure", url.Values{"seasonId": {seasonID}})
 }
 
+func (s *Session) Standings(ctx context.Context, seasonID string) ([]LsStandings, error) {
+	return get[[]LsStandings](ctx, s, "/Ls/Standings", url.Values{"seasonId": {seasonID}})
+}
+
 const (
 	fixturesPageSize = 1000
 	fixturesMaxPages = 50

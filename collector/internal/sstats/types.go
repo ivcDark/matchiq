@@ -101,10 +101,46 @@ type LsStage struct {
 	SortOrder *FlexInt `json:"sortOrder"`
 }
 
+// LsRound — тур или раунд стадии (kind 1 — тур таблицы, kind 2 — раунд плей-офф).
+type LsRound struct {
+	ID        FlexString `json:"id"`
+	StageID   string     `json:"stageId"`
+	Name      string     `json:"name"`
+	Number    *FlexInt   `json:"number"`
+	SortOrder *FlexInt   `json:"sortOrder"`
+	Kind      FlexInt    `json:"kind"`
+}
+
+// LsStandingTable — таблица стадии; несколько таблиц на стадию — это группы.
+type LsStandingTable struct {
+	ID        FlexString `json:"id"`
+	StageID   string     `json:"stageId"`
+	Name      string     `json:"name"`
+	SortOrder *FlexInt   `json:"sortOrder"`
+}
+
+type LsStageTeam struct {
+	StageID string `json:"stageId"`
+	TeamID  string `json:"teamId"`
+}
+
 type LsSeasonStructure struct {
-	Season LsSeason  `json:"season"`
-	Stages []LsStage `json:"stages"`
-	Teams  []LsTeam  `json:"teams"`
+	Season         LsSeason          `json:"season"`
+	Stages         []LsStage         `json:"stages"`
+	Teams          []LsTeam          `json:"teams"`
+	Rounds         []LsRound         `json:"rounds"`
+	StandingTables []LsStandingTable `json:"standingTables"`
+	StageTeams     []LsStageTeam     `json:"stageTeams"`
+}
+
+// LsStandings — таблица стадии из /Ls/Standings: состав группы задаётся строками таблицы.
+type LsStandings struct {
+	Table LsStandingTable  `json:"table"`
+	Rows  []LsStandingsRow `json:"rows"`
+}
+
+type LsStandingsRow struct {
+	TeamID string `json:"teamId"`
 }
 
 // LsFixture — матч из /Ls/List (используются только нужные каноническому DTO поля).
@@ -113,6 +149,7 @@ type LsFixture struct {
 	TournamentID string     `json:"tournamentId"`
 	SeasonID     string     `json:"seasonId"`
 	StageID      string     `json:"stageId"`
+	RoundID      FlexString `json:"roundId"`
 	RoundName    string     `json:"roundName"`
 	HomeTeamID   string     `json:"homeTeamId"`
 	AwayTeamID   string     `json:"awayTeamId"`
