@@ -39,6 +39,8 @@ return [
             'every_minutes' => $int('INGEST_DETAILS_RECENT_EVERY_MINUTES', 60),
             'days_back' => $int('INGEST_DETAILS_RECENT_DAYS_BACK', 1),
             'limit' => $int('INGEST_DETAILS_RECENT_LIMIT', 10),
+            // Сдвиг старта (минута часа): 10 → :10 — мимо details_missing (:00, :15, ...) и details_live (:05, :20, ...).
+            'offset_minutes' => $int('INGEST_DETAILS_RECENT_OFFSET_MINUTES', 10),
         ],
 
         // Статистика, события и составы идущих сейчас матчей (status = live, их статус обновляет fixtures каждые 10 мин).

@@ -53,7 +53,7 @@ class ScheduleTest extends TestCase
         $this->assertSame([
             "ingest:run-scheduled 'fixtures'" => '*/10 * * * *',
             "ingest:run-scheduled 'details_missing'" => '*/15 * * * *',
-            "ingest:run-scheduled 'details_recent'" => '0 * * * *',
+            "ingest:run-scheduled 'details_recent'" => '10 * * * *',
             "ingest:run-scheduled 'details_live'" => '5-59/15 * * * *',
             "ingest:run-scheduled 'fixtures_full'" => '30 3 * * *',
             "ingest:run-scheduled 'catalog'" => '0 4 * * *',
@@ -88,7 +88,7 @@ class ScheduleTest extends TestCase
         $crons = $this->crons();
 
         $this->assertSame('*/5 * * * *', $crons["ingest:run-scheduled 'fixtures'"]);
-        $this->assertSame('0 */3 * * *', $crons["ingest:run-scheduled 'details_recent'"]);
+        $this->assertSame('10 */3 * * *', $crons["ingest:run-scheduled 'details_recent'"]);
         $this->assertSame('45 5 * * *', $crons["ingest:run-scheduled 'structure'"]);
         $this->assertSame('*/30 * * * *', $crons['ingest:reap-stuck']);
         $this->assertArrayNotHasKey("ingest:run-scheduled 'details_missing'", $crons);
@@ -499,7 +499,31 @@ class ScheduleTest extends TestCase
         $this->assertSame('*/15 * * * *', IngestSchedule::cron(15));
         $this->assertSame('5-59/15 * * * *', IngestSchedule::cron(15, 5));
         $this->assertSame('*/15 * * * *', IngestSchedule::cron(15, 15));
-        $this->assertSame('0 * * * *', IngestSchedule::cron(60, 5));
+        $this->assertSame('5 * * * *', IngestSchedule::cron(60, 5));
+        $this->assertSame('0 * * * *', IngestSchedule::cron(60, 60));
+        $this->assertSame('10 */3 * * *', IngestSchedule::cron(180, 10));
+        $this->assertSame('10 0 * * *', IngestSchedule::cron(1440, 10));
+    }
+
+    public function test_details_jobs_never_start_in_the_same_minute(): void
+    {
+        $crons = $this->crons();
+        $minutes = function (string $cron): array {
+            $field = explode(' ', $cron)[0];
+            if (preg_match('#^(?:\*|(\d+)-59)/(\d+)$#', $field, $m)) {
+                return range((int) ($m[1] ?: 0), 59, (int) $m[2]);
+            }
+
+            return [(int) $field];
+        };
+
+        $missing = $minutes($crons["ingest:run-scheduled 'details_missing'"]);
+        $recent = $minutes($crons["ingest:run-scheduled 'details_recent'"]);
+        $live = $minutes($crons["ingest:run-scheduled 'details_live'"]);
+
+        $this->assertSame([], array_intersect($missing, $recent), 'details_recent не совпадает с details_missing');
+        $this->assertSame([], array_intersect($live, $recent), 'details_recent не совпадает с details_live');
+        $this->assertSame([], array_intersect($missing, $live), 'details_live не совпадает с details_missing');
     }
 
     public function test_run_scheduled_details_missing_without_candidates_is_not_an_error(): void

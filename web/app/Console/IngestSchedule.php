@@ -16,7 +16,7 @@ class IngestSchedule
 
         self::job($schedule, 'fixtures', 'sync_fixtures: окно вокруг сегодняшней даты', $config['fixtures']['every_minutes'] ?? 0);
         self::job($schedule, 'details_missing', 'sync_match_details --missing: матчи без деталей', $config['details_missing']['every_minutes'] ?? 0);
-        self::job($schedule, 'details_recent', 'sync_match_details: недавно завершённые матчи', $config['details_recent']['every_minutes'] ?? 0);
+        self::job($schedule, 'details_recent', 'sync_match_details: недавно завершённые матчи', $config['details_recent']['every_minutes'] ?? 0, (int) ($config['details_recent']['offset_minutes'] ?? 0));
 
         self::job($schedule, 'details_live', 'sync_match_details --live: идущие сейчас матчи', $config['details_live']['every_minutes'] ?? 0, (int) ($config['details_live']['offset_minutes'] ?? 0));
 
@@ -34,7 +34,7 @@ class IngestSchedule
     }
 
     /**
-     * Cron для «каждые N минут»; null — выключено. `$offset` сдвигает старт внутри часа (только для N < 60):
+     * Cron для «каждые N минут»; null — выключено. `$offset` сдвигает старт внутри часа (для N ≥ 60 — минута часа):
      * нужен, чтобы задачи одного `kind` не стартовали в одну минуту — второй плановый прогон по соревнованию пропускается.
      */
     public static function cron(int $minutes, int $offset = 0): ?string
@@ -48,12 +48,13 @@ class IngestSchedule
             return $offset === 0 ? "*/{$minutes} * * * *" : "{$offset}-59/{$minutes} * * * *";
         }
 
+        $minute = max(0, $offset) % 60;
         $hours = min(24, intdiv($minutes, 60));
 
         return match (true) {
-            $hours >= 24 => '0 0 * * *',
-            $hours === 1 => '0 * * * *',
-            default => "0 */{$hours} * * *",
+            $hours >= 24 => "{$minute} 0 * * *",
+            $hours === 1 => "{$minute} * * * *",
+            default => "{$minute} */{$hours} * * *",
         };
     }
 
