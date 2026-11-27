@@ -27,7 +27,8 @@ final readonly class ResultEntity
             ExternalEntityType::Match => 8,
             ExternalEntityType::Player, ExternalEntityType::Coach => 9,
             ExternalEntityType::MatchDetails, ExternalEntityType::Squad => 10,
-            default => 11,
+            ExternalEntityType::ExternalRefs => 11,
+            default => 12,
         };
     }
 }

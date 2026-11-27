@@ -16,6 +16,7 @@ type Source interface {
 	SeasonStructure(ctx context.Context, seasonID string) (sstats.LsSeasonStructure, error)
 	Standings(ctx context.Context, seasonID string) ([]sstats.LsStandings, error)
 	Fixtures(ctx context.Context, q sstats.FixturesQuery) ([]sstats.LsFixture, error)
+	GamesByFlashIDs(ctx context.Context, flashIDs []string) ([]sstats.GameRef, error)
 	GameInfo(ctx context.Context, matchID string) (sstats.LsGameInfo, error)
 	GameLineups(ctx context.Context, matchID string) (sstats.LsGameLineups, error)
 	Players(ctx context.Context, teamID string) ([]sstats.LsSquadPlayer, error)

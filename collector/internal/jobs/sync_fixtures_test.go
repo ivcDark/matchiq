@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -120,7 +121,7 @@ func TestSyncFixturesRejectsBadPayload(t *testing.T) {
 
 func TestMatchStatusMapping(t *testing.T) {
 	cases := map[int]string{
-		1: dto.MatchScheduled, 12: dto.MatchLive, 45: dto.MatchLive, 3: dto.MatchFinished, 11: dto.MatchFinished,
+		1: dto.MatchScheduled, 12: dto.MatchLive, 38: dto.MatchLive, 45: dto.MatchLive, 3: dto.MatchFinished, 11: dto.MatchFinished,
 		9: dto.MatchFinished, 43: dto.MatchPostponed, 36: dto.MatchAbandoned, 37: dto.MatchAbandoned, 5: dto.MatchCancelled,
 	}
 	for code, want := range cases {
@@ -130,5 +131,85 @@ func TestMatchStatusMapping(t *testing.T) {
 	}
 	if _, _, ok := matchStatus(999); ok {
 		t.Fatal("unknown status must not be accepted")
+	}
+}
+
+func gameRef(t *testing.T, raw string) sstats.GameRef {
+	t.Helper()
+	var g sstats.GameRef
+	if err := json.Unmarshal([]byte(raw), &g); err != nil {
+		t.Fatal(err)
+	}
+
+	return g
+}
+
+func TestSyncFixturesAddsExternalRefs(t *testing.T) {
+	g1 := gameRef(t, `{"id":1577610,"flashId":"Fin00001","mappings":{"flashscore":"Fin00001","pari":"70159794"},
+		"homeTeam":{"id":3985,"flashId":"TeAm0001","mappings":{"flashscore":["TeAm0001"],"pari":["420773"]}},
+		"awayTeam":{"id":6811,"flashId":null,"mappings":{}},
+		"season":{"league":{"id":236,"flashScoreId":"YacqHHdS","mappings":{"flashscore":["YacqHHdS"],"pari":["80073"]}}}}`)
+	g2 := gameRef(t, `{"id":"1577611","flashId":"Liv00001","mappings":{"flashscore":"Liv00001"},
+		"homeTeam":{"id":3985,"flashId":"TeAm0001","mappings":{"flashscore":["TeAm0001"],"pari":["420773"]}},
+		"awayTeam":{"id":1087,"flashId":"TeAm0002","mappings":{"pari":["419821"]}},
+		"season":{"league":{"id":236,"flashScoreId":"YacqHHdS","mappings":{}}}}`)
+
+	var asked []string
+	src := fakeSource{
+		fixtures: []sstats.LsFixture{fixture("Fin00001", 1), fixture("Liv00001", 1)},
+		games:    []sstats.GameRef{g1, g2},
+		gotFlash: &asked,
+	}
+	msgs := runCommand(t, src, dto.JobSyncFixtures, dto.FixturesPayload{SeasonExternalID: "SeAs2026"}, 200)
+
+	if len(asked) != 2 || asked[0] != "Fin00001" || asked[1] != "Liv00001" {
+		t.Fatalf("asked = %v", asked)
+	}
+
+	batch := msgs[0].(*dto.Batch)
+	refs := map[string]dto.ExternalRefsData{}
+	for _, e := range batch.Entities {
+		if e.EntityType == dto.EntityExternalRefs {
+			d := e.Data.(dto.ExternalRefsData)
+			refs[d.EntityType+":"+e.ExternalID] = d
+		}
+	}
+	// 2 матча + команды TeAm0001, TeAm0002 (у команды без flashId id нет ключа) + одна лига.
+	if len(refs) != 5 {
+		t.Fatalf("refs = %+v", refs)
+	}
+	m := refs["match:Fin00001"].Refs
+	if m[dto.RefSstatsAPI] != "1577610" || m[dto.RefFlashscore] != "Fin00001" || m[dto.RefPari] != "70159794" {
+		t.Fatalf("match refs = %+v", m)
+	}
+	if l := refs["match:Liv00001"].Refs; l[dto.RefSstatsAPI] != "1577611" || l[dto.RefPari] != "" {
+		t.Fatalf("match without pari = %+v", l)
+	}
+	if tm := refs["team:TeAm0001"].Refs; tm[dto.RefSstatsAPI] != "3985" || tm[dto.RefPari] != "420773" {
+		t.Fatalf("team refs = %+v", tm)
+	}
+	if c := refs["competition:YacqHHdS"].Refs; c[dto.RefSstatsAPI] != "236" || c[dto.RefPari] != "80073" {
+		t.Fatalf("competition refs = %+v", c)
+	}
+}
+
+func TestSyncFixturesKeepsMatchesWhenGamesListFails(t *testing.T) {
+	src := fakeSource{fixtures: []sstats.LsFixture{fixture("Fin00001", 1)}, gamesErr: &sstats.StatusError{Code: 502, Message: "bad gateway"}}
+	msgs := runCommand(t, src, dto.JobSyncFixtures, dto.FixturesPayload{SeasonExternalID: "SeAs2026"}, 200)
+
+	batch := msgs[0].(*dto.Batch)
+	if len(batch.Entities) != 1 || batch.Entities[0].EntityType != dto.EntityMatch {
+		t.Fatalf("entities = %+v", batch.Entities)
+	}
+	if len(batch.Errors) != 1 || batch.Errors[0].Phase != dto.PhaseFetch || batch.Errors[0].EntityType != dto.EntityExternalRefs {
+		t.Fatalf("errors = %+v", batch.Errors)
+	}
+}
+
+func TestSyncFixturesFailsOnUnauthorizedGamesList(t *testing.T) {
+	src := fakeSource{fixtures: []sstats.LsFixture{fixture("Fin00001", 1)}, gamesErr: sstats.ErrUnauthorized}
+	msgs := runCommand(t, src, dto.JobSyncFixtures, dto.FixturesPayload{SeasonExternalID: "SeAs2026"}, 200)
+	if _, ok := msgs[0].(dto.Failed); !ok {
+		t.Fatalf("expected failed, got %#v", msgs[0])
 	}
 }

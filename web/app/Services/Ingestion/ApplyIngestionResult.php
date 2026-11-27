@@ -16,12 +16,13 @@ use App\Services\Ingestion\Entity\CoachUpserter;
 use App\Services\Ingestion\Entity\CompetitionUpserter;
 use App\Services\Ingestion\Entity\CountryUpserter;
 use App\Services\Ingestion\Entity\EntityUpserter;
+use App\Services\Ingestion\Entity\ExternalRefsUpserter;
 use App\Services\Ingestion\Entity\MatchDetailsUpserter;
 use App\Services\Ingestion\Entity\MatchUpserter;
 use App\Services\Ingestion\Entity\PlayerUpserter;
+use App\Services\Ingestion\Entity\RoundUpserter;
 use App\Services\Ingestion\Entity\SeasonUpserter;
 use App\Services\Ingestion\Entity\SquadUpserter;
-use App\Services\Ingestion\Entity\RoundUpserter;
 use App\Services\Ingestion\Entity\StageGroupUpserter;
 use App\Services\Ingestion\Entity\StageTeamUpserter;
 use App\Services\Ingestion\Entity\StageUpserter;
@@ -56,8 +57,9 @@ class ApplyIngestionResult
         CoachUpserter $coaches,
         MatchDetailsUpserter $matchDetails,
         SquadUpserter $squads,
+        ExternalRefsUpserter $externalRefs,
     ) {
-        foreach ([$countries, $competitions, $seasons, $stages, $stageGroups, $rounds, $stageTeams, $teams, $matches, $players, $coaches, $matchDetails, $squads] as $upserter) {
+        foreach ([$countries, $competitions, $seasons, $stages, $stageGroups, $rounds, $stageTeams, $teams, $matches, $players, $coaches, $matchDetails, $squads, $externalRefs] as $upserter) {
             $this->upserters[$upserter->type()->value] = $upserter;
         }
     }

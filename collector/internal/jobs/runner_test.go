@@ -15,6 +15,9 @@ type fakeSource struct {
 	structure sstats.LsSeasonStructure
 	standings []sstats.LsStandings
 	fixtures  []sstats.LsFixture
+	games     []sstats.GameRef
+	gamesErr  error
+	gotFlash  *[]string
 	gotQuery  *sstats.FixturesQuery
 	err       error
 
@@ -44,6 +47,13 @@ func (f fakeSource) Fixtures(_ context.Context, q sstats.FixturesQuery) ([]sstat
 		*f.gotQuery = q
 	}
 	return f.fixtures, f.err
+}
+
+func (f fakeSource) GamesByFlashIDs(_ context.Context, ids []string) ([]sstats.GameRef, error) {
+	if f.gotFlash != nil {
+		*f.gotFlash = ids
+	}
+	return f.games, f.gamesErr
 }
 
 func (f fakeSource) GameInfo(_ context.Context, id string) (sstats.LsGameInfo, error) {

@@ -24,4 +24,6 @@ enum ExternalEntityType: string
     /** Актуальный состав клуба; external_id = внешний id команды. В external_ids не пишется. */
     case Squad = 'squad';
     case MarketType = 'market_type';
+    /** Дополнительные идентификаторы (sstats_api, flashscore, pari) уже известной сущности; external_id = её id у провайдера sstats. В external_ids не пишется. */
+    case ExternalRefs = 'external_refs';
 }

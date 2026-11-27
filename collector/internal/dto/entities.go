@@ -18,6 +18,16 @@ const (
 	EntityMatchDetails = "match_details"
 	// EntitySquad — актуальный состав клуба: external_id = внешний id команды, в data — внешние id игроков.
 	EntitySquad = "squad"
+	// EntityExternalRefs — дополнительные идентификаторы уже известной сущности (числовой id SStats, flashscore, pari).
+	// external_id = id сущности у провайдера sstats (flash-id), в data — тип сущности и ids по кодам провайдеров.
+	EntityExternalRefs = "external_refs"
+)
+
+// Коды провайдеров идентификаторов в external_ids (совпадают с source_providers.code в Laravel).
+const (
+	RefSstatsAPI  = "sstats_api"
+	RefFlashscore = "flashscore"
+	RefPari       = "pari"
 )
 
 // EntityRank задаёт порядок зависимостей: справочники → сезоны → стадии/команды → матчи.
@@ -35,6 +45,7 @@ var EntityRank = map[string]int{
 	EntityCoach:        9,
 	EntityMatchDetails: 10,
 	EntitySquad:        10,
+	EntityExternalRefs: 11,
 }
 
 // Значения enum'ов совпадают с Laravel (CountryKind, CompetitionType, CompetitionScope, StageType).
@@ -192,4 +203,10 @@ type FixturesPayload struct {
 type FixturesWindow struct {
 	From string `json:"from,omitempty"`
 	To   string `json:"to,omitempty"`
+}
+
+// ExternalRefsData — идентификаторы сущности в других источниках. EntityType — match, team или competition.
+type ExternalRefsData struct {
+	EntityType string            `json:"entity_type"`
+	Refs       map[string]string `json:"refs"`
 }

@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Enums\ExternalEntityType;
 use App\Enums\MatchedBy;
+use App\Enums\UpsertOutcome;
 use App\Models\ExternalId;
 use App\Services\Ingestion\Exceptions\IngestionEntityException;
 
@@ -102,5 +103,43 @@ class ExternalIdRepository
         $row->save();
 
         return $row;
+    }
+
+    /**
+     * Привязывает дополнительный идентификатор к сущности: у сущности не больше одного id на провайдера.
+     * Тот же id → unchanged (строка не пишется); другой id у сущности → заменяется; id занят другой сущностью → конфликт.
+     *
+     * @throws IngestionEntityException
+     */
+    public function link(int $providerId, ExternalEntityType $type, string $externalId, int $entityId, int $runId): UpsertOutcome
+    {
+        $owner = $this->findEntityId($providerId, $type, $externalId);
+        if ($owner !== null && $owner !== $entityId) {
+            throw IngestionEntityException::conflict('внешний id уже принадлежит другой сущности', [
+                'entity_type' => $type->value,
+                'external_id' => $externalId,
+            ]);
+        }
+        if ($owner !== null) {
+            return UpsertOutcome::Unchanged;
+        }
+
+        $current = ExternalId::where('source_provider_id', $providerId)
+            ->where('entity_type', $type->value)
+            ->where('entity_id', $entityId)
+            ->first();
+
+        $row = $current ?? new ExternalId([
+            'source_provider_id' => $providerId,
+            'entity_type' => $type->value,
+            'entity_id' => $entityId,
+            'matched_by' => MatchedBy::Auto,
+        ]);
+        $row->external_id = $externalId;
+        $row->last_seen_at = now();
+        $row->last_ingestion_run_id = $runId;
+        $row->save();
+
+        return $current === null ? UpsertOutcome::Created : UpsertOutcome::Updated;
     }
 }

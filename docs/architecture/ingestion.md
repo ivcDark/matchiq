@@ -202,6 +202,23 @@ collector/
 - Laravel: `MatchUpserter` → `MatchRepository`/`RoundRepository`. Команды, стадии и сезон резолвятся по `external_ids` (их должны создать `sync_catalog`/`sync_structure`; иначе ошибка `match` по строке матча); `competition_id` берётся из сезона, стадия обязана принадлежать сезону; тур (`rounds`) создаётся по номеру только для «Round N». Новый `external_id` сначала ищет ещё не привязанный матч той же пары в сезоне в ±1 день (страховка от дублей), иначе создаёт. Поля, которых источник не отдаёт (площадка, судья, погода, `tie_id`, `finished_at`, `minute`), не трогаются.
 - Запуск: `php artisan ingest:dispatch sync_fixtures --competition=<slug|id> [--season=<slug>] [--stage=<id|название>] [--from=YYYY-MM-DD] [--to=YYYY-MM-DD]`. Фильтры соревнования/сезона те же, что у `sync_structure`; блокировка прогона — на (провайдер, соревнование, `sync_fixtures`).
 
+**Идентификаторы SStats: `sstats`, `sstats_api`, `flashscore`, `pari`** (`external_refs`):
+
+SStats отдаёт у матча, команды и лиги три идентификатора: собственный числовой `id` (`1577610`), `flashId`/`mappings.flashscore` (`IPBoDE9D`) и `mappings.pari` (`70159794`). Модель хранения — одна строка `external_ids` на пару (провайдер, сущность), без `meta`-хаков:
+
+| `source_providers.code` | Что лежит в `external_ids.external_id` | Роль |
+|---|---|---|
+| `sstats` | flash-id (ключ всех `/Ls/*` и ingest-lookup'ов) | основной ключ сущности, как и раньше |
+| `sstats_api` | числовой `id` из `/Games/*` | ключ `GET /Games/{id}` |
+| `flashscore` | `mappings.flashscore` (если нет — `flashId`) | справочный |
+| `pari` | первый из `mappings.pari` | справочный |
+
+- Существующие lookup'и не затронуты: ingest по-прежнему резолвит сущности только через провайдера `sstats` (`SourceProviderCode::isReference()` — все остальные справочные). Один `external_id` в паре (провайдер, тип) принадлежит ровно одной сущности (UNIQUE), у сущности — не более одного id на провайдера.
+- Заполняет `sync_fixtures`: после чтения `/Ls/List` collector одним пакетом запрашивает `/Games/list?FlashId=a,b,c` (по 100 id, поэтому +1 запрос на 100 матчей) и отправляет сущности `entity_type = external_refs` (rank 11, после `match_details`). `data = {"entity_type": "match|team|competition", "refs": {"sstats_api": "...", "flashscore": "...", "pari": "..."}}`, `external_id` — flash-id сущности. Матч, у которого `/Games/list` не вернул числовой id, получит его при следующем прогоне.
+- Laravel: `ExternalRefsUpserter` находит сущность по `sstats`-ключу и вызывает `ExternalIdRepository::link()`: тот же id — `unchanged`, новый — `created`, изменившийся — `updated` (старая строка этой сущности для провайдера заменяется), id, уже занятый другой сущностью, — ошибка сущности `external_refs` (`conflict`). Счётчики — в `stats.by_entity.external_refs`.
+- Сбой `/Games/list` (не 401/403/429) не валит прогон: матчи сохраняются, в `errors[]` попадает ошибка `external_refs` на фазе `fetch`; 401/403/429 прерывают прогон как обычно.
+- Статус Ls `38` (HalfTime) — `live`, как `2/45/42/46`.
+
 **`sync_match_details` — составы, события и статистика матча** (эндпоинты SStats `/Ls/GameInfo` и `/Ls/GameLineups`, по два запроса на матч):
 
 - Payload: `{"competition": {"id", "external_id"}, "season_external_id": "...", "match_external_ids": ["..."], "context": {...}}`. Список матчей выбирает Laravel (завершённые, свежие первыми), Go получает готовые внешние id; максимум 500 матчей на прогон. Сбой одного матча (сеть, пустой ответ, неизвестный код действия) уходит в `errors[]` и не останавливает прогон; `401/403` и исчерпанный лимит запросов — `failed` целиком (`retryable` у лимита).

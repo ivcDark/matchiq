@@ -41,6 +41,7 @@ func (SyncFixtures) Collect(ctx context.Context, src Source, cmd dto.Command) (*
 	}
 
 	out := &Output{}
+	var flashIDs []string
 	for _, f := range fixtures {
 		entity, nerr := normalizeFixture(f, p)
 		if nerr != nil {
@@ -50,9 +51,67 @@ func (SyncFixtures) Collect(ctx context.Context, src Source, cmd dto.Command) (*
 			continue
 		}
 		out.Add(entity)
+		flashIDs = append(flashIDs, f.ID)
+	}
+
+	if err := collectExternalRefs(ctx, src, flashIDs, out); err != nil {
+		return nil, err
 	}
 
 	return out, nil
+}
+
+// collectExternalRefs добавляет числовой id SStats, flashscore и pari матчей, команд и лиг (/Games/list).
+// Расписание уже получено, поэтому сбой этого запроса не валит прогон: он попадает в errors, а auth/лимит запросов — нет.
+func collectExternalRefs(ctx context.Context, src Source, flashIDs []string, out *Output) error {
+	if len(flashIDs) == 0 {
+		return nil
+	}
+	games, err := src.GamesByFlashIDs(ctx, flashIDs)
+	if err != nil {
+		if fatalFetch(err) {
+			return err
+		}
+		out.AddError(dto.EntityError{
+			EntityType: dto.EntityExternalRefs,
+			Phase:      dto.PhaseFetch,
+			Message:    "не удалось получить Games/list (идентификаторы matches/teams/competitions): " + err.Error(),
+			Context:    map[string]any{"endpoint": "Games/list"},
+		})
+		return nil
+	}
+
+	seen := map[string]bool{}
+	add := func(entityType, key string, refs map[string]string) {
+		if key == "" || refs[dto.RefSstatsAPI] == "" || seen[entityType+":"+key] {
+			return
+		}
+		seen[entityType+":"+key] = true
+		out.Add(dto.Entity{EntityType: dto.EntityExternalRefs, ExternalID: key, Data: dto.ExternalRefsData{EntityType: entityType, Refs: refs}})
+	}
+	for _, g := range games {
+		add(dto.EntityMatch, g.FlashID, refsOf(g.ID.String(), g.FlashID, g.Mappings))
+		add(dto.EntityTeam, g.Home.FlashID, refsOf(g.Home.ID.String(), g.Home.FlashID, g.Home.Mappings))
+		add(dto.EntityTeam, g.Away.FlashID, refsOf(g.Away.ID.String(), g.Away.FlashID, g.Away.Mappings))
+		league := g.Season.League
+		add(dto.EntityCompetition, league.FlashScoreID, refsOf(league.ID.String(), league.FlashScoreID, league.Mappings))
+	}
+
+	return nil
+}
+
+func refsOf(sstatsID, flashID string, mappings map[string]sstats.FlexStrings) map[string]string {
+	refs := map[string]string{dto.RefSstatsAPI: sstatsID}
+	if v := mappings["flashscore"].First(); v != "" {
+		refs[dto.RefFlashscore] = v
+	} else if flashID != "" {
+		refs[dto.RefFlashscore] = flashID
+	}
+	if v := mappings["pari"].First(); v != "" {
+		refs[dto.RefPari] = v
+	}
+
+	return refs
 }
 
 // parseWindow превращает включительные даты в полуоткрытый интервал [from, to+1д) для SStats.
@@ -161,7 +220,7 @@ func matchStatus(code int) (string, *string, bool) {
 		return dto.MatchLive, period(dto.PeriodExtraTime), true
 	case 7:
 		return dto.MatchLive, period(dto.PeriodPenalties), true
-	case 2, 45, 42, 46:
+	case 2, 38, 45, 42, 46:
 		return dto.MatchLive, nil, true
 	case 3, 10, 11, 9, 54:
 		return dto.MatchFinished, nil, true

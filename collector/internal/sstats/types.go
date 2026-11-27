@@ -344,3 +344,71 @@ type LsSquadPlayer struct {
 	CurrentTeamID    *string    `json:"currentTeamId"`
 	ProfileUpdatedAt *string    `json:"profileUpdatedAt"`
 }
+
+// FlexStrings принимает строку или массив строк (mappings команд и лиг — массивы, матча — строка).
+type FlexStrings []string
+
+func (f *FlexStrings) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if string(b) == "null" {
+		*f = nil
+		return nil
+	}
+	if len(b) > 0 && b[0] == '[' {
+		var list []FlexString
+		if err := json.Unmarshal(b, &list); err != nil {
+			return err
+		}
+		out := make([]string, 0, len(list))
+		for _, v := range list {
+			out = append(out, v.String())
+		}
+		*f = out
+		return nil
+	}
+	var s FlexString
+	if err := s.UnmarshalJSON(b); err != nil {
+		return err
+	}
+	if s == "" {
+		*f = nil
+		return nil
+	}
+	*f = FlexStrings{s.String()}
+	return nil
+}
+
+// First — первое непустое значение.
+func (f FlexStrings) First() string {
+	for _, v := range f {
+		if v != "" {
+			return v
+		}
+	}
+
+	return ""
+}
+
+// GameRef — матч из /Games/list: числовой id SStats и идентификаторы в других источниках (mappings).
+type GameRef struct {
+	ID       FlexString             `json:"id"`
+	FlashID  string                 `json:"flashId"`
+	Mappings map[string]FlexStrings `json:"mappings"`
+	Home     GameTeamRef            `json:"homeTeam"`
+	Away     GameTeamRef            `json:"awayTeam"`
+	Season   struct {
+		League GameLeagueRef `json:"league"`
+	} `json:"season"`
+}
+
+type GameTeamRef struct {
+	ID       FlexString             `json:"id"`
+	FlashID  string                 `json:"flashId"`
+	Mappings map[string]FlexStrings `json:"mappings"`
+}
+
+type GameLeagueRef struct {
+	ID           FlexString             `json:"id"`
+	FlashScoreID string                 `json:"flashScoreId"`
+	Mappings     map[string]FlexStrings `json:"mappings"`
+}

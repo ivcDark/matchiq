@@ -175,3 +175,41 @@ func TestPlayersPagesByTeamAndParsesNullableProfile(t *testing.T) {
 		t.Fatalf("people = %+v requests=%d", people, s.Requests())
 	}
 }
+
+func TestGamesByFlashIDsChunksAndParsesMappings(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		q := r.URL.Query()
+		if r.URL.Path != "/Games/list" || q.Get("Limit") != "100" || q.Get("apikey") != "secret" {
+			t.Errorf("unexpected request %s", r.URL.String())
+		}
+		ids := strings.Split(q.Get("FlashId"), ",")
+		if len(ids) > 100 {
+			t.Errorf("chunk too large: %d", len(ids))
+		}
+		_, _ = w.Write([]byte(`{"status":"OK","data":[{"id":1577610,"flashId":"IPBoDE9D","mappings":{"flashscore":"IPBoDE9D","pari":"70159794"},
+			"homeTeam":{"id":3985,"flashId":"OC7sNO6b","mappings":{"flashscore":["OC7sNO6b"],"pari":["420773"]}},
+			"awayTeam":{"id":6811,"flashId":null,"mappings":{}},
+			"season":{"league":{"id":236,"flashScoreId":"jizXHcsM","mappings":{"pari":["80073"]}}}}]}`))
+	}))
+	defer srv.Close()
+
+	ids := make([]string, 250)
+	for i := range ids {
+		ids[i] = "Id" + strings.Repeat("x", 6)
+	}
+	s := NewClient(Options{BaseURL: srv.URL, APIKey: "secret"}).Session()
+	games, err := s.GamesByFlashIDs(context.Background(), ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 3 || len(games) != 3 {
+		t.Fatalf("calls=%d games=%d", calls.Load(), len(games))
+	}
+	g := games[0]
+	if g.ID.String() != "1577610" || g.Mappings["pari"].First() != "70159794" || g.Home.ID.String() != "3985" ||
+		g.Home.Mappings["flashscore"].First() != "OC7sNO6b" || g.Away.FlashID != "" || g.Season.League.Mappings["pari"].First() != "80073" {
+		t.Fatalf("game = %+v", g)
+	}
+}

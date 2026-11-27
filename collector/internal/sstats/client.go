@@ -161,6 +161,27 @@ func (s *Session) Fixtures(ctx context.Context, f FixturesQuery) ([]LsFixture, e
 	return nil, fmt.Errorf("sstats: /Ls/List вернул больше %d страниц", fixturesMaxPages)
 }
 
+const gamesListChunk = 100
+
+// GamesByFlashIDs возвращает матчи /Games/list по flash-id (пачками): числовой id SStats и mappings flashscore/pari.
+func (s *Session) GamesByFlashIDs(ctx context.Context, flashIDs []string) ([]GameRef, error) {
+	var all []GameRef
+	for start := 0; start < len(flashIDs); start += gamesListChunk {
+		end := min(start+gamesListChunk, len(flashIDs))
+		q := url.Values{
+			"FlashId": {strings.Join(flashIDs[start:end], ",")},
+			"Limit":   {strconv.Itoa(gamesListChunk)},
+		}
+		items, err := get[[]GameRef](ctx, s, "/Games/list", q)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, items...)
+	}
+
+	return all, nil
+}
+
 // GameInfo — события и командная статистика матча.
 func (s *Session) GameInfo(ctx context.Context, matchID string) (LsGameInfo, error) {
 	return get[LsGameInfo](ctx, s, "/Ls/GameInfo", url.Values{"id": {matchID}})
