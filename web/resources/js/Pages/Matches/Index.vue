@@ -53,13 +53,20 @@ const COUNTRY_FLAG_CODES = {
     Нидерланды: 'nl',
 };
 
+/** Код флага: сначала таблица (Англия → gb-eng), иначе ISO-код страны, пришедший с бэка. */
+function countryFlagCode(country) {
+    if (COUNTRY_FLAG_CODES[country]) return COUNTRY_FLAG_CODES[country];
+    const iso = props.leagues.find((l) => l.country === country)?.country_code;
+    return iso ? iso.toLowerCase() : null;
+}
+
 function countryFlagUrl(country) {
-    const code = COUNTRY_FLAG_CODES[country];
+    const code = countryFlagCode(country);
     return code ? `https://flagcdn.com/w20/${code}.png` : null;
 }
 
 function countryFlagSrcset(country) {
-    const code = COUNTRY_FLAG_CODES[country];
+    const code = countryFlagCode(country);
     return code ? `https://flagcdn.com/w40/${code}.png 2x` : null;
 }
 
@@ -527,6 +534,9 @@ function showSoonHint() {
 function statusLabel(status) {
     if (status === 'live') return 'Идёт';
     if (status === 'finished') return 'Завершён';
+    if (status === 'postponed') return 'Перенесён';
+    if (status === 'cancelled') return 'Отменён';
+    if (status === 'abandoned') return 'Прерван';
     return 'Ждём';
 }
 
@@ -1159,6 +1169,11 @@ const listKey = computed(
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    <tr v-if="!widgets.standings?.length">
+                                        <td colspan="5" class="px-3 py-4 text-center text-sm text-miq-muted">
+                                            Таблица появится после первых сыгранных матчей
+                                        </td>
+                                    </tr>
                                     <tr
                                         v-for="row in widgets.standings"
                                         :key="row.pos"
@@ -1200,6 +1215,9 @@ const listKey = computed(
                             <p class="text-xs text-miq-muted">Лига</p>
                         </div>
                         <ul class="divide-y divide-miq-line/50">
+                            <li v-if="!widgets.scorers?.length" class="px-3.5 py-4 text-sm text-miq-muted">
+                                Данные появятся после загрузки событий матчей
+                            </li>
                             <li
                                 v-for="row in widgets.scorers"
                                 :key="row.pos"
@@ -1236,6 +1254,9 @@ const listKey = computed(
                             <p class="text-xs text-miq-muted">Год</p>
                         </div>
                         <ul class="divide-y divide-miq-line/50">
+                            <li v-if="!widgets.hotScorers?.length" class="px-3.5 py-4 text-sm text-miq-muted">
+                                Пока нет данных
+                            </li>
                             <li
                                 v-for="row in widgets.hotScorers"
                                 :key="row.pos"
@@ -1272,6 +1293,9 @@ const listKey = computed(
                             <p class="text-xs text-miq-muted">Промо</p>
                         </div>
                         <ul class="divide-y divide-miq-line/50">
+                            <li v-if="!widgets.news?.length" class="px-3.5 py-4 text-sm text-miq-muted">
+                                Пока нет новостей
+                            </li>
                             <li
                                 v-for="item in widgets.news"
                                 :key="item.id"

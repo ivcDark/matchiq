@@ -190,11 +190,11 @@ const backHref = computed(() => {
     return route('matches.index');
 });
 
-const centerTabs = [
+const centerTabs = computed(() => [
     { id: 'summary', label: 'Сводка' },
-    { id: 'stats', label: 'Статистика' },
+    ...(props.matchCenter?.stats ? [{ id: 'stats', label: 'Статистика' }] : []),
     { id: 'analytics', label: 'Прогноз' },
-];
+]);
 const centerTab = ref('summary');
 const showAnalytics = computed(() => !props.matchCenter || centerTab.value === 'analytics');
 
@@ -450,6 +450,9 @@ function pieSlices(row) {
 function statusLabel(status) {
     if (status === 'live') return 'Идёт';
     if (status === 'finished') return 'Завершён';
+    if (status === 'postponed') return 'Перенесён';
+    if (status === 'cancelled') return 'Отменён';
+    if (status === 'abandoned') return 'Прерван';
     return 'Ожидается';
 }
 
@@ -905,6 +908,13 @@ function loginHref() {
                 </div>
             </section>
 
+            <p
+                v-if="!matchCenter && ['live', 'finished'].includes(match.status) && !match.details_loaded"
+                class="miq-panel px-3.5 py-3 text-sm text-miq-muted"
+            >
+                Хроника и статистика матча ещё загружаются.
+            </p>
+
             <!-- Live / finished: подменю + сводка / статистика -->
             <template v-if="matchCenter">
                 <div class="miq-panel animate-miq-fade-up" style="animation-delay: 50ms">
@@ -933,11 +943,13 @@ function loginHref() {
                         :away="match.away"
                     />
                     <MatchSquads
+                        v-if="matchCenter.lineups"
                         :lineups="matchCenter.lineups"
                         :home="match.home"
                         :away="match.away"
                     />
                     <MatchLineups
+                        v-if="matchCenter.lineups"
                         :lineups="matchCenter.lineups"
                         :home="match.home"
                         :away="match.away"
@@ -945,7 +957,7 @@ function loginHref() {
                 </template>
 
                 <MatchStatRows
-                    v-else-if="centerTab === 'stats'"
+                    v-else-if="centerTab === 'stats' && matchCenter.stats"
                     :stats="matchCenter.stats"
                     :home="match.home"
                     :away="match.away"
@@ -966,7 +978,11 @@ function loginHref() {
                 </div>
 
                 <div class="miq-forecast-body">
-                    <div class="miq-forecast-score" aria-label="Возможный счёт">
+                    <div
+                        v-if="forecast.score_home != null && forecast.score_away != null"
+                        class="miq-forecast-score"
+                        aria-label="Возможный счёт"
+                    >
                         <p class="miq-forecast-score-label">Возможный счёт</p>
                         <p class="miq-forecast-score-value tabular-nums">
                             {{ forecast.score_home }}∶{{ forecast.score_away }}
@@ -1371,6 +1387,7 @@ function loginHref() {
 
             <!-- Comparison last 5 — final: B (default) | C + period -->
             <section
+                v-if="activeComparison.length"
                 class="miq-panel animate-miq-fade-up"
                 style="animation-delay: 160ms"
                 aria-label="Последние 5 матчей"
@@ -1698,7 +1715,7 @@ function loginHref() {
             </section>
 
             <!-- 5. Standings -->
-            <section class="miq-panel" aria-label="Мини-таблица">
+            <section v-if="standings.length" class="miq-panel" aria-label="Мини-таблица">
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Таблица</h2>
                     <p class="truncate text-xs text-miq-muted">{{ match.league_short }}</p>
@@ -1941,7 +1958,11 @@ function loginHref() {
             </section>
 
             <!-- 7. Absences -->
-            <section class="miq-panel" aria-label="Потери">
+            <section
+                v-if="absences?.home?.length || absences?.away?.length"
+                class="miq-panel"
+                aria-label="Потери"
+            >
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Потери</h2>
                     <p class="text-xs text-miq-muted">травмы / дисквалификации</p>
@@ -2261,9 +2282,12 @@ function loginHref() {
             <section class="miq-panel" aria-label="Комментарии">
                 <div class="miq-panel-head">
                     <h2 class="miq-panel-title">Комментарии</h2>
-                    <p class="text-xs text-miq-muted">демо</p>
+                    <p class="text-xs text-miq-muted">скоро</p>
                 </div>
                 <ul class="divide-y divide-miq-line/50">
+                    <li v-if="!comments.length" class="px-3.5 py-3 text-sm text-miq-muted">
+                        Комментариев пока нет
+                    </li>
                     <li
                         v-for="c in comments"
                         :key="c.id"

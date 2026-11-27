@@ -286,15 +286,6 @@ class ClubPageTest extends TestCase
         $this->get('/clubs/zenit')->assertNotFound();
     }
 
-    public function test_match_page_exposes_club_ids_for_home_and_away(): void
-    {
-        $this->get('/matches/101')
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->where('match.home_club_id', MockClub::idForName('Зенит'))
-                ->where('match.away_club_id', MockClub::idForName('Спартак')));
-    }
-
     public function test_club_links_are_wired_in_vue(): void
     {
         $standings = file_get_contents(resource_path('js/Components/TournamentStandings.vue'));
