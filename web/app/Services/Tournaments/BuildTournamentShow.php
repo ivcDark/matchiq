@@ -5,6 +5,7 @@ namespace App\Services\Tournaments;
 use App\Domains\Matches\LeagueTable;
 use App\Domains\Tournaments\FinishedMatch;
 use App\Domains\Tournaments\PlayerLeaders;
+use App\Domains\Tournaments\PlayerName;
 use App\Domains\Tournaments\SeasonLabel;
 use App\Domains\Tournaments\TeamStatsLeaders;
 use App\Enums\MatchResult;
@@ -30,8 +31,6 @@ class BuildTournamentShow
     private const TOP_LIMIT = 5;
 
     private const CONTRIBUTION_LIMIT = 10;
-
-    private const THRESHOLDS = ['minutes_scoring' => 600, 'minutes_goalkeeper' => 900, 'matches_rating' => 8];
 
     private const CONTEXTS = ['overall' => null, 'home' => 'home', 'away' => 'away'];
 
@@ -105,7 +104,6 @@ class BuildTournamentShow
             'attackDefense' => $this->attackDefense($standingsByContext['overall']),
             'teamStats' => $this->teamStats($finished, $name),
             'contribution' => ['overall' => $leaders['contribution'], 'home' => [], 'away' => []],
-            'thresholds' => self::THRESHOLDS,
         ]);
     }
 
@@ -329,7 +327,7 @@ class BuildTournamentShow
         }
         $teamNames = $teams->map(fn (Team $t) => $t->localized('name', $locale))->all();
 
-        return PlayerLeaders::compute($totals, $this->catalog->goalkeeperMatches($matchIds), $players, $teamNames, self::THRESHOLDS);
+        return PlayerLeaders::compute($totals, $this->catalog->goalkeeperMatches($matchIds), $players, $teamNames);
     }
 
     /**
@@ -351,7 +349,7 @@ class BuildTournamentShow
         $teamGoals = array_column($table, 'gf', 'team_id');
 
         $rows = array_map(fn (array $c) => [
-            'name' => $players[$c['player_id']]->localized('name', $locale),
+            'name' => PlayerName::short($players[$c['player_id']]->localized('name', $locale)),
             'team' => $teams[$c['team_id']]->localized('name', $locale),
             'team_id' => $c['team_id'],
             'position' => $players[$c['player_id']]->position?->value,

@@ -287,7 +287,7 @@ class TournamentPageTest extends TestCase
         ]);
     }
 
-    public function test_player_leaders_come_from_match_player_stats_with_ui_thresholds(): void
+    public function test_player_leaders_come_from_match_player_stats_without_minimum_thresholds(): void
     {
         $zenit = $this->match('zenit', 'spartak', '2026-10-01 14:00:00', [2, 0], 1);
         $scorer = $this->player('scorer', 'А. Соболев');
@@ -323,6 +323,23 @@ class TournamentPageTest extends TestCase
         $this->assertSame(['А. Соболев', 'И. Вратарь', 'К. Запасной'], array_column($leaders['ratings'], 'name'));
         $this->assertSame([7.45, 6.5, 6.0], array_column($leaders['ratings'], 'rating'));
         $this->assertSame([10, 10, 10], array_column($leaders['ratings'], 'matches'));
+    }
+
+    public function test_early_season_leaders_are_not_empty_and_use_compact_english_names(): void
+    {
+        $m = $this->match('zenit', 'spartak', '2026-10-01 14:00:00', [2, 0], 1);
+        $scorer = $this->player('sobolev', 'Aleksandr Sobolev');
+        $keeper = $this->player('keeper', 'Matvey Safonov', PlayerPosition::Goalkeeper);
+        $this->playerStat($m, 'zenit', $scorer, 90, 1, 7.8);
+        $this->playerStat($m, 'zenit', $keeper, 90, 0, 7.1, ['goals_conceded' => 0]);
+
+        $leaders = $this->get("/tournaments/{$this->competition->id}")->viewData('page')['props']['leaders'];
+
+        $this->assertSame(['A. Sobolev'], array_column($leaders['fastScorers'], 'name'));
+        $this->assertSame(['M. Safonov'], array_column($leaders['goalkeepers'], 'name'));
+        $this->assertSame(['A. Sobolev', 'M. Safonov'], array_column($leaders['minutes'], 'name'));
+        $this->assertSame(['A. Sobolev', 'M. Safonov'], array_column($leaders['ratings'], 'name'));
+        $this->assertSame([1, 1], array_column($leaders['ratings'], 'matches'));
     }
 
     public function test_player_leaders_ignore_unfinished_matches(): void

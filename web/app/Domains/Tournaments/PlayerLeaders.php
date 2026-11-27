@@ -5,7 +5,7 @@ namespace App\Domains\Tournaments;
 /**
  * Четыре игровых списка страницы турнира из матчевой статистики игроков (`match_player_stats`):
  * «скорострельные» (Гол/90), вратари (сухие матчи на 90 минут), «больше всех на поле» и «лучшие по рейтингу».
- * Пороги и колонки — как в UI; игрок, перешедший между командами, считается одной строкой (команда — где он играл дольше).
+ * Минимальных порогов по минутам и матчам нет (для «скорострельных» нужен хотя бы один гол, для вратарей — хотя бы один сухой матч); игрок, перешедший между командами, считается одной строкой (команда — где он играл дольше).
  */
 final class PlayerLeaders
 {
@@ -19,14 +19,13 @@ final class PlayerLeaders
      * @param  list<array{player_id: int, team_id: int, minutes: int, goals_conceded: ?int}>  $keeperMatches  матчи вратарей с минутами на поле
      * @param  array<int, array{name: string, position: ?string}>  $players
      * @param  array<int, string>  $teams  название команды по id
-     * @param  array{minutes_scoring: int, minutes_goalkeeper: int, matches_rating: int}  $thresholds
      * @return array{fastScorers: list<array<string, mixed>>, goalkeepers: list<array<string, mixed>>, minutes: list<array<string, mixed>>, ratings: list<array<string, mixed>>}
      */
-    public static function compute(array $totals, array $keeperMatches, array $players, array $teams, array $thresholds): array
+    public static function compute(array $totals, array $keeperMatches, array $players, array $teams): array
     {
         $merged = self::mergeByPlayer($totals);
         $identity = fn (array $row): array => [
-            'name' => $players[$row['player_id']]['name'] ?? '',
+            'name' => PlayerName::short($players[$row['player_id']]['name'] ?? ''),
             'team' => $teams[$row['team_id']] ?? '',
             'position' => $players[$row['player_id']]['position'] ?? null,
         ];
@@ -38,7 +37,7 @@ final class PlayerLeaders
             if ($row['minutes'] > 0) {
                 $minutes[] = $identity($row) + ['matches' => $row['matches'], 'minutes' => $row['minutes'], 'sort' => [-$row['minutes'], -$row['matches']]];
             }
-            if ($row['minutes'] >= $thresholds['minutes_scoring'] && $row['goals'] > 0) {
+            if ($row['minutes'] > 0 && $row['goals'] > 0) {
                 $fast[] = $identity($row) + [
                     'minutes' => $row['minutes'],
                     'goals' => $row['goals'],
@@ -47,7 +46,7 @@ final class PlayerLeaders
                     'sort' => [-($row['goals'] / $row['minutes']), -$row['goals']],
                 ];
             }
-            if ($row['rated'] >= $thresholds['matches_rating']) {
+            if ($row['rated'] > 0) {
                 $average = round($row['rating_sum'] / $row['rated'], 2);
                 $ratings[] = $identity($row) + ['matches' => $row['rated'], 'rating' => $average, 'sort' => [-$average, -$row['rated']]];
             }
@@ -55,7 +54,7 @@ final class PlayerLeaders
 
         return [
             'fastScorers' => self::ranked($fast, ['name', 'team', 'position', 'minutes', 'goals', 'goals_per_90', 'minutes_per_goal']),
-            'goalkeepers' => self::goalkeepers($keeperMatches, $identity, $thresholds['minutes_goalkeeper']),
+            'goalkeepers' => self::goalkeepers($keeperMatches, $identity),
             'minutes' => self::ranked($minutes, ['name', 'team', 'position', 'matches', 'minutes']),
             'ratings' => self::ranked($ratings, ['name', 'team', 'position', 'matches', 'rating']),
         ];
@@ -91,7 +90,7 @@ final class PlayerLeaders
      * @param  list<array{player_id: int, team_id: int, minutes: int, goals_conceded: ?int}>  $keeperMatches
      * @return list<array<string, mixed>>
      */
-    private static function goalkeepers(array $keeperMatches, callable $identity, int $minMinutes): array
+    private static function goalkeepers(array $keeperMatches, callable $identity): array
     {
         $byPlayer = [];
         foreach ($keeperMatches as $m) {
@@ -110,7 +109,7 @@ final class PlayerLeaders
 
         $items = [];
         foreach ($byPlayer as $row) {
-            if ($row['minutes'] < $minMinutes || $row['clean_sheets'] < 1) {
+            if ($row['clean_sheets'] < 1) {
                 continue;
             }
             arsort($row['team_minutes']);

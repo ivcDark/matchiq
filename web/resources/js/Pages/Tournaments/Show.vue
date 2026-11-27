@@ -27,7 +27,6 @@ const props = defineProps({
     attackDefense: { type: Object, default: () => ({}) },
     teamStats: { type: Object, default: () => ({}) },
     contribution: { type: Object, default: () => ({}) },
-    thresholds: { type: Object, default: () => ({}) },
 });
 
 const SECTIONS = [
@@ -92,7 +91,7 @@ const cards = computed(() => [
     {
         key: 'fastScorers',
         title: 'Самые скорострельные',
-        hint: `от ${num(props.thresholds.minutes_scoring)} мин на поле`,
+        hint: 'голов на 90 минут на поле',
         rows: props.leaders.fastScorers,
         defaultSort: { key: 'goals_per_90', dir: 'desc' },
         columns: [
@@ -123,7 +122,7 @@ const cards = computed(() => [
     {
         key: 'goalkeepers',
         title: 'Лучшие вратари',
-        hint: `сухие матчи · от ${num(props.thresholds.minutes_goalkeeper)} мин`,
+        hint: 'сухие матчи',
         rows: props.leaders.goalkeepers,
         defaultSort: { key: 'clean_sheets_per_90', dir: 'desc' },
         columns: [
@@ -172,7 +171,7 @@ const cards = computed(() => [
     {
         key: 'ratings',
         title: 'Лучшие по рейтингу',
-        hint: `средняя оценка · от ${props.thresholds.matches_rating} матчей`,
+        hint: 'средняя оценка за матч',
         rows: props.leaders.ratings,
         defaultSort: { key: 'rating', dir: 'desc' },
         columns: [
