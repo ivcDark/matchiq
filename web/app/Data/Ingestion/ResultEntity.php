@@ -13,7 +13,7 @@ final readonly class ResultEntity
         public array $data,
     ) {}
 
-    /** Порядок зависимостей: справочники → сезоны → команды/стадии. */
+    /** Порядок зависимостей: справочники → сезоны → команды/стадии → матчи. */
     public function rank(): int
     {
         return match ($this->type) {
@@ -22,6 +22,7 @@ final readonly class ResultEntity
             ExternalEntityType::Season => 3,
             ExternalEntityType::Team => 4,
             ExternalEntityType::Stage => 5,
+            ExternalEntityType::Match => 6,
             default => 9,
         };
     }

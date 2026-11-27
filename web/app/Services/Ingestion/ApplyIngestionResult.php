@@ -15,6 +15,7 @@ use App\Repositories\IngestionRunRepository;
 use App\Services\Ingestion\Entity\CompetitionUpserter;
 use App\Services\Ingestion\Entity\CountryUpserter;
 use App\Services\Ingestion\Entity\EntityUpserter;
+use App\Services\Ingestion\Entity\MatchUpserter;
 use App\Services\Ingestion\Entity\SeasonUpserter;
 use App\Services\Ingestion\Entity\StageUpserter;
 use App\Services\Ingestion\Entity\TeamUpserter;
@@ -40,8 +41,9 @@ class ApplyIngestionResult
         SeasonUpserter $seasons,
         StageUpserter $stages,
         TeamUpserter $teams,
+        MatchUpserter $matches,
     ) {
-        foreach ([$countries, $competitions, $seasons, $stages, $teams] as $upserter) {
+        foreach ([$countries, $competitions, $seasons, $stages, $teams, $matches] as $upserter) {
             $this->upserters[$upserter->type()->value] = $upserter;
         }
     }

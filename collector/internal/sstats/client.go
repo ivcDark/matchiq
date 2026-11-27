@@ -105,6 +105,47 @@ func (s *Session) SeasonStructure(ctx context.Context, seasonID string) (LsSeaso
 	return get[LsSeasonStructure](ctx, s, "/Ls/SeasonStructure", url.Values{"seasonId": {seasonID}})
 }
 
+const (
+	fixturesPageSize = 1000
+	fixturesMaxPages = 50
+)
+
+// Fixtures возвращает все матчи по фильтрам, листая /Ls/List по Offset.
+func (s *Session) Fixtures(ctx context.Context, f FixturesQuery) ([]LsFixture, error) {
+	var all []LsFixture
+	for page := 0; page < fixturesMaxPages; page++ {
+		q := url.Values{
+			"Limit":    {strconv.Itoa(fixturesPageSize)},
+			"Offset":   {strconv.Itoa(page * fixturesPageSize)},
+			"Order":    {"1"},
+			"TimeZone": {"0"},
+		}
+		if f.SeasonID != "" {
+			q.Set("SeasonId", f.SeasonID)
+		}
+		if f.StageID != "" {
+			q.Set("StageId", f.StageID)
+		}
+		if !f.From.IsZero() {
+			q.Set("From", f.From.UTC().Format("2006-01-02T15:04:05"))
+		}
+		if !f.To.IsZero() {
+			q.Set("To", f.To.UTC().Format("2006-01-02T15:04:05"))
+		}
+
+		items, err := get[[]LsFixture](ctx, s, "/Ls/List", q)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, items...)
+		if len(items) < fixturesPageSize {
+			return all, nil
+		}
+	}
+
+	return nil, fmt.Errorf("sstats: /Ls/List вернул больше %d страниц", fixturesMaxPages)
+}
+
 func get[T any](ctx context.Context, s *Session, path string, q url.Values) (T, error) {
 	var zero T
 	body, err := s.do(ctx, path, q)

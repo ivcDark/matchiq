@@ -15,4 +15,6 @@ enum IngestionKind: string
     case SyncCatalog = 'sync_catalog';
     /** Стадии и команды одного сезона. */
     case SyncStructure = 'sync_structure';
+    /** Расписание и результаты матчей сезона/стадии за окно дат. */
+    case SyncFixtures = 'sync_fixtures';
 }

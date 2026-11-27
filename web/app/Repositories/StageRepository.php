@@ -16,6 +16,15 @@ class StageRepository
         return Stage::find($id);
     }
 
+    /** Стадия сезона по нашему id или названию (без учёта регистра). */
+    public function findInSeason(int $seasonId, string $idOrName): ?Stage
+    {
+        return Stage::where('season_id', $seasonId)
+            ->where(fn ($q) => $q->whereRaw('LOWER(name) = ?', [mb_strtolower($idOrName)])
+                ->when(ctype_digit($idOrName), fn ($q) => $q->orWhere('id', (int) $idOrName)))
+            ->first();
+    }
+
     public function findByOrder(int $seasonId, int $order): ?Stage
     {
         return Stage::where('season_id', $seasonId)->where('stage_order', $order)->first();

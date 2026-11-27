@@ -88,7 +88,7 @@ npm install && npm run dev
 
 ```
 
-Go собирается и тестируется только в Docker (последний Go в multi-stage `docker/collector/Dockerfile`): `docker compose --profile tools run --rm collector-test`, `docker compose build collector`.
+Go собирается и тестируется только в Docker (последний Go в multi-stage `docker/collector/Dockerfile`): `docker compose --profile tools build collector-test` (тесты выполняются на сборке стадии `test`), `docker compose build collector`.
 Запуск ingest: `php artisan ingest:dispatch` / `ingest:consume`, см. `docs/architecture/ingestion.md`.
 
 ## MVP-маршруты (Inertia)

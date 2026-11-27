@@ -14,6 +14,7 @@ type Source interface {
 	Leagues(ctx context.Context, name string) ([]sstats.LsLeague, error)
 	Seasons(ctx context.Context, leagueID string) ([]sstats.LsSeason, error)
 	SeasonStructure(ctx context.Context, seasonID string) (sstats.LsSeasonStructure, error)
+	Fixtures(ctx context.Context, q sstats.FixturesQuery) ([]sstats.LsFixture, error)
 }
 
 // Output — нормализованный результат сборщика: сущности и ошибки отдельных сущностей.
@@ -41,6 +42,7 @@ func DefaultRegistry() Registry {
 	return Registry{
 		dto.JobSyncCatalog:   SyncCatalog{},
 		dto.JobSyncStructure: SyncStructure{},
+		dto.JobSyncFixtures:  SyncFixtures{},
 	}
 }
 

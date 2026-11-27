@@ -182,17 +182,24 @@ collector/
 
 ## Реализация первого среза (каталог и структура сезона)
 
-Реализовано в `collector/` и `web/`; остальные job types (`schedule`, `match_stats`, `lineups`, `live`) — следующие срезы.
+Реализовано в `collector/` и `web/`: `sync_catalog`, `sync_structure`, `sync_fixtures` (см. ниже); остальные job types (`match_stats`, `lineups`, `live`, scheduler) — следующие срезы. Расписание матчей в коде — `sync_fixtures`, а не `schedule` из наброска.
 
 **Отличия от наброска выше (источник правды — код):**
 
-- `job_type` первого среза: `sync_catalog` (страны, лиги/соревнования, их сезоны) и `sync_structure` (стадии и команды сезона). Значения живут в `ingestion_runs.kind` (varchar, без CHECK) и в `App\Enums\IngestionKind`.
+- `job_type` реализованных срезов: `sync_catalog` (страны, лиги/соревнования, их сезоны), `sync_structure` (стадии и команды сезона) и `sync_fixtures` (матчи сезона/стадии). Значения живут в `ingestion_runs.kind` (varchar, без CHECK) и в `App\Enums\IngestionKind`.
 - `payload` `sync_catalog`: `{"filters": {"country": "Russia", "league_name": "Premier League", "league_ids": []}, "context": {...}}`; `sync_structure`: `{"competition": {"id": 1, "external_id": "..."}, "season_external_id": "...", "context": {...}}` (сезон опционален: берётся текущий). `context` всегда JSON-объект.
 - Результат: сообщения `batch` содержат `entities[] = {entity_type, external_id, data}` для типов `country | competition | season | stage | team`, отсортированных по зависимостям (справочники → сезоны → стадии/команды); ошибки нормализации — `errors[]` в последнем батче; завершение — `done` с `batches_total` либо `failed` с `retryable`.
 - Очереди ошибок: отдельные `ingest.commands.dlq` / `ingest.results.dlq` (через `x-dead-letter-*`), а не единая `ingest.dlq`. Невалидное сообщение отвергается без requeue и попадает в DLQ; при сбое публикации результата команда один раз возвращается в очередь, затем — в DLQ.
 - Go-пакеты: `cmd/collector`, `internal/{config,dto,amqp,sstats,jobs}` (вместо `mq/contract/sources/normalize`; нормализация живёт в `internal/jobs`).
-- Go собирается, тестируется и запускается только в Docker (`docker/collector/Dockerfile`, multi-stage, Go 1.27): `docker compose --profile tools run --rm collector-test`, `docker compose build collector`.
+- Go собирается, тестируется и запускается только в Docker (`docker/collector/Dockerfile`, multi-stage, Go 1.27): `docker compose --profile tools build collector-test` (тесты выполняются на сборке стадии `test`), `docker compose build collector`.
 - Laravel: `php artisan ingest:dispatch {kind}` создаёт `ingestion_runs` и публикует команду; `php artisan ingest:consume` читает `ingest.results` и применяет батчи через репозитории (`App\Services\Ingestion\ApplyIngestionResult`). Повторная доставка батча безопасна (`stats.context.batches_seen`), на каждый прогон пишется не более 1000 строк `ingestion_run_errors`.
+
+**`sync_fixtures` — расписание и результаты матчей** (эндпоинт SStats `/Ls/List`, пагинация по `Offset`, до 1000 матчей на запрос):
+
+- Payload: `{"competition": {"id", "external_id"}, "season_external_id": "...", "stage_external_id": "..."?, "window": {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}?, "context": {...}}`. Сезон обязателен (для Laravel — текущий, если не указан `--season`); `stage_external_id` и `window` необязательны, окно включительное с обеих сторон (UTC).
+- Результат: `entities[]` с `entity_type = match`; `data` — канонический матч: `season_external_id`, `stage_external_id`, `round_name`/`round_number` (из «Round N»), `home_team_external_id`/`away_team_external_id`, `kickoff_at` (UTC), `status` (`scheduled | live | finished | postponed | cancelled | abandoned`), `period` (только live, если известен), счёт `home_goals`/`away_goals` (после основного и доп. времени, без серии пенальти; `null`, пока матч не начался), `*_ht`, `*_et`, `home_pens`/`away_pens`. Статус вне известной таблицы SStats — ошибка сущности (`normalize`), не падение прогона.
+- Laravel: `MatchUpserter` → `MatchRepository`/`RoundRepository`. Команды, стадии и сезон резолвятся по `external_ids` (их должны создать `sync_catalog`/`sync_structure`; иначе ошибка `match` по строке матча); `competition_id` берётся из сезона, стадия обязана принадлежать сезону; тур (`rounds`) создаётся по номеру только для «Round N». Новый `external_id` сначала ищет ещё не привязанный матч той же пары в сезоне в ±1 день (страховка от дублей), иначе создаёт. Поля, которых источник не отдаёт (площадка, судья, погода, `tie_id`, `finished_at`, `minute`), не трогаются.
+- Запуск: `php artisan ingest:dispatch sync_fixtures --competition=<slug|id> [--season=<slug>] [--stage=<id|название>] [--from=YYYY-MM-DD] [--to=YYYY-MM-DD]`. Фильтры соревнования/сезона те же, что у `sync_structure`; блокировка прогона — на (провайдер, соревнование, `sync_fixtures`).
 
 **Запуск локально:**
 
@@ -201,9 +208,10 @@ docker compose up -d --build postgres redis rabbitmq app collector
 docker compose exec app php artisan ingest:dispatch sync_catalog --country=Russia --league="Premier League"
 docker compose exec app php artisan ingest:consume          # слушает ingest.results (Ctrl+C — выход)
 docker compose exec app php artisan ingest:dispatch sync_structure --competition=premier-league
+docker compose exec app php artisan ingest:dispatch sync_fixtures --competition=premier-league --stage=Main   # весь сезон; окно — --from/--to
 ```
 
-Нужные env: `SSTATS_API_KEY` (collector), `RABBITMQ_HOST/PORT/USER/PASSWORD/VHOST` (web), `COLLECTOR_RABBITMQ_URL` (collector), опционально `SSTATS_RATE_PER_MINUTE`, `COLLECTOR_PREFETCH`, `COLLECTOR_BATCH_SIZE`. Формы ответов `/Ls/*` сверены с OpenAPI, но не проверялись вживую с реальным ключом.
+Нужные env: `SSTATS_API_KEY` (collector), `RABBITMQ_HOST/PORT/USER/PASSWORD/VHOST` (web), `COLLECTOR_RABBITMQ_URL` (collector), опционально `SSTATS_RATE_PER_MINUTE`, `COLLECTOR_PREFETCH`, `COLLECTOR_BATCH_SIZE`. Ответы `/Ls/Leagues`, `/Ls/SeasonStructure`, `/Ls/List` проверены вживую с реальным ключом на РПЛ 2026-2027 (240 матчей, стадия Main).
 
 ## Роль Laravel (код — в `web/app`)
 

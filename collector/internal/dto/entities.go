@@ -8,15 +8,17 @@ const (
 	EntitySeason      = "season"
 	EntityStage       = "stage"
 	EntityTeam        = "team"
+	EntityMatch       = "match"
 )
 
-// EntityRank задаёт порядок зависимостей: справочники → сезоны → стадии/команды.
+// EntityRank задаёт порядок зависимостей: справочники → сезоны → стадии/команды → матчи.
 var EntityRank = map[string]int{
 	EntityCountry:     1,
 	EntityCompetition: 2,
 	EntitySeason:      3,
 	EntityTeam:        4,
 	EntityStage:       5,
+	EntityMatch:       6,
 }
 
 // Значения enum'ов совпадают с Laravel (CountryKind, CompetitionType, CompetitionScope, StageType).
@@ -71,7 +73,7 @@ type TeamData struct {
 
 // CatalogPayload — payload sync_catalog.
 type CatalogPayload struct {
-	Filters CatalogFilters `json:"filters"`
+	Filters CatalogFilters  `json:"filters"`
 	Context json.RawMessage `json:"context,omitempty"`
 }
 
@@ -87,12 +89,63 @@ func (f CatalogFilters) Empty() bool {
 
 // StructurePayload — payload sync_structure.
 type StructurePayload struct {
-	Competition      CompetitionRef `json:"competition"`
-	SeasonExternalID string         `json:"season_external_id"`
+	Competition      CompetitionRef  `json:"competition"`
+	SeasonExternalID string          `json:"season_external_id"`
 	Context          json.RawMessage `json:"context,omitempty"`
 }
 
 type CompetitionRef struct {
 	ID         int64  `json:"id"`
 	ExternalID string `json:"external_id"`
+}
+
+// Значения enum'ов совпадают с Laravel (MatchStatus, MatchPeriod).
+const (
+	MatchScheduled = "scheduled"
+	MatchLive      = "live"
+	MatchFinished  = "finished"
+	MatchPostponed = "postponed"
+	MatchCancelled = "cancelled"
+	MatchAbandoned = "abandoned"
+
+	PeriodFirstHalf  = "first_half"
+	PeriodSecondHalf = "second_half"
+	PeriodExtraTime  = "extra_time"
+	PeriodPenalties  = "penalties"
+)
+
+// MatchData — канонический матч. Ссылки — только внешние id источника; счёт nil, пока неизвестен.
+type MatchData struct {
+	CompetitionExternalID string  `json:"competition_external_id,omitempty"`
+	SeasonExternalID      string  `json:"season_external_id"`
+	StageExternalID       string  `json:"stage_external_id"`
+	RoundName             string  `json:"round_name,omitempty"`
+	RoundNumber           *int    `json:"round_number"`
+	HomeTeamExternalID    string  `json:"home_team_external_id"`
+	AwayTeamExternalID    string  `json:"away_team_external_id"`
+	KickoffAt             string  `json:"kickoff_at"`
+	Status                string  `json:"status"`
+	Period                *string `json:"period"`
+	HomeGoals             *int    `json:"home_goals"`
+	AwayGoals             *int    `json:"away_goals"`
+	HomeGoalsHT           *int    `json:"home_goals_ht"`
+	AwayGoalsHT           *int    `json:"away_goals_ht"`
+	HomeGoalsET           *int    `json:"home_goals_et"`
+	AwayGoalsET           *int    `json:"away_goals_et"`
+	HomePens              *int    `json:"home_pens"`
+	AwayPens              *int    `json:"away_pens"`
+}
+
+// FixturesPayload — payload sync_fixtures. Окно дат — включительно с обеих сторон (UTC, YYYY-MM-DD).
+type FixturesPayload struct {
+	Competition      CompetitionRef  `json:"competition"`
+	SeasonExternalID string          `json:"season_external_id"`
+	StageExternalID  string          `json:"stage_external_id,omitempty"`
+	Window           *FixturesWindow `json:"window,omitempty"`
+	Context          json.RawMessage `json:"context,omitempty"`
+}
+
+type FixturesWindow struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
 }

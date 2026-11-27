@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"strconv"
+	"time"
 )
 
 // FlexString принимает JSON-строку или число (SStats отдаёт id в обоих видах).
@@ -104,4 +105,40 @@ type LsSeasonStructure struct {
 	Season LsSeason  `json:"season"`
 	Stages []LsStage `json:"stages"`
 	Teams  []LsTeam  `json:"teams"`
+}
+
+// LsFixture — матч из /Ls/List (используются только нужные каноническому DTO поля).
+type LsFixture struct {
+	ID           string     `json:"id"`
+	TournamentID string     `json:"tournamentId"`
+	SeasonID     string     `json:"seasonId"`
+	StageID      string     `json:"stageId"`
+	RoundName    string     `json:"roundName"`
+	HomeTeamID   string     `json:"homeTeamId"`
+	AwayTeamID   string     `json:"awayTeamId"`
+	Date         string     `json:"date"`
+	DateUTC      FlexString `json:"dateUtc"`
+	Status       FlexInt    `json:"status"`
+	StatusName   string     `json:"statusName"`
+	LiveStage    *FlexInt   `json:"liveStage"`
+
+	HomeResult   *FlexInt `json:"homeResult"`
+	AwayResult   *FlexInt `json:"awayResult"`
+	HomeResultHT *FlexInt `json:"homeResultHT"`
+	AwayResultHT *FlexInt `json:"awayResultHT"`
+	HomeResultFT *FlexInt `json:"homeResultFT"`
+	AwayResultFT *FlexInt `json:"awayResultFT"`
+	HomeResultET *FlexInt `json:"homeResultET"`
+	AwayResultET *FlexInt `json:"awayResultET"`
+	HomeResultAP *FlexInt `json:"homeResultAP"`
+	AwayResultAP *FlexInt `json:"awayResultAP"`
+}
+
+// FixturesQuery — фильтры /Ls/List. Нулевые значения не отправляются.
+type FixturesQuery struct {
+	SeasonID string
+	StageID  string
+	// From включительно, To исключительно (UTC).
+	From time.Time
+	To   time.Time
 }
