@@ -426,6 +426,25 @@ class TournamentPageTest extends TestCase
         $this->assertStringContainsString('overall-label="Все"', $standings);
     }
 
+    public function test_schedule_and_results_rows_link_to_match_page(): void
+    {
+        $matches = $this->playRounds();
+        $props = $this->get("/tournaments/{$this->competition->id}")->viewData('page')['props'];
+
+        $this->assertSame($matches['spartak-cska']->id ?? null, $props['results'][0]['matches'][0]['id'] ?? null);
+        foreach ([...$props['results'], ...$props['schedule']] as $block) {
+            foreach ($block['matches'] as $m) {
+                $this->assertIsInt($m['id']);
+                $this->get(route('matches.show', $m['id'], false))->assertOk();
+            }
+        }
+
+        foreach (['TournamentResults', 'TournamentSchedule'] as $component) {
+            $source = file_get_contents(resource_path("js/Components/{$component}.vue"));
+            $this->assertStringContainsString("route('matches.show', m.id)", $source);
+        }
+    }
+
     public function test_header_component_has_season_select_and_metrics(): void
     {
         $header = file_get_contents(resource_path('js/Components/TournamentHeader.vue'));

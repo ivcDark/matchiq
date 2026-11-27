@@ -2847,12 +2847,26 @@
     }
 
     .miq-tt-match {
-        @apply flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1 text-[13px];
         border-top: 1px solid color-mix(in srgb, var(--miq-line) 35%, transparent);
     }
 
     .miq-tt-match:nth-child(even) {
         background: color-mix(in srgb, var(--miq-mist-deep) 30%, white);
+    }
+
+    .miq-tt-match-link {
+        @apply flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1 text-[13px] text-inherit no-underline transition-colors;
+        transition-duration: 160ms;
+    }
+
+    .miq-tt-match-link:hover,
+    .miq-tt-match-link:focus-visible {
+        background: color-mix(in srgb, white 65%, var(--miq-mist));
+        outline: none;
+    }
+
+    .miq-tt-match-link:focus-visible {
+        box-shadow: inset 3px 0 0 var(--miq-pitch);
     }
 
     .miq-tt-match-when {
