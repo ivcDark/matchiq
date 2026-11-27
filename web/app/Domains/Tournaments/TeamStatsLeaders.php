@@ -3,10 +3,9 @@
 namespace App\Domains\Tournaments;
 
 /**
- * Топ-5 команд по средним матчевым показателям («Лучшие команды»): владение, удары, точность передач и рейтинг —
+ * Топ-5 команд по средним матчевым показателям («Лучшие команды»): владение, xG, удары, точность передач и рейтинг —
  * среднее за матч по матчам, где значение есть; агрессивность — сумма карточек.
- * Выигранной борьбы в воздухе в данных источника нет (колонка `aerials_won` не заполняется и это счётчик, а не %),
- * поэтому таблица `aerial` всегда пустая — цифры не выдумываем.
+ * Выигранной борьбы в воздухе в данных источника нет (колонка `aerials_won` не заполняется), поэтому вместо неё xG.
  */
 final class TeamStatsLeaders
 {
@@ -14,10 +13,10 @@ final class TeamStatsLeaders
 
     public const CONTEXTS = ['overall', 'home', 'away'];
 
-    public const TABLES = ['possession', 'aggression', 'aerial', 'shots', 'passing', 'rating'];
+    public const TABLES = ['possession', 'aggression', 'xg', 'shots', 'passing', 'rating'];
 
     /**
-     * @param  list<array{team_id: int, side: 'home'|'away', possession_pct: ?float, shots: ?int, pass_accuracy_pct: ?float, yellow_cards: ?int, red_cards: ?int, rating: ?float}>  $rows  по строке на команду и матч (период «весь матч»)
+     * @param  list<array{team_id: int, side: 'home'|'away', possession_pct: ?float, xg: ?float, shots: ?int, pass_accuracy_pct: ?float, yellow_cards: ?int, red_cards: ?int, rating: ?float}>  $rows  по строке на команду и матч (период «весь матч»)
      * @param  array<int, string>  $names  название команды по id
      * @return array<string, array<string, list<array<string, mixed>>>>
      */
@@ -53,6 +52,7 @@ final class TeamStatsLeaders
         foreach ($rows as $r) {
             $teamId = $r['team_id'];
             $add($teamId, 'possession', $r['possession_pct']);
+            $add($teamId, 'xg', $r['xg']);
             $add($teamId, 'shots', $r['shots']);
             $add($teamId, 'passing', $r['pass_accuracy_pct']);
             $add($teamId, 'rating', $r['rating']);
@@ -98,7 +98,7 @@ final class TeamStatsLeaders
         return [
             'possession' => $byAverage('possession', 'possession'),
             'aggression' => self::ranked($aggression, ['yellow', 'red'], $names),
-            'aerial' => [],
+            'xg' => $byAverage('xg', 'xg'),
             'shots' => $byAverage('shots', 'shots'),
             'passing' => $byAverage('passing', 'passing'),
             'rating' => $byAverage('rating', 'rating'),

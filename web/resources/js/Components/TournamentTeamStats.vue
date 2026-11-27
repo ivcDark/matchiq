@@ -9,7 +9,7 @@ const NF = { 0: nf(0), 1: nf(1), 2: nf(2) };
 const props = defineProps({
     title: { type: String, required: true },
     hint: { type: String, default: '' },
-    /** { overall|home|away: { possession|aggression|aerial|shots|passing|rating: [{ rank, team, ... }] } } */
+    /** { overall|home|away: { possession|aggression|xg|shots|passing|rating: [{ rank, team, ... }] } } */
     stats: { type: Object, required: true },
 });
 
@@ -21,7 +21,7 @@ const context = ref('overall');
 const TABLES = [
     { key: 'possession', title: 'Владение мячом', field: 'possession', scale: 100, digits: 1, suffix: '%' },
     { key: 'aggression', title: 'Агрессивность', cards: true },
-    { key: 'aerial', title: 'Выигранная борьба в воздухе', field: 'aerial', scale: 100, digits: 1, suffix: '%' },
+    { key: 'xg', title: 'Ожидаемые голы (xG) за игру', field: 'xg', scale: 'max', digits: 2, suffix: '', tone: 'coral' },
     { key: 'shots', title: 'Удары за игру', field: 'shots', scale: 'max', digits: 1, suffix: '', tone: 'coral' },
     { key: 'passing', title: 'Точность передач', field: 'passing', scale: 100, digits: 1, suffix: '%' },
     { key: 'rating', title: 'Рейтинги команд', field: 'rating', scale: 10, digits: 2, suffix: '', tone: 'coral' },

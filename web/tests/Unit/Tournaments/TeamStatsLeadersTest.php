@@ -10,7 +10,7 @@ class TeamStatsLeadersTest extends TestCase
     private function row(int $team, string $side, array $over = []): array
     {
         return $over + [
-            'team_id' => $team, 'side' => $side, 'possession_pct' => 50.0, 'shots' => 10, 'pass_accuracy_pct' => 80.0,
+            'team_id' => $team, 'side' => $side, 'possession_pct' => 50.0, 'shots' => 10, 'pass_accuracy_pct' => 80.0, 'xg' => 1.5,
             'yellow_cards' => null, 'red_cards' => null, 'rating' => 6.5,
         ];
     }
@@ -31,7 +31,22 @@ class TeamStatsLeadersTest extends TestCase
         $this->assertCount(5, $out['overall']['rating']);
         $this->assertNotContains(7, array_column($out['overall']['rating'], 'team_id'));
         $this->assertSame([], $out['away']['possession']);
-        $this->assertSame([], $out['overall']['aerial']);
+        $this->assertCount(5, $out['overall']['xg']);
+    }
+
+    public function test_xg_is_averaged_per_match_and_skips_matches_without_it(): void
+    {
+        $out = TeamStatsLeaders::compute([
+            $this->row(1, 'home', ['xg' => 2.0]),
+            $this->row(1, 'away', ['xg' => 1.0]),
+            $this->row(2, 'home', ['xg' => 1.8]),
+            $this->row(2, 'away', ['xg' => null]),
+            $this->row(3, 'home', ['xg' => null]),
+        ], [1 => 'А', 2 => 'Б', 3 => 'В']);
+
+        $this->assertSame([['rank' => 1, 'team' => 'Б', 'team_id' => 2, 'xg' => 1.8], ['rank' => 2, 'team' => 'А', 'team_id' => 1, 'xg' => 1.5]], $out['overall']['xg']);
+        $this->assertSame([2.0, 1.8], array_column($out['home']['xg'], 'xg'));
+        $this->assertSame([1.0], array_column($out['away']['xg'], 'xg'));
     }
 
     public function test_missing_cards_count_as_zero_only_when_the_match_has_stats(): void

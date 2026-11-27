@@ -219,18 +219,18 @@ class TournamentPageTest extends TestCase
     {
         $m = $this->playRounds();
 
-        $this->teamStat($m['zenit-spartak'], 'zenit', MatchSide::Home, ['possession_pct' => 60, 'shots' => 14, 'pass_accuracy_pct' => 90, 'yellow_cards' => 1], 7.0);
-        $this->teamStat($m['zenit-spartak'], 'spartak', MatchSide::Away, ['possession_pct' => 40, 'shots' => 4, 'pass_accuracy_pct' => 70, 'yellow_cards' => 3, 'red_cards' => 1], 6.0);
-        $this->teamStat($m['dynamo-zenit'], 'dynamo', MatchSide::Home, ['possession_pct' => 50, 'shots' => 10, 'pass_accuracy_pct' => 80, 'yellow_cards' => 2], 7.5);
-        $this->teamStat($m['dynamo-zenit'], 'zenit', MatchSide::Away, ['possession_pct' => 50, 'shots' => 6, 'pass_accuracy_pct' => 80], 6.5);
+        $this->teamStat($m['zenit-spartak'], 'zenit', MatchSide::Home, ['possession_pct' => 60, 'xg' => 2.4, 'shots' => 14, 'pass_accuracy_pct' => 90, 'yellow_cards' => 1], 7.0);
+        $this->teamStat($m['zenit-spartak'], 'spartak', MatchSide::Away, ['possession_pct' => 40, 'xg' => 0.6, 'shots' => 4, 'pass_accuracy_pct' => 70, 'yellow_cards' => 3, 'red_cards' => 1], 6.0);
+        $this->teamStat($m['dynamo-zenit'], 'dynamo', MatchSide::Home, ['possession_pct' => 50, 'xg' => 1.2, 'shots' => 10, 'pass_accuracy_pct' => 80, 'yellow_cards' => 2], 7.5);
+        $this->teamStat($m['dynamo-zenit'], 'zenit', MatchSide::Away, ['possession_pct' => 50, 'xg' => 0.8, 'shots' => 6, 'pass_accuracy_pct' => 80], 6.5);
         $this->teamStat($m['dynamo-zenit'], 'zenit', MatchSide::Away, ['possession_pct' => 99, 'shots' => 99], null, StatsPeriod::FirstHalf);
-        $this->teamStat($m['zenit-cska'], 'cska', MatchSide::Away, ['possession_pct' => 70, 'shots' => 20, 'pass_accuracy_pct' => 99], 9.0);
+        $this->teamStat($m['zenit-cska'], 'cska', MatchSide::Away, ['possession_pct' => 70, 'xg' => 3.0, 'shots' => 20, 'pass_accuracy_pct' => 99], 9.0);
 
         $stats = $this->get("/tournaments/{$this->competition->id}")->viewData('page')['props']['teamStats'];
         $col = fn (array $rows, string $key): array => array_column($rows, $key);
 
         $overall = $stats['overall'];
-        $this->assertSame(['possession', 'aggression', 'aerial', 'shots', 'passing', 'rating'], array_keys($overall));
+        $this->assertSame(['possession', 'aggression', 'xg', 'shots', 'passing', 'rating'], array_keys($overall));
         $this->assertSame(['Зенит', 'Динамо', 'Спартак'], $col($overall['possession'], 'team'));
         $this->assertSame([55.0, 50.0, 40.0], $col($overall['possession'], 'possession'));
         $this->assertSame([1, 2, 3], $col($overall['possession'], 'rank'));
@@ -244,12 +244,15 @@ class TournamentPageTest extends TestCase
             [['Спартак', 3, 1], ['Динамо', 2, 0], ['Зенит', 1, 0]],
             array_map(fn ($r) => [$r['team'], $r['yellow'], $r['red']], $overall['aggression']),
         );
-        $this->assertSame([], $overall['aerial']);
+        $this->assertSame(['Зенит', 'Динамо', 'Спартак'], $col($overall['xg'], 'team'));
+        $this->assertSame([1.6, 1.2, 0.6], $col($overall['xg'], 'xg'));
 
         $this->assertSame(['Зенит', 'Динамо'], $col($stats['home']['possession'], 'team'));
         $this->assertSame([14.0, 10.0], $col($stats['home']['shots'], 'shots'));
         $this->assertSame(['Зенит', 'Спартак'], $col($stats['away']['possession'], 'team'));
         $this->assertSame([6.0, 4.0], $col($stats['away']['shots'], 'shots'));
+        $this->assertSame([2.4, 1.2], $col($stats['home']['xg'], 'xg'));
+        $this->assertSame([0.8, 0.6], $col($stats['away']['xg'], 'xg'));
     }
 
     public function test_team_stats_are_empty_without_match_team_stats_rows(): void

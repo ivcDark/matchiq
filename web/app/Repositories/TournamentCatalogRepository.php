@@ -72,7 +72,7 @@ class TournamentCatalogRepository
      * Командная статистика матчей за весь матч: колонки `match_team_stats` и средняя оценка состава из `match_teams`.
      *
      * @param  list<int>  $matchIds
-     * @return list<array{match_id: int, team_id: int, possession_pct: ?float, shots: ?int, pass_accuracy_pct: ?float, yellow_cards: ?int, red_cards: ?int, rating: ?float}>
+     * @return list<array{match_id: int, team_id: int, possession_pct: ?float, xg: ?float, shots: ?int, pass_accuracy_pct: ?float, yellow_cards: ?int, red_cards: ?int, rating: ?float}>
      */
     public function teamStatsForMatches(array $matchIds): array
     {
@@ -90,6 +90,7 @@ class TournamentCatalogRepository
                 ->whereIn('match_team_stats.match_id', $chunk)
                 ->get([
                     'match_team_stats.match_id', 'match_team_stats.team_id', 'match_team_stats.possession_pct',
+                    'match_team_stats.xg',
                     'match_team_stats.shots', 'match_team_stats.pass_accuracy_pct', 'match_team_stats.yellow_cards',
                     'match_team_stats.red_cards', 'match_teams.rating as team_rating',
                 ]);
@@ -99,6 +100,7 @@ class TournamentCatalogRepository
                     'match_id' => (int) $r->match_id,
                     'team_id' => (int) $r->team_id,
                     'possession_pct' => $r->possession_pct === null ? null : (float) $r->possession_pct,
+                    'xg' => $r->xg === null ? null : (float) $r->xg,
                     'shots' => $r->shots === null ? null : (int) $r->shots,
                     'pass_accuracy_pct' => $r->pass_accuracy_pct === null ? null : (float) $r->pass_accuracy_pct,
                     'yellow_cards' => $r->yellow_cards === null ? null : (int) $r->yellow_cards,
