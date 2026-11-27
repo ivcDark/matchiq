@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Enums\MatchEventType;
 use App\Enums\MatchStatus;
+use App\Models\Competition;
 use App\Models\FootballMatch;
 use App\Models\MatchEvent;
 use App\Models\MatchPreview;
@@ -131,6 +132,71 @@ class MatchCatalogRepository
             'team' => $teams[$row->team_id],
             'goals' => (int) $row->goals,
         ])->all();
+    }
+
+    /**
+     * Топ голов игроков за период по всем переданным соревнованиям (кросс-лига): голы из событий матчей, автоголы не считаются.
+     * Игрок с голами в нескольких соревнованиях — одна строка; команда и соревнование — где он забил больше.
+     *
+     * @param  list<int>  $competitionIds
+     * @return list<array{player: Player, team: Team, competition: Competition, goals: int}>
+     */
+    public function topScorersSince(array $competitionIds, CarbonInterface $since, int $limit): array
+    {
+        if ($competitionIds === []) {
+            return [];
+        }
+
+        $rows = MatchEvent::query()
+            ->join('matches', 'matches.id', '=', 'match_events.match_id')
+            ->selectRaw('match_events.player_id, match_events.team_id, matches.competition_id, count(*) as goals')
+            ->whereIn('match_events.type', [MatchEventType::Goal, MatchEventType::PenaltyGoal])
+            ->whereNotNull('match_events.player_id')
+            ->whereNotNull('match_events.team_id')
+            ->whereIn('matches.competition_id', $competitionIds)
+            ->where('matches.kickoff_at', '>=', $since)
+            ->groupBy('match_events.player_id', 'match_events.team_id', 'matches.competition_id')
+            ->get();
+
+        $byPlayer = [];
+        foreach ($rows as $row) {
+            $goals = (int) $row->goals;
+            $acc = &$byPlayer[$row->player_id];
+            $acc ??= ['total' => 0, 'best' => 0, 'team_id' => $row->team_id, 'competition_id' => $row->competition_id];
+            $acc['total'] += $goals;
+            if ($goals > $acc['best']) {
+                $acc['best'] = $goals;
+                $acc['team_id'] = $row->team_id;
+                $acc['competition_id'] = $row->competition_id;
+            }
+            unset($acc);
+        }
+
+        $playerIds = array_keys($byPlayer);
+        usort($playerIds, fn (int $a, int $b) => [$byPlayer[$b]['total'], $a] <=> [$byPlayer[$a]['total'], $b]);
+        $top = [];
+        foreach (array_slice($playerIds, 0, $limit) as $playerId) {
+            $top[$playerId] = $byPlayer[$playerId];
+        }
+        if ($top === []) {
+            return [];
+        }
+
+        $players = Player::whereIn('id', array_keys($top))->get()->keyBy('id');
+        $teams = Team::whereIn('id', array_column($top, 'team_id'))->get()->keyBy('id');
+        $competitions = Competition::whereIn('id', array_column($top, 'competition_id'))->get()->keyBy('id');
+
+        $out = [];
+        foreach ($top as $playerId => $row) {
+            $out[] = [
+                'player' => $players[$playerId],
+                'team' => $teams[$row['team_id']],
+                'competition' => $competitions[$row['competition_id']],
+                'goals' => $row['total'],
+            ];
+        }
+
+        return $out;
     }
 
     public function previewFor(int $matchId, string $locale): ?MatchPreview

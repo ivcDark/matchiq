@@ -22,6 +22,8 @@ class BuildMatchesIndex
 
     private const SCORERS_WIDGET_ROWS = 5;
 
+    private const HOT_SCORERS_WIDGET_ROWS = 5;
+
     private const NEWS_WIDGET_ROWS = 5;
 
     public function __construct(
@@ -56,19 +58,23 @@ class BuildMatchesIndex
             matches: $listed->map(fn ($m) => MatchRowPayload::make($m, $form))->values()->all(),
             selection: $selection,
             day: $day,
-            widgets: $this->widgets($widgetSlug === null ? null : $active->get($widgetSlug)),
+            widgets: $this->widgets(
+                $widgetSlug === null ? null : $active->get($widgetSlug),
+                $this->hotScorers($active->pluck('id')->all()),
+            ),
         );
     }
 
     /**
      * Таблица считается по сыгранным матчам; бомбардиры — из событий матчей.
-     * Новости — промо из news_items. Скорострелы источника данных не имеют.
+     * Скорострелы — кросс-лига за год, не зависят от выбранной лиги. Новости — промо из news_items.
      *
+     * @param  list<array{pos: int, player: string, team: string, league: string, goals: int}>  $hotScorers
      * @return array<string, mixed>
      */
-    private function widgets(?Competition $competition): array
+    private function widgets(?Competition $competition, array $hotScorers): array
     {
-        $empty = ['league' => null, 'standings' => [], 'scorers' => [], 'hotScorers' => [], 'news' => $this->news()];
+        $empty = ['league' => null, 'standings' => [], 'scorers' => [], 'hotScorers' => $hotScorers, 'news' => $this->news()];
 
         if ($competition === null) {
             return $empty;
@@ -110,9 +116,29 @@ class BuildMatchesIndex
             'league' => $this->widgetLeague($competition),
             'standings' => $standings,
             'scorers' => $scorers,
-            'hotScorers' => [],
+            'hotScorers' => $hotScorers,
             'news' => $empty['news'],
         ];
+    }
+
+    /**
+     * «Скорострелы»: больше всего голов за последние 12 месяцев среди всех активных лиг (голы из `match_events`).
+     *
+     * @param  list<int>  $competitionIds
+     * @return list<array{pos: int, player: string, team: string, league: string, goals: int}>
+     */
+    private function hotScorers(array $competitionIds): array
+    {
+        $locale = (string) config('matchiq.ui_locale');
+        $rows = $this->matches->topScorersSince($competitionIds, now()->subYear(), self::HOT_SCORERS_WIDGET_ROWS);
+
+        return array_map(fn (array $row, int $i) => [
+            'pos' => $i + 1,
+            'player' => $row['player']->localized('name', $locale),
+            'team' => $row['team']->localized('name', $locale),
+            'league' => $row['competition']->localized('short_name', $locale) ?: $row['competition']->localized('name', $locale),
+            'goals' => $row['goals'],
+        ], $rows, array_keys($rows));
     }
 
     /**

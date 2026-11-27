@@ -291,6 +291,39 @@ class MatchesPagesTest extends TestCase
                 ->where('widgets.scorers.0.goals', 2));
     }
 
+    public function test_index_hot_scorers_widget_sums_goals_over_year(): void
+    {
+        $match = $this->makeMatch('zenit', 'spartak', now()->subMonth()->toDateTimeString(), MatchStatus::Finished, [3, 0]);
+        $old = $this->makeMatch('zenit', 'spartak', now()->subYears(2)->toDateTimeString(), MatchStatus::Finished, [1, 0]);
+        $glushenkov = Player::create(['country_id' => $this->country->id, 'slug' => 'glushenkov', 'name' => 'M. Glushenkov', 'name_i18n' => ['ru' => 'М. Глушенков']]);
+        $other = Player::create(['country_id' => $this->country->id, 'slug' => 'other', 'name' => 'A. Other']);
+        $events = [
+            [$match, $glushenkov, $this->teams['zenit'], MatchEventType::Goal],
+            [$match, $glushenkov, $this->teams['zenit'], MatchEventType::PenaltyGoal],
+            [$match, $glushenkov, $this->teams['zenit'], MatchEventType::OwnGoal],
+            [$match, $other, $this->teams['zenit'], MatchEventType::Goal],
+            [$old, $other, $this->teams['zenit'], MatchEventType::Goal],
+        ];
+        foreach ($events as $i => [$m, $player, $team, $type]) {
+            MatchEvent::create([
+                'match_id' => $m->id, 'team_id' => $team->id, 'player_id' => $player->id,
+                'type' => $type, 'minute' => 10 + $i, 'sort_order' => $i,
+            ]);
+        }
+
+        $this->get('/')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('widgets.hotScorers', 2)
+                ->where('widgets.hotScorers.0.pos', 1)
+                ->where('widgets.hotScorers.0.player', 'М. Глушенков')
+                ->where('widgets.hotScorers.0.team', 'Зенит')
+                ->where('widgets.hotScorers.0.league', fn ($league) => is_string($league) && $league !== '')
+                ->where('widgets.hotScorers.0.goals', 2)
+                ->where('widgets.hotScorers.1.player', 'A. Other')
+                ->where('widgets.hotScorers.1.goals', 1));
+    }
+
     public function test_index_news_widget_lists_published_items_newest_first(): void
     {
         NewsItem::create([
