@@ -4,8 +4,13 @@ namespace Tests\Feature;
 
 use App\Enums\CompetitionStatus;
 use App\Enums\MatchEventType;
+use App\Enums\MatchSide;
 use App\Enums\PlayerPosition;
+use App\Enums\StatsPeriod;
+use App\Models\FootballMatch;
 use App\Models\MatchPrediction;
+use App\Models\MatchTeam;
+use App\Models\MatchTeamStat;
 use App\Models\ModelVersion;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -198,6 +203,62 @@ class TournamentPageTest extends TestCase
         $this->assertSame(['rank' => 1, 'team' => 'ЦСКА', 'goals' => 1, 'per_match' => 0.5], $ad['best_defense'][0]);
         $this->assertSame(['rank' => 1, 'team' => 'Динамо', 'goals' => 3, 'per_match' => 1.5], $ad['worst_defense'][0]);
         $this->assertCount(4, $ad['best_attack']);
+    }
+
+    /** @param  array<string, mixed>  $metrics */
+    private function teamStat(FootballMatch $match, string $team, MatchSide $side, array $metrics, ?float $rating, StatsPeriod $period = StatsPeriod::FullTime): void
+    {
+        $teamId = $this->teams[$team]->id;
+        MatchTeamStat::create(['match_id' => $match->id, 'team_id' => $teamId, 'period' => $period] + $metrics);
+        if ($period === StatsPeriod::FullTime) {
+            MatchTeam::create(['match_id' => $match->id, 'team_id' => $teamId, 'side' => $side, 'rating' => $rating]);
+        }
+    }
+
+    public function test_best_teams_are_aggregated_from_match_team_stats_by_context(): void
+    {
+        $m = $this->playRounds();
+
+        $this->teamStat($m['zenit-spartak'], 'zenit', MatchSide::Home, ['possession_pct' => 60, 'shots' => 14, 'pass_accuracy_pct' => 90, 'yellow_cards' => 1], 7.0);
+        $this->teamStat($m['zenit-spartak'], 'spartak', MatchSide::Away, ['possession_pct' => 40, 'shots' => 4, 'pass_accuracy_pct' => 70, 'yellow_cards' => 3, 'red_cards' => 1], 6.0);
+        $this->teamStat($m['dynamo-zenit'], 'dynamo', MatchSide::Home, ['possession_pct' => 50, 'shots' => 10, 'pass_accuracy_pct' => 80, 'yellow_cards' => 2], 7.5);
+        $this->teamStat($m['dynamo-zenit'], 'zenit', MatchSide::Away, ['possession_pct' => 50, 'shots' => 6, 'pass_accuracy_pct' => 80], 6.5);
+        $this->teamStat($m['dynamo-zenit'], 'zenit', MatchSide::Away, ['possession_pct' => 99, 'shots' => 99], null, StatsPeriod::FirstHalf);
+        $this->teamStat($m['zenit-cska'], 'cska', MatchSide::Away, ['possession_pct' => 70, 'shots' => 20, 'pass_accuracy_pct' => 99], 9.0);
+
+        $stats = $this->get("/tournaments/{$this->competition->id}")->viewData('page')['props']['teamStats'];
+        $col = fn (array $rows, string $key): array => array_column($rows, $key);
+
+        $overall = $stats['overall'];
+        $this->assertSame(['possession', 'aggression', 'aerial', 'shots', 'passing', 'rating'], array_keys($overall));
+        $this->assertSame(['Зенит', 'Динамо', 'Спартак'], $col($overall['possession'], 'team'));
+        $this->assertSame([55.0, 50.0, 40.0], $col($overall['possession'], 'possession'));
+        $this->assertSame([1, 2, 3], $col($overall['possession'], 'rank'));
+        $this->assertSame(['Динамо', 'Зенит', 'Спартак'], $col($overall['shots'], 'team'));
+        $this->assertSame([10.0, 10.0, 4.0], $col($overall['shots'], 'shots'));
+        $this->assertSame(['Зенит', 'Динамо', 'Спартак'], $col($overall['passing'], 'team'));
+        $this->assertSame([85.0, 80.0, 70.0], $col($overall['passing'], 'passing'));
+        $this->assertSame(['Динамо', 'Зенит', 'Спартак'], $col($overall['rating'], 'team'));
+        $this->assertSame([7.5, 6.75, 6.0], $col($overall['rating'], 'rating'));
+        $this->assertSame(
+            [['Спартак', 3, 1], ['Динамо', 2, 0], ['Зенит', 1, 0]],
+            array_map(fn ($r) => [$r['team'], $r['yellow'], $r['red']], $overall['aggression']),
+        );
+        $this->assertSame([], $overall['aerial']);
+
+        $this->assertSame(['Зенит', 'Динамо'], $col($stats['home']['possession'], 'team'));
+        $this->assertSame([14.0, 10.0], $col($stats['home']['shots'], 'shots'));
+        $this->assertSame(['Зенит', 'Спартак'], $col($stats['away']['possession'], 'team'));
+        $this->assertSame([6.0, 4.0], $col($stats['away']['shots'], 'shots'));
+    }
+
+    public function test_team_stats_are_empty_without_match_team_stats_rows(): void
+    {
+        $this->playRounds();
+
+        $props = $this->get("/tournaments/{$this->competition->id}")->viewData('page')['props'];
+
+        $this->assertEmpty((array) $props['teamStats']);
     }
 
     public function test_blocks_without_data_in_database_are_empty_placeholders(): void

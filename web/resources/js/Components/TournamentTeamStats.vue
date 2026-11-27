@@ -62,6 +62,9 @@ const tables = computed(() =>
                     </tr>
                 </thead>
                 <tbody>
+                    <tr v-if="!table.rows.length">
+                        <td colspan="2" class="is-team text-miq-muted">Нет данных источника</td>
+                    </tr>
                     <tr v-for="row in table.rows" :key="row.team">
                         <td class="is-team">
                             <span class="block truncate">{{ row.team }}</span>

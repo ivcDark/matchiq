@@ -5,6 +5,7 @@ namespace App\Services\Tournaments;
 use App\Domains\Matches\LeagueTable;
 use App\Domains\Tournaments\FinishedMatch;
 use App\Domains\Tournaments\SeasonLabel;
+use App\Domains\Tournaments\TeamStatsLeaders;
 use App\Enums\MatchResult;
 use App\Enums\MatchStatus;
 use App\Enums\StageType;
@@ -20,7 +21,8 @@ use Illuminate\Support\Collection;
 
 /**
  * Страница турнира: таблица, форма, расписание, результаты и бомбардиры считаются из матчей и событий БД.
- * Статистики, которой в БД нет (владение, рейтинги, минуты, скорострелы, вратари), отдаём пустыми блоками.
+ * «Лучшие команды» — средние по `match_team_stats` (владение, удары, точность пасов, карточки, рейтинг состава).
+ * Статистики, которой в БД нет (борьба в воздухе, минуты, скорострелы, вратари), отдаём пустыми блоками.
  */
 class BuildTournamentShow
 {
@@ -105,7 +107,7 @@ class BuildTournamentShow
                 'ratings' => [],
             ],
             'attackDefense' => $this->attackDefense($standingsByContext['overall']),
-            'teamStats' => (object) [],
+            'teamStats' => $this->teamStats($finished, $name),
             'contribution' => ['overall' => $leaders['contribution'], 'home' => [], 'away' => []],
             'thresholds' => self::THRESHOLDS,
         ]);
@@ -279,6 +281,37 @@ class BuildTournamentShow
             'worst_attack' => $build('gf', false),
             'worst_defense' => $build('ga', true),
         ];
+    }
+
+    /**
+     * Пустой объект, пока ни у одного сыгранного матча нет командной статистики.
+     *
+     * @param  Collection<int, FootballMatch>  $finished
+     */
+    private function teamStats(Collection $finished, callable $name): array|object
+    {
+        $sides = [];
+        foreach ($finished as $match) {
+            $sides[$match->id] = [$match->home_team_id => 'home', $match->away_team_id => 'away'];
+        }
+
+        $rows = [];
+        foreach ($this->catalog->teamStatsForMatches(array_keys($sides)) as $row) {
+            $side = $sides[$row['match_id']][$row['team_id']] ?? null;
+            if ($side !== null) {
+                $rows[] = ['side' => $side] + $row;
+            }
+        }
+        if ($rows === []) {
+            return (object) [];
+        }
+
+        $names = [];
+        foreach ($rows as $row) {
+            $names[$row['team_id']] ??= $name($row['team_id']);
+        }
+
+        return TeamStatsLeaders::compute($rows, $names);
     }
 
     /**
