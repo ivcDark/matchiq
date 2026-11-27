@@ -12,6 +12,7 @@ use App\Models\Competition;
 use App\Models\Country;
 use App\Models\FootballMatch;
 use App\Models\MatchEvent;
+use App\Models\MatchPlayerStat;
 use App\Models\MatchPrediction;
 use App\Models\MatchTeamStat;
 use App\Models\ModelVersion;
@@ -291,23 +292,37 @@ class MatchesPagesTest extends TestCase
                 ->where('widgets.scorers.0.goals', 2));
     }
 
-    public function test_index_hot_scorers_widget_sums_goals_over_year(): void
+    public function test_index_hot_scorers_widget_ranks_goals_per_minute_with_minutes_threshold(): void
     {
-        $match = $this->makeMatch('zenit', 'spartak', now()->subMonth()->toDateTimeString(), MatchStatus::Finished, [3, 0]);
+        $recent = $this->makeMatch('zenit', 'spartak', now()->subMonth()->toDateTimeString(), MatchStatus::Finished, [3, 0]);
+        $recent2 = $this->makeMatch('zenit', 'spartak', now()->subMonths(2)->toDateTimeString(), MatchStatus::Finished, [3, 0]);
         $old = $this->makeMatch('zenit', 'spartak', now()->subYears(2)->toDateTimeString(), MatchStatus::Finished, [1, 0]);
-        $glushenkov = Player::create(['country_id' => $this->country->id, 'slug' => 'glushenkov', 'name' => 'M. Glushenkov', 'name_i18n' => ['ru' => 'М. Глушенков']]);
-        $other = Player::create(['country_id' => $this->country->id, 'slug' => 'other', 'name' => 'A. Other']);
-        $events = [
-            [$match, $glushenkov, $this->teams['zenit'], MatchEventType::Goal],
-            [$match, $glushenkov, $this->teams['zenit'], MatchEventType::PenaltyGoal],
-            [$match, $glushenkov, $this->teams['zenit'], MatchEventType::OwnGoal],
-            [$match, $other, $this->teams['zenit'], MatchEventType::Goal],
-            [$old, $other, $this->teams['zenit'], MatchEventType::Goal],
+        $upcoming = $this->makeMatch('zenit', 'spartak', now()->addDay()->toDateTimeString());
+
+        $make = fn (string $slug, ?string $ru = null) => Player::create([
+            'country_id' => $this->country->id, 'slug' => $slug, 'name' => $slug,
+            'name_i18n' => $ru === null ? null : ['ru' => $ru],
+        ]);
+        $glushenkov = $make('glushenkov', 'М. Глушенков');
+        $workhorse = $make('workhorse', 'Трудяга');
+        $cameo = $make('cameo', 'Эпизодист');
+        $oldTimer = $make('old-timer', 'Из прошлого');
+        $scoreless = $make('scoreless', 'Без голов');
+
+        $stats = [
+            [$recent, $glushenkov, 'zenit', 150, 2],
+            [$recent2, $glushenkov, 'zenit', 180, 1],
+            [$recent, $workhorse, 'zenit', 300, 2],
+            [$recent2, $workhorse, 'zenit', 300, 0],
+            [$recent, $cameo, 'zenit', 5, 1],
+            [$old, $oldTimer, 'zenit', 900, 9],
+            [$upcoming, $oldTimer, 'zenit', 90, 5],
+            [$recent, $scoreless, 'zenit', 400, 0],
         ];
-        foreach ($events as $i => [$m, $player, $team, $type]) {
-            MatchEvent::create([
-                'match_id' => $m->id, 'team_id' => $team->id, 'player_id' => $player->id,
-                'type' => $type, 'minute' => 10 + $i, 'sort_order' => $i,
+        foreach ($stats as [$match, $player, $team, $minutes, $goals]) {
+            MatchPlayerStat::create([
+                'match_id' => $match->id, 'team_id' => $this->teams[$team]->id, 'player_id' => $player->id,
+                'minutes' => $minutes, 'goals' => $goals,
             ]);
         }
 
@@ -319,9 +334,14 @@ class MatchesPagesTest extends TestCase
                 ->where('widgets.hotScorers.0.player', 'М. Глушенков')
                 ->where('widgets.hotScorers.0.team', 'Зенит')
                 ->where('widgets.hotScorers.0.league', fn ($league) => is_string($league) && $league !== '')
-                ->where('widgets.hotScorers.0.goals', 2)
-                ->where('widgets.hotScorers.1.player', 'A. Other')
-                ->where('widgets.hotScorers.1.goals', 1));
+                ->where('widgets.hotScorers.0.goals', 3)
+                ->where('widgets.hotScorers.0.minutes', 330)
+                ->where('widgets.hotScorers.0.goals_per_90', 0.82)
+                ->where('widgets.hotScorers.0.minutes_per_goal', 110)
+                ->where('widgets.hotScorers.1.player', 'Трудяга')
+                ->where('widgets.hotScorers.1.goals', 2)
+                ->where('widgets.hotScorers.1.minutes', 600)
+                ->where('widgets.hotScorers.1.goals_per_90', 0.3));
     }
 
     public function test_index_news_widget_lists_published_items_newest_first(): void

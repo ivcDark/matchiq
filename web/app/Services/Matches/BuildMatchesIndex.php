@@ -24,6 +24,9 @@ class BuildMatchesIndex
 
     private const HOT_SCORERS_WIDGET_ROWS = 5;
 
+    /** Порог минут за год для «Скорострелов»: около трёх полных матчей, иначе лидирует один гол за считанные минуты. */
+    private const HOT_SCORERS_MIN_MINUTES = 300;
+
     private const NEWS_WIDGET_ROWS = 5;
 
     public function __construct(
@@ -67,9 +70,9 @@ class BuildMatchesIndex
 
     /**
      * Таблица считается по сыгранным матчам; бомбардиры — из событий матчей.
-     * Скорострелы — кросс-лига за год, не зависят от выбранной лиги. Новости — промо из news_items.
+     * Скорострелы (голы на минуту) — кросс-лига за год, не зависят от выбранной лиги. Новости — промо из news_items.
      *
-     * @param  list<array{pos: int, player: string, team: string, league: string, goals: int}>  $hotScorers
+     * @param  list<array{pos: int, player: string, team: string, league: string, goals: int, minutes: int, goals_per_90: float, minutes_per_goal: int}>  $hotScorers
      * @return array<string, mixed>
      */
     private function widgets(?Competition $competition, array $hotScorers): array
@@ -122,15 +125,21 @@ class BuildMatchesIndex
     }
 
     /**
-     * «Скорострелы»: больше всего голов за последние 12 месяцев среди всех активных лиг (голы из `match_events`).
+     * «Скорострелы»: кто чаще всего забивает на минуту на поле за последние 12 месяцев среди всех активных лиг
+     * (голы и минуты из `match_player_stats`, порог — HOT_SCORERS_MIN_MINUTES). Показатель — Гол/90 (голы · 90 / минуты).
      *
      * @param  list<int>  $competitionIds
-     * @return list<array{pos: int, player: string, team: string, league: string, goals: int}>
+     * @return list<array{pos: int, player: string, team: string, league: string, goals: int, minutes: int, goals_per_90: float, minutes_per_goal: int}>
      */
     private function hotScorers(array $competitionIds): array
     {
         $locale = (string) config('matchiq.ui_locale');
-        $rows = $this->matches->topScorersSince($competitionIds, now()->subYear(), self::HOT_SCORERS_WIDGET_ROWS);
+        $rows = $this->matches->fastScorersSince(
+            $competitionIds,
+            now()->subYear(),
+            self::HOT_SCORERS_MIN_MINUTES,
+            self::HOT_SCORERS_WIDGET_ROWS,
+        );
 
         return array_map(fn (array $row, int $i) => [
             'pos' => $i + 1,
@@ -138,6 +147,9 @@ class BuildMatchesIndex
             'team' => $row['team']->localized('name', $locale),
             'league' => $row['competition']->localized('short_name', $locale) ?: $row['competition']->localized('name', $locale),
             'goals' => $row['goals'],
+            'minutes' => $row['minutes'],
+            'goals_per_90' => $row['goals_per_90'],
+            'minutes_per_goal' => $row['minutes_per_goal'],
         ], $rows, array_keys($rows));
     }
 

@@ -32,6 +32,9 @@ const periods = [
     { id: 'tomorrow', label: 'Завтра' },
 ];
 
+const perNinety = (n) =>
+    new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
 const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 
 const calendarOpen = ref(false);
@@ -1257,7 +1260,7 @@ const listKey = computed(
                     >
                         <div class="miq-panel-head">
                             <h2 class="miq-panel-title">Скорострелы</h2>
-                            <p class="text-xs text-miq-muted">Год</p>
+                            <p class="text-xs text-miq-muted">Гол/90 · год</p>
                         </div>
                         <ul class="divide-y divide-miq-line/50">
                             <li v-if="!widgets.hotScorers?.length" class="px-3.5 py-4 text-sm text-miq-muted">
@@ -1282,9 +1285,14 @@ const listKey = computed(
                                         {{ row.team }} · {{ row.league }}
                                     </p>
                                 </div>
-                                <p class="text-sm font-bold tabular-nums text-miq-pitch-deep">
-                                    {{ row.goals }}
-                                </p>
+                                <div class="text-right">
+                                    <p class="text-sm font-bold tabular-nums text-miq-pitch-deep">
+                                        {{ perNinety(row.goals_per_90) }}
+                                    </p>
+                                    <p class="text-[11px] tabular-nums text-miq-muted">
+                                        {{ row.goals }} г · {{ row.minutes }} мин
+                                    </p>
+                                </div>
                             </li>
                         </ul>
                     </section>

@@ -7,6 +7,7 @@ use App\Enums\MatchStatus;
 use App\Models\Competition;
 use App\Models\FootballMatch;
 use App\Models\MatchEvent;
+use App\Models\MatchPlayerStat;
 use App\Models\MatchPreview;
 use App\Models\Player;
 use App\Models\Season;
@@ -135,49 +136,50 @@ class MatchCatalogRepository
     }
 
     /**
-     * Топ голов игроков за период по всем переданным соревнованиям (кросс-лига): голы из событий матчей, автоголы не считаются.
-     * Игрок с голами в нескольких соревнованиях — одна строка; команда и соревнование — где он забил больше.
+     * Скорострелы за период по всем переданным соревнованиям (кросс-лига): голы на минуту на поле из `match_player_stats`
+     * по сыгранным матчам. В рейтинг попадают игроки не меньше `$minMinutes` минут: иначе лидирует один гол за пять минут.
+     * Порядок: голы/минуты по убыванию, затем голы, затем id игрока. Игрок в нескольких командах и соревнованиях — одна строка;
+     * команда и соревнование — где он провёл больше минут.
      *
      * @param  list<int>  $competitionIds
-     * @return list<array{player: Player, team: Team, competition: Competition, goals: int}>
+     * @return list<array{player: Player, team: Team, competition: Competition, goals: int, minutes: int, goals_per_90: float, minutes_per_goal: int}>
      */
-    public function topScorersSince(array $competitionIds, CarbonInterface $since, int $limit): array
+    public function fastScorersSince(array $competitionIds, CarbonInterface $since, int $minMinutes, int $limit): array
     {
         if ($competitionIds === []) {
             return [];
         }
 
-        $rows = MatchEvent::query()
-            ->join('matches', 'matches.id', '=', 'match_events.match_id')
-            ->selectRaw('match_events.player_id, match_events.team_id, matches.competition_id, count(*) as goals')
-            ->whereIn('match_events.type', [MatchEventType::Goal, MatchEventType::PenaltyGoal])
-            ->whereNotNull('match_events.player_id')
-            ->whereNotNull('match_events.team_id')
+        $rows = MatchPlayerStat::query()
+            ->join('matches', 'matches.id', '=', 'match_player_stats.match_id')
+            ->selectRaw('match_player_stats.player_id, match_player_stats.team_id, matches.competition_id')
+            ->selectRaw('sum(match_player_stats.minutes) as minutes, sum(match_player_stats.goals) as goals')
+            ->where('matches.status', MatchStatus::Finished)
             ->whereIn('matches.competition_id', $competitionIds)
             ->where('matches.kickoff_at', '>=', $since)
-            ->groupBy('match_events.player_id', 'match_events.team_id', 'matches.competition_id')
+            ->where('match_player_stats.minutes', '>', 0)
+            ->groupBy('match_player_stats.player_id', 'match_player_stats.team_id', 'matches.competition_id')
             ->get();
 
         $byPlayer = [];
         foreach ($rows as $row) {
-            $goals = (int) $row->goals;
+            $minutes = (int) $row->minutes;
             $acc = &$byPlayer[$row->player_id];
-            $acc ??= ['total' => 0, 'best' => 0, 'team_id' => $row->team_id, 'competition_id' => $row->competition_id];
-            $acc['total'] += $goals;
-            if ($goals > $acc['best']) {
-                $acc['best'] = $goals;
+            $acc ??= ['goals' => 0, 'minutes' => 0, 'best' => 0, 'team_id' => $row->team_id, 'competition_id' => $row->competition_id];
+            $acc['goals'] += (int) $row->goals;
+            $acc['minutes'] += $minutes;
+            if ($minutes > $acc['best']) {
+                $acc['best'] = $minutes;
                 $acc['team_id'] = $row->team_id;
                 $acc['competition_id'] = $row->competition_id;
             }
             unset($acc);
         }
 
-        $playerIds = array_keys($byPlayer);
-        usort($playerIds, fn (int $a, int $b) => [$byPlayer[$b]['total'], $a] <=> [$byPlayer[$a]['total'], $b]);
-        $top = [];
-        foreach (array_slice($playerIds, 0, $limit) as $playerId) {
-            $top[$playerId] = $byPlayer[$playerId];
-        }
+        $top = array_filter($byPlayer, fn (array $r) => $r['goals'] > 0 && $r['minutes'] >= $minMinutes);
+        uksort($top, fn (int $a, int $b) => [$top[$b]['goals'] / $top[$b]['minutes'], $top[$b]['goals'], $a]
+            <=> [$top[$a]['goals'] / $top[$a]['minutes'], $top[$a]['goals'], $b]);
+        $top = array_slice($top, 0, $limit, true);
         if ($top === []) {
             return [];
         }
@@ -192,7 +194,10 @@ class MatchCatalogRepository
                 'player' => $players[$playerId],
                 'team' => $teams[$row['team_id']],
                 'competition' => $competitions[$row['competition_id']],
-                'goals' => $row['total'],
+                'goals' => $row['goals'],
+                'minutes' => $row['minutes'],
+                'goals_per_90' => round($row['goals'] * 90 / $row['minutes'], 2),
+                'minutes_per_goal' => (int) round($row['minutes'] / $row['goals']),
             ];
         }
 
