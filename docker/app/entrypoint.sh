@@ -12,8 +12,8 @@ if [ -z "$APP_KEY" ] || [ "$APP_KEY" = "base64:" ]; then
   php artisan key:generate --force --no-interaction || true
 fi
 
-# Wait for Postgres if configured
-if [ -n "$DB_HOST" ] && [ "$DB_CONNECTION" = "pgsql" ]; then
+# Wait for Postgres if configured; воркеры (RUN_MIGRATIONS=0) стартуют после healthy app и миграции не гоняют
+if [ -n "$DB_HOST" ] && [ "$DB_CONNECTION" = "pgsql" ] && [ "${RUN_MIGRATIONS:-1}" != "0" ]; then
   echo "Waiting for Postgres at ${DB_HOST}:${DB_PORT:-5432}..."
   i=0
   until php -r "try { new PDO('pgsql:host='.getenv('DB_HOST').';port='.(getenv('DB_PORT')?:'5432').';dbname='.getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD')); exit(0);} catch (Throwable \$e) { exit(1); }" 2>/dev/null; do

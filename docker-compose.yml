@@ -1,38 +1,50 @@
+x-app-build: &app-build
+  context: .
+  dockerfile: docker/app/Dockerfile
+
+x-app-environment: &app-environment
+  APP_NAME: MatchIQ
+  APP_ENV: local
+  APP_DEBUG: "true"
+  APP_URL: http://localhost:${APP_PORT:-8000}
+  APP_KEY: ${APP_KEY:-}
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_DATABASE: ${POSTGRES_DB:-matchiq}
+  DB_USERNAME: ${POSTGRES_USER:-matchiq}
+  DB_PASSWORD: ${POSTGRES_PASSWORD:-matchiq}
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-null}
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: 5672
+  RABBITMQ_USER: ${RABBITMQ_USER:-matchiq}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-matchiq}
+  RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  SESSION_DRIVER: redis
+  # Browser-facing Vite URL (host port). Container still listens on 5173.
+  VITE_DEV_SERVER_URL: http://localhost:${VITE_HOST_PORT:-5173}
+
 services:
   app:
-    build:
-      context: .
-      dockerfile: docker/app/Dockerfile
+    image: matchiq-app
+    build: *app-build
     working_dir: /var/www/html
     volumes:
       - ./web:/var/www/html
     ports:
       - "${APP_PORT:-8000}:8000"
-    environment:
-      APP_NAME: MatchIQ
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_URL: http://localhost:${APP_PORT:-8000}
-      APP_KEY: ${APP_KEY:-}
-      DB_CONNECTION: pgsql
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_DATABASE: ${POSTGRES_DB:-matchiq}
-      DB_USERNAME: ${POSTGRES_USER:-matchiq}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-matchiq}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-null}
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: ${RABBITMQ_USER:-matchiq}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-matchiq}
-      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
-      CACHE_STORE: redis
-      QUEUE_CONNECTION: redis
-      SESSION_DRIVER: redis
-      # Browser-facing Vite URL (host port). Container still listens on 5173.
-      VITE_DEV_SERVER_URL: http://localhost:${VITE_HOST_PORT:-5173}
+    environment: *app-environment
+    # healthy = vendor установлен, миграции применены, сервер отвечает: от этого зависят воркеры ingest.
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8000/up') === false ? 1 : 0);"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,6 +52,46 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
+    networks:
+      - matchiq
+
+  # Воркер результатов ingest: ingest.results -> PostgreSQL. Перезапускается сам; --max-time обновляет процесс раз в час.
+  ingest-consume:
+    image: matchiq-app
+    build: *app-build
+    working_dir: /var/www/html
+    volumes:
+      - ./web:/var/www/html
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "0"
+    command: ["php", "artisan", "ingest:consume", "--max-time=3600"]
+    depends_on:
+      app:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - matchiq
+
+  # Планировщик Laravel: плановые ingest-прогоны (config/ingest.php) и ingest:reap-stuck.
+  scheduler:
+    image: matchiq-app
+    build: *app-build
+    working_dir: /var/www/html
+    volumes:
+      - ./web:/var/www/html
+    environment:
+      <<: *app-environment
+      RUN_MIGRATIONS: "0"
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      app:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - matchiq
 

@@ -3,11 +3,15 @@
 namespace App\Repositories;
 
 use App\Enums\CompetitionScope;
+use App\Enums\CompetitionStatus;
 use App\Enums\CompetitionType;
+use App\Enums\ExternalEntityType;
 use App\Enums\UpsertOutcome;
 use App\Models\Competition;
+use App\Models\ExternalId;
 use App\Repositories\Concerns\GeneratesUniqueSlugs;
 use App\Repositories\Concerns\UpsertsModels;
+use Illuminate\Support\Collection;
 
 class CompetitionRepository
 {
@@ -23,6 +27,30 @@ class CompetitionRepository
         return Competition::where('slug', $idOrSlug)
             ->when(ctype_digit($idOrSlug), fn ($q) => $q->orWhere('id', (int) $idOrSlug))
             ->first();
+    }
+
+    /**
+     * Соревнования для регулярного ingest: явный список slug'ов либо все `live` с внешним id провайдера.
+     *
+     * @param  list<string>  $slugs
+     * @return Collection<int, Competition>
+     */
+    public function forScheduledIngest(int $providerId, array $slugs = []): Collection
+    {
+        return Competition::query()
+            ->when(
+                $slugs !== [],
+                fn ($q) => $q->whereIn('slug', $slugs),
+                fn ($q) => $q->where('status', CompetitionStatus::Live->value)->whereIn(
+                    'id',
+                    ExternalId::where('source_provider_id', $providerId)
+                        ->where('entity_type', ExternalEntityType::Competition->value)
+                        ->select('entity_id'),
+                ),
+            )
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
     }
 
     /**

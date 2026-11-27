@@ -13,6 +13,7 @@ use App\Repositories\MatchRepository;
 use App\Repositories\SeasonRepository;
 use App\Repositories\SourceProviderRepository;
 use App\Repositories\StageRepository;
+use App\Services\Ingestion\Exceptions\IngestionSkipped;
 use App\Services\Ingestion\StartIngestionRun;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -37,7 +38,8 @@ class IngestDispatch extends Command
         {--to= : sync_fixtures, sync_match_details: конец окна дат YYYY-MM-DD, включительно}
         {--match=* : sync_match_details: внешний id матча (можно несколько); вместо выборки по сезону}
         {--limit= : sync_match_details: сколько завершённых матчей взять (по умолчанию 50, максимум 500), свежие первыми}
-        {--missing : sync_match_details: только матчи, по которым детали ещё не загружены}';
+        {--missing : sync_match_details: только матчи, по которым детали ещё не загружены}
+        {--scheduled : вызов из расписания: stats.context.trigger = schedule, «уже идёт» и «нечего грузить» — не ошибка}';
 
     protected $description = 'Создать прогон ingest и положить команду в RabbitMQ (ingest.commands)';
 
@@ -61,7 +63,16 @@ class IngestDispatch extends Command
                 default => throw new InvalidArgumentException('Поддерживаются типы: sync_catalog, sync_structure, sync_fixtures, sync_match_details.'),
             };
 
-            $run = $start->handle($kind, $payload, $competitionId);
+            $run = $start->handle($kind, $payload, $competitionId, $this->option('scheduled') ? ['trigger' => 'schedule'] : []);
+        } catch (IngestionSkipped $e) {
+            if ($this->option('scheduled')) {
+                $this->warn('Пропущено: '.$e->getMessage());
+
+                return self::SUCCESS;
+            }
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
@@ -203,7 +214,7 @@ class IngestDispatch extends Command
             $map = $externalIds->externalIdsFor($provider->id, ExternalEntityType::Match, $rows->pluck('id')->all());
             $externalMatchIds = $rows->map(fn ($m) => $map[$m->id] ?? null)->filter()->values()->all();
             if ($externalMatchIds === []) {
-                throw new InvalidArgumentException('Нет подходящих завершённых матчей с внешним id SStats (сначала sync_fixtures).');
+                throw new IngestionSkipped('Нет подходящих завершённых матчей с внешним id SStats (сначала sync_fixtures).');
             }
         }
 

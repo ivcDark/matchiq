@@ -70,6 +70,8 @@ docker compose up --build
 | `redis`      | localhost:6379            | Redis                     |
 | `rabbitmq`   | localhost:5672 / http://localhost:15672 | RabbitMQ (AMQP / management UI, `RABBITMQ_USER`/`RABBITMQ_PASSWORD`) |
 | `collector`  | http://localhost:8081     | Go collector: читает команды из RabbitMQ, ходит в SStats, кладёт результаты в `ingest.results` (`/healthz`); нужен `SSTATS_API_KEY` |
+| `ingest-consume` | —                     | Laravel-воркер `ingest:consume`: результаты из `ingest.results` в PostgreSQL (перезапускается сам) |
+| `scheduler`  | —                         | `schedule:work`: плановые ingest-прогоны и `ingest:reap-stuck` ([расписание](docs/architecture/ingestion.md#расписание-и-постоянные-воркеры)) |
 
 Если `Bind for 0.0.0.0:5173 failed: port is already allocated` — остановите старый стек (`docker compose down`) или задайте свободный хост-порт, например `VITE_HOST_PORT=5174` в `.env`. Контейнер Vite по-прежнему слушает `5173` внутри сети; Laravel получает URL через `VITE_DEV_SERVER_URL`, HMR — через `clientPort`.
 

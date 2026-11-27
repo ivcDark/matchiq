@@ -10,6 +10,7 @@ use App\Enums\SourceProviderCode;
 use App\Models\IngestionRun;
 use App\Repositories\IngestionRunRepository;
 use App\Repositories\SourceProviderRepository;
+use App\Services\Ingestion\Exceptions\IngestionSkipped;
 use App\Services\Ingestion\Messaging\CommandPublisher;
 use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
@@ -41,14 +42,14 @@ class StartIngestionRun
         $lock = Cache::lock("ingest:{$provider->value}:".($competitionId ?? '-').":{$kind->value}", 30);
 
         if (! $lock->get()) {
-            throw new InvalidArgumentException('Такой прогон уже запускается, повторите позже.');
+            throw new IngestionSkipped('Такой прогон уже запускается, повторите позже.');
         }
 
         try {
             $this->failStale($providerModel->id, $competitionId, $kind);
 
             if ($this->runs->findRunning($providerModel->id, $competitionId, $kind) !== null) {
-                throw new InvalidArgumentException("Прогон {$kind->value} уже выполняется.");
+                throw new IngestionSkipped("Прогон {$kind->value} уже выполняется.");
             }
 
             $run = $this->runs->create(

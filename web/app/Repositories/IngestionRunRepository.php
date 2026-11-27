@@ -8,6 +8,8 @@ use App\Enums\IngestionPhase;
 use App\Enums\IngestionStatus;
 use App\Models\IngestionRun;
 use App\Models\IngestionRunError;
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Collection;
 
 class IngestionRunRepository
 {
@@ -41,6 +43,15 @@ class IngestionRunRepository
             ->where('status', IngestionStatus::Running->value)
             ->latest('started_at')
             ->first();
+    }
+
+    /** @return Collection<int, IngestionRun> */
+    public function findRunningStartedBefore(CarbonInterface $before): Collection
+    {
+        return IngestionRun::where('status', IngestionStatus::Running->value)
+            ->where('started_at', '<', $before)
+            ->orderBy('started_at')
+            ->get();
     }
 
     public function saveStats(IngestionRun $run, RunStats $stats): void

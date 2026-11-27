@@ -30,6 +30,8 @@ return [
 
         'prefetch' => (int) env('INGEST_CONSUME_PREFETCH', 1),
         'stuck_after_minutes' => (int) env('INGEST_STUCK_AFTER_MINUTES', 60),
+        // Сколько секунд батч N ждёт, пока будет применён батч N-1 (несколько consumer'ов берут сообщения параллельно).
+        'batch_order_wait_seconds' => (int) env('INGEST_BATCH_ORDER_WAIT_SECONDS', 30),
         'max_run_errors' => 1000,
     ],
 ];

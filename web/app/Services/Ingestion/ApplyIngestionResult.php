@@ -86,6 +86,10 @@ class ApplyIngestionResult
             return;
         }
 
+        if (! $this->awaitPrecedingBatch($run, $message->seq)) {
+            return;
+        }
+
         $context = new UpsertContext($run->source_provider_id, $run->id);
         $local = RunStats::empty();
         $errors = [];
@@ -146,6 +150,36 @@ class ApplyIngestionResult
 
             $this->saveOrFinish($locked, $stats);
         });
+    }
+
+    /**
+     * Несколько consumer'ов берут батчи одного прогона параллельно: детали матча (батч N) не должны
+     * обгонять игроков и тренеров (батч N-1). Ждём применения предыдущего батча; по таймауту идём дальше.
+     *
+     * @return bool false — прогон закрыли, пока ждали
+     */
+    private function awaitPrecedingBatch(IngestionRun $run, int $seq): bool
+    {
+        $deadline = microtime(true) + max(0, (int) config('rabbitmq.ingest.batch_order_wait_seconds'));
+
+        while ($seq > 1) {
+            $stats = RunStats::fromArray($run->stats);
+            $seen = $stats->context('batches_seen', []);
+            if (in_array($seq, $seen, true)) {
+                return false;
+            }
+            if (in_array($seq - 1, $seen, true) || microtime(true) >= $deadline) {
+                return true;
+            }
+
+            usleep(250_000);
+            $run = $this->runs->find($run->id);
+            if ($run === null || $run->status !== IngestionStatus::Running) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function applyDone(ResultMessage $message): void

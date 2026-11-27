@@ -182,7 +182,7 @@ collector/
 
 ## Реализация первого среза (каталог и структура сезона)
 
-Реализовано в `collector/` и `web/`: `sync_catalog`, `sync_structure`, `sync_fixtures`, `sync_match_details` (см. ниже); остальные job types (`live`, scheduler) — следующие срезы. Расписание матчей в коде — `sync_fixtures`, а не `schedule` из наброска.
+Реализовано в `collector/` и `web/`: `sync_catalog`, `sync_structure`, `sync_fixtures`, `sync_match_details` (см. ниже); остальные job types (`live`) — следующие срезы; scheduler и воркеры — раздел «Расписание и постоянные воркеры». Расписание матчей в коде — `sync_fixtures`, а не `schedule` из наброска.
 
 **Отличия от наброска выше (источник правды — код):**
 
@@ -212,26 +212,61 @@ collector/
 - Laravel: `MatchDetailsUpserter` (`PlayerUpserter`, `CoachUpserter`, репозитории `MatchTeam/MatchLineup/MatchEvent/MatchStats`). Матч, команды и сезон резолвятся по `external_ids`; сущность `match_details` атомарна — любая битая ссылка откатывает весь матч и пишет `ingestion_run_errors`. Дочерние секции синхронизируются целиком: непустая секция приводится к состоянию из ответа (лишние строки удаляются), пустая секция ничего не удаляет. Счётчики дочерних таблиц (`match_team`, `match_lineup`, `match_event`, `match_team_stat`, `match_player_stat`) идут только в `stats.by_entity`, в общие `created/updated/unchanged` входят `country`, `coach`, `player`, `match_details`. Сравнение JSON-полей (`details`, `extra`) не зависит от порядка ключей (jsonb в PostgreSQL его переставляет), поэтому повторная загрузка даёт `unchanged`.
 - Запуск: `php artisan ingest:dispatch sync_match_details --competition=<slug|id> [--season=<slug>] [--stage=<id|название>] [--from=YYYY-MM-DD] [--to=YYYY-MM-DD] [--limit=N] [--missing]` или `--match=<внешний id>` (можно несколько) вместо выборки по сезону. По умолчанию `--limit=50`, максимум 500; `--missing` берёт только матчи, по которым деталей ещё нет. `ingestion_runs.kind` расширен до varchar(32).
 - Проверено вживую на РПЛ 2026-2027: `--limit=1`, затем `--limit=3` (6 `match_teams`, 135 игроков в составах, 6 тренеров, 46 событий, 18 строк командной и 91 игровой статистики, 3 MOTM); повторный прогон тех же матчей — 170 `unchanged`, 0 ошибок.
-- TODO: отсутствующие игроки (`kind = 3/4`) → `player_absences`; судья/стадион/зрители; события серии пенальти; VAR и «гол отменён» (сейчас неизвестные коды — ошибки); xG/xA точнее `decimal(5,2)` (xGOT и остальное — в `extra`); координаты x/y (API даёт только линию); scheduler и расширение выборки за пределы smoke; сопоставление игроков-дублей между источниками.
+- TODO: отсутствующие игроки (`kind = 3/4`) → `player_absences`; судья/стадион/зрители; события серии пенальти; VAR и «гол отменён» (сейчас неизвестные коды — ошибки); xG/xA точнее `decimal(5,2)` (xGOT и остальное — в `extra`); координаты x/y (API даёт только линию); сопоставление игроков-дублей между источниками.
 
 **Запуск локально:**
 
 ```bash
-docker compose up -d --build postgres redis rabbitmq app collector
+docker compose up -d --build        # postgres, redis, rabbitmq, app, collector, ingest-consume, scheduler
 docker compose exec app php artisan ingest:dispatch sync_catalog --country=Russia --league="Premier League"
-docker compose exec app php artisan ingest:consume          # слушает ingest.results (Ctrl+C — выход)
 docker compose exec app php artisan ingest:dispatch sync_structure --competition=premier-league
 docker compose exec app php artisan ingest:dispatch sync_fixtures --competition=premier-league --stage=Main   # весь сезон; окно — --from/--to
 docker compose exec app php artisan ingest:dispatch sync_match_details --competition=premier-league --limit=3   # составы, события, статистика; --match=<id> — конкретный матч
 ```
 
+`ingest:consume` и scheduler поднимаются самим compose — вручную consume запускать не нужно (ручной `docker compose exec app php artisan ingest:consume` допустим для отладки, но не нужен).
+
 Нужные env: `SSTATS_API_KEY` (collector), `RABBITMQ_HOST/PORT/USER/PASSWORD/VHOST` (web), `COLLECTOR_RABBITMQ_URL` (collector), опционально `SSTATS_RATE_PER_MINUTE`, `COLLECTOR_PREFETCH`, `COLLECTOR_BATCH_SIZE`. Ответы `/Ls/Leagues`, `/Ls/SeasonStructure`, `/Ls/List`, `/Ls/GameInfo`, `/Ls/GameLineups` проверены вживую с реальным ключом на РПЛ 2026-2027 (240 матчей, стадия Main).
+
+## Расписание и постоянные воркеры
+
+После `docker compose up` данные обновляются сами: четыре долгоживущих процесса и плановые прогоны.
+
+| Сервис compose | Команда | Роль |
+|----------------|---------|------|
+| `collector` | `/collector` (`restart: unless-stopped`) | читает `ingest.commands`, ходит в SStats, пишет в `ingest.results` |
+| `ingest-consume` | `php artisan ingest:consume --max-time=3600` (`restart: unless-stopped`) | применяет результаты к БД; после часа работы штатно завершается и поднимается заново (чистая память и соединения) |
+| `scheduler` | `php artisan schedule:work` (`restart: unless-stopped`) | вызывает плановые задачи ниже |
+| `app` | `artisan serve` | healthcheck `/up`: воркеры стартуют только после него, т.е. когда `vendor` установлен и миграции применены (воркеры миграции не гоняют: `RUN_MIGRATIONS=0`) |
+
+Без Compose (supervisor/systemd): два процесса `php artisan ingest:consume --max-time=3600` (перезапуск при выходе) и `php artisan schedule:work`; либо cron `* * * * * php artisan schedule:run` вместо `schedule:work`. Collector — отдельный бинарник/контейнер с перезапуском.
+
+**Плановые задачи** (`App\Console\IngestSchedule`, регистрируется в `bootstrap/app.php`; интервалы и окна — `config/ingest.php`, env `INGEST_*`, см. `web/.env.example`). Задачи вызывают `ingest:run-scheduled {job}`: соревнования определяются **в момент запуска** — явный список `INGEST_COMPETITIONS` (slug'и), иначе все `competitions.status = live` с внешним id SStats; на каждое соревнование — обычный `ingest:dispatch ... --scheduled`.
+
+| Задача (`job`) | Что делает | По умолчанию | Env |
+|----------------|------------|--------------|-----|
+| `fixtures` | `sync_fixtures` с окном [сегодня − 2 дня, сегодня + 2 дня] (UTC), все стадии | каждые 10 мин (`*/10 * * * *`) | `INGEST_FIXTURES_EVERY_MINUTES`, `_DAYS_BACK`, `_DAYS_FORWARD` |
+| `details_missing` | `sync_match_details --missing --limit=10`: завершённые матчи без деталей, свежие первыми | каждые 15 мин | `INGEST_DETAILS_MISSING_EVERY_MINUTES`, `_LIMIT` |
+| `details_recent` | `sync_match_details` по матчам, завершённым за последние сутки (окно [вчера, сегодня]), `--limit=10`: поздние поправки статистики | раз в час | `INGEST_DETAILS_RECENT_EVERY_MINUTES`, `_DAYS_BACK`, `_LIMIT` |
+| `fixtures_full` | `sync_fixtures` на весь текущий сезон без окна: переносы матчей, новые туры | ежедневно 03:30 | `INGEST_FIXTURES_FULL_DAILY_AT` |
+| `catalog` | `sync_catalog --country=Russia --league="Premier League"` | ежедневно 04:00 | `INGEST_CATALOG_DAILY_AT`, `_COUNTRY`, `_LEAGUE` |
+| `structure` | `sync_structure` (стадии и команды текущего сезона) | ежедневно 04:10 | `INGEST_STRUCTURE_DAILY_AT` |
+| `ingest:reap-stuck` | уборщик зависших прогонов (ниже) | каждые 10 мин | `INGEST_REAP_EVERY_MINUTES`, `INGEST_STUCK_AFTER_MINUTES` |
+
+- Интервал `0` выключает задачу, пустое время (`*_DAILY_AT=`) — тоже; `INGEST_SCHEDULE_ENABLED=false` выключает всё расписание. Интервалы ≥ 60 мин округляются до целых часов. Время ежедневных задач — в часовом поясе приложения (`APP_TIMEZONE`, по умолчанию UTC).
+- Rate-friendly: `details_*` берут не более 10 матчей (≈ 20 запросов к SStats) за прогон, `fixtures` — один запрос на окно. Один `running` на (провайдер, соревнование, `kind`): если прошлый прогон ещё идёт, плановый запуск пропускается (`ingest:dispatch --scheduled` пишет «Пропущено» и завершается успешно; так же — «нечего грузить»). Плановые прогоны помечены `stats.context.trigger = schedule`.
+- Соревнование для регулярной загрузки включается так: `sync_catalog` → `sync_structure` (разово руками, как в «Запуске локально») → `competitions.status = 'live'` (или slug в `INGEST_COMPETITIONS`). `sync_catalog` создаёт соревнование со статусом `hidden`, сам он `live` не ставит.
+- Проверка: `docker compose exec app php artisan schedule:list`; ручной запуск одной задачи — `php artisan ingest:run-scheduled fixtures`.
+
+**`ingest:reap-stuck [--minutes=N] [--dry-run]`.** Находит `ingestion_runs` со `status = running` и `started_at` старше порога (`--minutes`, по умолчанию `INGEST_STUCK_AFTER_MINUTES`, 60) и закрывает их `failed` с `error = 'timeout'`, `finished_at = now()` (под lock строки: прогон, который consumer закрыл за это время, не трогается). Поздние сообщения по закрытому прогону consumer отбрасывает. `StartIngestionRun` и так закрывает зависший прогон того же ключа перед стартом нового, но уборщик убирает остальные.
+
+**Порядок батчей при нескольких consumer'ах.** Если `ingest:consume` запущен в нескольких экземплярах, батчи одного прогона применялись параллельно и в произвольном порядке (на практике: `batches_seen = [1, 2, 4, 3, …]`) — детали матча из батча 4 обгоняли игроков и тренеров из батча 3, что давало ошибки «не найдена сущность player». Внутри батча и в collector порядок зависимостей уже соблюдался (справочники → игроки/тренеры → `match_details`; Go сортирует сущности перед нарезкой на батчи, Laravel — перед применением). Теперь батч N ждёт, пока применён батч N−1 (проверка `stats.context.batches_seen`, опрос раз в 250 мс), максимум `INGEST_BATCH_ORDER_WAIT_SECONDS` (30) — после таймаута применяется как есть (например, если N−1 ушёл в DLQ). Одиночный consumer не ждёт никогда.
 
 ## Роль Laravel (код — в `web/app`)
 
 | Слой | Что |
 |------|-----|
-| `Console/Commands` | `ingest:dispatch {type} {--competition=}` — создаёт прогон и публикует команду; `ingest:consume` — воркер очереди результатов; `ingest:reap-stuck` — уборщик; расписание — scheduler |
+| `Console/Commands` | `ingest:dispatch {type} {--competition=}` — создаёт прогон и публикует команду; `ingest:consume` — воркер очереди результатов; `ingest:reap-stuck` — уборщик; `ingest:run-scheduled {job}` — плановые прогоны для scheduler; `App\Console\IngestSchedule` — расписание (`bootstrap/app.php`) |
 | `Services/Ingestion` | `StartIngestionRun` (lock → `ingestion_runs` → publish), `ApplyIngestionResult` (батч → репозитории), `FinishIngestionRun` (статус, `finished_at`) |
 | `Repositories` | upsert сущностей, `ExternalIdRepository`, `IngestionRunRepository`; вся запись в БД только здесь |
 | `Data/` | readonly DTO канона на стороне PHP (зеркало `contract/` в Go; соответствие проверяется контрактными тестами на общих JSON-фикстурах) |
@@ -254,7 +289,7 @@ docker compose exec app php artisan ingest:dispatch sync_match_details --competi
 | `partial` | завершён, есть и успешные сущности, и ошибки (`failed > 0`) |
 | `failed` | прогон не состоялся целиком: источник недоступен, ошибка авторизации, сообщение `failed` от Go, ошибка публикации команды, либо ни одной успешной при `failed > 0`; причина — `ingestion_runs.error` |
 
-Зависшие прогоны (`running` дольше порога, по умолчанию 1 час — команда не взята Go, результат не дошёл или `done` не пришёл) помечает `failed` artisan-«уборщик» с `error = 'timeout'`. Поздние сообщения по уже закрытому `run_id` консьюмер отбрасывает (ack + лог).
+Зависшие прогоны (`running` дольше порога, по умолчанию 1 час — команда не взята Go, результат не дошёл или `done` не пришёл) помечает `failed` artisan-«уборщик» `ingest:reap-stuck` (по расписанию раз в 10 минут) с `error = 'timeout'`. Поздние сообщения по уже закрытому `run_id` консьюмер отбрасывает (ack + лог).
 
 ### Счётчики — `ingestion_runs.stats` (jsonb, фиксированный контракт)
 
