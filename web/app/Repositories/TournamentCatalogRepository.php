@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Enums\MatchEventType;
 use App\Enums\MatchStatus;
 use App\Enums\PlayerPosition;
+use App\Enums\StageType;
 use App\Enums\StatsPeriod;
 use App\Models\FootballMatch;
 use App\Models\MatchEvent;
@@ -41,6 +42,20 @@ class TournamentCatalogRepository
     public function firstStage(int $seasonId): ?Stage
     {
         return Stage::query()->where('season_id', $seasonId)->orderBy('stage_order')->first();
+    }
+
+    /**
+     * Групповой этап сезона (первый по порядку), если у него есть группы: с группами и заявками команд.
+     */
+    public function groupStage(int $seasonId): ?Stage
+    {
+        return Stage::query()
+            ->where('season_id', $seasonId)
+            ->where('type', StageType::Group)
+            ->whereHas('groups')
+            ->with(['groups', 'stageTeams'])
+            ->orderBy('stage_order')
+            ->first();
     }
 
     /**

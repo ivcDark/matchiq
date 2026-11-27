@@ -45,13 +45,33 @@ final class StandingRules
             return $for > $against ? $this->win : $this->loss;
         }
 
-        $shootout = $this->penaltyWin !== null && $this->penaltyLoss !== null
-            && $pensFor !== null && $pensAgainst !== null && $pensFor !== $pensAgainst;
-
-        if (! $shootout) {
+        if (! $this->decidedByShootout($pensFor, $pensAgainst)) {
             return $this->draw;
         }
 
         return $pensFor > $pensAgainst ? $this->penaltyWin : $this->penaltyLoss;
+    }
+
+    public function hasPenaltyPoints(): bool
+    {
+        return $this->penaltyWin !== null && $this->penaltyLoss !== null;
+    }
+
+    /** Ничья по счёту, решённая серией: очки по ней идут как за победу/поражение по пенальти. */
+    public function decidedByShootout(?int $pensFor, ?int $pensAgainst): bool
+    {
+        return $this->hasPenaltyPoints() && $pensFor !== null && $pensAgainst !== null && $pensFor !== $pensAgainst;
+    }
+
+    /** @return array{win: int, draw: int, loss: int, penalty_win: ?int, penalty_loss: ?int} */
+    public function toArray(): array
+    {
+        return [
+            'win' => $this->win,
+            'draw' => $this->draw,
+            'loss' => $this->loss,
+            'penalty_win' => $this->penaltyWin,
+            'penalty_loss' => $this->penaltyLoss,
+        ];
     }
 }

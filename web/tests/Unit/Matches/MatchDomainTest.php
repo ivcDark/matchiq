@@ -80,6 +80,8 @@ class MatchDomainTest extends TestCase
         $table = collect(LeagueTable::compute($matches, null, $rules))->keyBy('team_id');
         $this->assertSame([3, 1, 1], [$table[1]['pts'], $table[2]['pts'], $table[3]['pts']], 'победа по пенальти 2, поражение по пенальти 1, ничья без серии 1');
         $this->assertSame([0, 2, 0], [$table[1]['wins'], $table[1]['draws'], $table[1]['losses']], 'В/Н/П — по счёту матча');
+        $this->assertSame([1, 0, 0, 1, 0, 0], [$table[1]['pen_wins'], $table[1]['pen_losses'], $table[3]['pen_wins'], $table[2]['pen_losses'], $table[2]['pen_wins'], $table[1]['losses']]);
+        $this->assertSame([0, 0], [$default[1]['pen_wins'], $default[2]['pen_losses']], 'без правил пенальти не считаются');
     }
 
     public function test_standing_rules_points_for_each_outcome(): void

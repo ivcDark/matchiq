@@ -2,6 +2,7 @@
 import TournamentAttackDefense from '@/Components/TournamentAttackDefense.vue';
 import TournamentContribution from '@/Components/TournamentContribution.vue';
 import TournamentForm from '@/Components/TournamentForm.vue';
+import TournamentGroupStandings from '@/Components/TournamentGroupStandings.vue';
 import TournamentHeader from '@/Components/TournamentHeader.vue';
 import TournamentResults from '@/Components/TournamentResults.vue';
 import TournamentSchedule from '@/Components/TournamentSchedule.vue';
@@ -18,6 +19,8 @@ const props = defineProps({
     seasonKey: { type: String, default: '' },
     seasons: { type: Array, default: () => [] },
     zones: { type: Array, default: () => [] },
+    standingsMode: { type: String, default: 'league' },
+    groupStage: { type: Object, default: null },
     standings: { type: Array, default: () => [] },
     standingsByContext: { type: Object, default: () => ({}) },
     teamForm: { type: Array, default: () => [] },
@@ -207,7 +210,14 @@ const cards = computed(() => [
                 role="tabpanel"
                 aria-labelledby="tt-tab-stats"
             >
+                <TournamentGroupStandings
+                    v-if="standingsMode === 'groups' && groupStage"
+                    :round="tournament.round"
+                    :stage="groupStage"
+                    :tables="{ overall: standings }"
+                />
                 <TournamentStandings
+                    v-else
                     :round="tournament.round"
                     :zones="zones"
                     :tables="{ overall: standings }"
@@ -250,7 +260,15 @@ const cards = computed(() => [
                 role="tabpanel"
                 aria-labelledby="tt-tab-standings"
             >
+                <TournamentGroupStandings
+                    v-if="standingsMode === 'groups' && groupStage"
+                    :round="tournament.round"
+                    :stage="groupStage"
+                    :tables="standingsByContext"
+                    switchable
+                />
                 <TournamentStandings
+                    v-else
                     :round="tournament.round"
                     :zones="zones"
                     :tables="standingsByContext"

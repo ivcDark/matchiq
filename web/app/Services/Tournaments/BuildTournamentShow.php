@@ -3,11 +3,13 @@
 namespace App\Services\Tournaments;
 
 use App\Domains\Matches\LeagueTable;
+use App\Domains\Matches\StandingRules;
 use App\Domains\Tournaments\FinishedMatch;
 use App\Domains\Tournaments\PlayerLeaders;
 use App\Domains\Tournaments\PlayerName;
 use App\Domains\Tournaments\SeasonLabel;
 use App\Domains\Tournaments\TeamStatsLeaders;
+use App\Enums\CompetitionType;
 use App\Enums\MatchResult;
 use App\Enums\MatchStatus;
 use App\Enums\StageType;
@@ -16,6 +18,7 @@ use App\Http\Responses\Tournaments\TournamentShowResponse;
 use App\Models\Competition;
 use App\Models\FootballMatch;
 use App\Models\Season;
+use App\Models\Stage;
 use App\Models\Team;
 use App\Repositories\CompetitionCatalogRepository;
 use App\Repositories\TournamentCatalogRepository;
@@ -52,12 +55,18 @@ class BuildTournamentShow
         $matches = $season === null ? new Collection : $this->catalog->matchesInSeason($season->id);
         $finished = $matches->filter(fn (FootballMatch $m) => FinishedMatch::is($m))->values();
 
+        $groupStage = $season !== null && $competition->type !== CompetitionType::League
+            ? $this->catalog->groupStage($season->id)
+            : null;
+
         $tables = [];
         foreach (self::CONTEXTS as $context => $side) {
-            $tables[$context] = LeagueTable::compute($finished, $side);
+            $tables[$context] = $groupStage === null
+                ? LeagueTable::compute($finished, $side)
+                : $this->groupTables($groupStage, $finished, $side);
         }
 
-        $teams = $this->teamsFor($matches);
+        $teams = $this->teamsFor($matches, $groupStage?->stageTeams->pluck('team_id')->all() ?? []);
         $locale = config('matchiq.ui_locale');
         $name = fn (int $teamId): string => $teams[$teamId]->localized('name', $locale);
 
@@ -76,17 +85,25 @@ class BuildTournamentShow
                 'pts' => $row['pts'],
                 'form' => $row['form'],
                 'zone' => null,
-            ], $table),
+            ] + ($groupStage === null ? [] : [
+                'group_id' => $row['group_id'],
+                'pen_wins' => $row['pen_wins'],
+                'pen_losses' => $row['pen_losses'],
+            ]), $table),
             $tables,
         );
 
         $round = (int) ($finished->map(fn (FootballMatch $m) => $m->round?->number ?? 0)->max() ?? 0);
         $roundsTotal = $season?->rounds_total ?? (int) ($matches->map(fn (FootballMatch $m) => $m->round?->number ?? 0)->max() ?? 0);
 
-        $leaders = $this->leaders($finished, $tables['overall'], $teams, $locale);
+        $allMatches = $groupStage === null ? $standingsByContext['overall'] : array_map(
+            fn (array $row) => ['team' => $name($row['team_id'])] + $row,
+            LeagueTable::compute($finished),
+        );
+        $leaders = $this->leaders($finished, $groupStage === null ? $tables['overall'] : LeagueTable::compute($finished), $teams, $locale);
 
         return new TournamentShowResponse([
-            'tournament' => $this->header($competition, $season, $matches, $finished, $tables['overall'], $standingsByContext['overall'], $round, $roundsTotal),
+            'tournament' => $this->header($competition, $season, $matches, $finished, $tables['overall'], $standingsByContext['overall'], $round, $roundsTotal, $groupStage),
             'seasonKey' => $season?->slug ?? '',
             'seasons' => $seasons->map(fn (Season $s) => [
                 'key' => $s->slug,
@@ -95,25 +112,74 @@ class BuildTournamentShow
                 'rounds_total' => $s->rounds_total,
             ])->values()->all(),
             'zones' => [],
+            'standingsMode' => $groupStage === null ? 'league' : 'groups',
+            'groupStage' => $groupStage === null ? null : $this->groupStagePayload($groupStage),
             'standings' => $standingsByContext['overall'],
             'standingsByContext' => $standingsByContext,
             'teamForm' => $this->teamForm($finished, $standingsByContext['overall'], $name),
             'schedule' => $this->schedule($matches, $name),
             'results' => $this->results($finished, $name),
             'leaders' => $leaders['lists'] + $this->playerLeaders($finished, $teams, $locale),
-            'attackDefense' => $this->attackDefense($standingsByContext['overall']),
+            'attackDefense' => $this->attackDefense($allMatches),
             'teamStats' => $this->teamStats($finished, $name),
             'contribution' => ['overall' => $leaders['contribution'], 'home' => [], 'away' => []],
         ]);
     }
 
     /**
+     * Таблицы групп по правилам этапа (очки за победу по пенальти и т. д.), одним списком: группы по порядку, внутри — по местам.
+     * Команды из заявок без сыгранных матчей попадают в таблицу с нулями. Плей-офф в таблицы не входит.
+     *
+     * @param  Collection<int, FootballMatch>  $finished
+     * @param  'home'|'away'|null  $side
+     * @return list<array<string, mixed>>
+     */
+    private function groupTables(Stage $stage, Collection $finished, ?string $side): array
+    {
+        $rules = StandingRules::fromStageRules($stage->rules);
+        $inStage = $finished->where('stage_id', $stage->id);
+        $rows = [];
+
+        foreach ($stage->groups as $group) {
+            $table = LeagueTable::compute($inStage->where('stage_group_id', $group->id), $side, $rules);
+            $seen = array_column($table, 'team_id');
+
+            foreach ($stage->stageTeams->where('stage_group_id', $group->id)->sortBy('team_id') as $stageTeam) {
+                if (! in_array($stageTeam->team_id, $seen, true)) {
+                    $table[] = [
+                        'team_id' => $stageTeam->team_id, 'pos' => count($table) + 1, 'played' => 0, 'wins' => 0, 'draws' => 0,
+                        'losses' => 0, 'gf' => 0, 'ga' => 0, 'gd' => 0, 'pts' => 0, 'pen_wins' => 0, 'pen_losses' => 0, 'form' => [],
+                    ];
+                }
+            }
+
+            foreach ($table as $row) {
+                $shootouts = $row['pen_wins'] + $row['pen_losses'];
+                $rows[] = ['group_id' => $group->id, 'draws' => $row['draws'] - $shootouts] + $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /** @return array{name: string, rules: array<string, ?int>, groups: list<array{id: int, name: string}>} */
+    private function groupStagePayload(Stage $stage): array
+    {
+        return [
+            'name' => (string) $stage->name,
+            'rules' => StandingRules::fromStageRules($stage->rules)->toArray(),
+            'groups' => $stage->groups->map(fn ($g) => ['id' => $g->id, 'name' => $g->name])->values()->all(),
+        ];
+    }
+
+    /**
      * @param  Collection<int, FootballMatch>  $matches
+     * @param  list<int>  $extraTeamIds
      * @return Collection<int, Team>
      */
-    private function teamsFor(Collection $matches): Collection
+    private function teamsFor(Collection $matches, array $extraTeamIds = []): Collection
     {
-        $ids = $matches->flatMap(fn (FootballMatch $m) => [$m->home_team_id, $m->away_team_id])->unique()->values()->all();
+        $ids = $matches->flatMap(fn (FootballMatch $m) => [$m->home_team_id, $m->away_team_id])->merge($extraTeamIds)->unique()->values()->all();
 
         return $this->catalog->teamsByIds($ids);
     }
@@ -125,14 +191,14 @@ class BuildTournamentShow
      * @param  list<array<string, mixed>>  $standings
      * @return array<string, mixed>
      */
-    private function header(Competition $competition, ?Season $season, Collection $matches, Collection $finished, array $table, array $standings, int $round, int $roundsTotal): array
+    private function header(Competition $competition, ?Season $season, Collection $matches, Collection $finished, array $table, array $standings, int $round, int $roundsTotal, ?Stage $groupStage = null): array
     {
         $locale = config('matchiq.ui_locale');
         $name = $competition->localized('name', $locale);
         $goals = $finished->sum(fn (FootballMatch $m) => $m->home_goals + $m->away_goals);
-        $leader = $standings[0] ?? null;
-        $second = $standings[1] ?? null;
-        $stage = $season === null ? null : $this->catalog->firstStage($season->id);
+        $leader = $groupStage === null ? ($standings[0] ?? null) : null;
+        $second = $groupStage === null ? ($standings[1] ?? null) : null;
+        $stage = $groupStage ?? ($season === null ? null : $this->catalog->firstStage($season->id));
 
         return [
             'id' => $competition->id,
@@ -147,6 +213,7 @@ class BuildTournamentShow
             'stage' => match (true) {
                 $stage === null => '',
                 $stage->type === StageType::League => 'Регулярный чемпионат',
+                $stage->type === StageType::Group => 'Групповой этап',
                 default => (string) $stage->name,
             },
             'summary' => [

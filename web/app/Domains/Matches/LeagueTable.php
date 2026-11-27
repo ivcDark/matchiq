@@ -8,7 +8,8 @@ use Illuminate\Support\Collection;
 
 /**
  * Турнирная таблица, посчитанная по сыгранным матчам сезона (по умолчанию 3-1-0, тай-брейки: разница, забитые).
- * Очки за победу/ничью/пенальти задаёт `StandingRules` (из `stages.rules`); колонки В/Н/П считаются по счёту матча.
+ * Очки за победу/ничью/пенальти задаёт `StandingRules` (из `stages.rules`); колонки В/Н/П считаются по счёту матча,
+ * а `pen_wins`/`pen_losses` — ничьи по счёту, решённые серией (только при правилах с очками за пенальти).
  * Пока таблица `standings` не заполняется загрузкой, это единственный источник мест в лиге.
  */
 final class LeagueTable
@@ -19,7 +20,7 @@ final class LeagueTable
      * @param  Collection<int, FootballMatch>  $finished  завершённые матчи одного сезона со счётом
      * @param  'home'|'away'|null  $side  только домашние или только гостевые матчи команд; null — все
      * @param  StandingRules|null  $rules  очки за результат; null — 3-1-0
-     * @return list<array{team_id: int, pos: int, played: int, wins: int, draws: int, losses: int, gf: int, ga: int, gd: int, pts: int, form: list<string>}>
+     * @return list<array{team_id: int, pos: int, played: int, wins: int, draws: int, losses: int, gf: int, ga: int, gd: int, pts: int, pen_wins: int, pen_losses: int, form: list<string>}>
      */
     public static function compute(Collection $finished, ?string $side = null, ?StandingRules $rules = null): array
     {
@@ -45,7 +46,7 @@ final class LeagueTable
 
                 $rows[$teamId] ??= [
                     'team_id' => $teamId, 'pos' => 0, 'played' => 0, 'wins' => 0, 'draws' => 0,
-                    'losses' => 0, 'gf' => 0, 'ga' => 0, 'gd' => 0, 'pts' => 0, 'form' => [],
+                    'losses' => 0, 'gf' => 0, 'ga' => 0, 'gd' => 0, 'pts' => 0, 'pen_wins' => 0, 'pen_losses' => 0, 'form' => [],
                 ];
 
                 $row = &$rows[$teamId];
@@ -58,6 +59,9 @@ final class LeagueTable
                     $for === $against => $row['draws']++,
                     default => $row['losses']++,
                 };
+                if ($for === $against && $rules->decidedByShootout($pensFor, $pensAgainst)) {
+                    $pensFor > $pensAgainst ? $row['pen_wins']++ : $row['pen_losses']++;
+                }
                 $row['form'][] = MatchResult::fromGoals($for, $against)->value;
                 unset($row);
             }

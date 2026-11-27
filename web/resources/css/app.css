@@ -2549,6 +2549,14 @@
         box-shadow: inset 4px 0 0 var(--tt-zone);
     }
 
+    .miq-tt-group-title {
+        @apply px-3 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-wider text-miq-ink;
+    }
+
+    .miq-tt-group + .miq-tt-group {
+        border-top: 1px solid color-mix(in srgb, var(--miq-line) 60%, transparent);
+    }
+
     .miq-tt-legend {
         @apply flex flex-wrap gap-x-3 gap-y-1 border-t px-3 py-1.5 text-[11px] text-miq-ink-soft;
         border-color: color-mix(in srgb, var(--miq-line) 60%, transparent);

@@ -3,9 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\CompetitionStatus;
+use App\Enums\CompetitionType;
+use App\Enums\MatchStatus;
 use App\Enums\MatchEventType;
 use App\Enums\MatchSide;
 use App\Enums\PlayerPosition;
+use App\Enums\StageType;
 use App\Enums\StatsPeriod;
 use App\Models\FootballMatch;
 use App\Models\MatchPlayerStat;
@@ -13,7 +16,12 @@ use App\Models\MatchPrediction;
 use App\Models\MatchTeam;
 use App\Models\MatchTeamStat;
 use App\Models\ModelVersion;
+use App\Models\Competition;
 use App\Models\Player;
+use App\Models\Stage;
+use App\Models\StageGroup;
+use App\Models\StageTeam;
+use App\Models\Team;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\Feature\Concerns\CreatesLeagueData;
@@ -455,5 +463,135 @@ class TournamentPageTest extends TestCase
         foreach (['Тур', 'Голов', 'Лидер', 'Отрыв от 2-го'] as $label) {
             $this->assertStringContainsString("<dt>$label</dt>", $header);
         }
+    }
+
+    /** @return array{cup: Competition, stage: Stage, groups: array<string, StageGroup>} */
+    private function russianCupWithGroups(): array
+    {
+        $cup = Competition::create([
+            'country_id' => $this->country->id, 'slug' => 'russian-cup', 'name' => 'Russian Cup', 'name_i18n' => ['ru' => 'Кубок России'],
+            'short_name' => 'Cup', 'short_name_i18n' => ['ru' => 'Кубок России'],
+            'type' => CompetitionType::Cup, 'status' => CompetitionStatus::Live, 'sort_order' => 20,
+        ]);
+        $season = $this->createSeason($cup, '2026-2027', true);
+        $stage = Stage::create([
+            'season_id' => $season->id, 'name' => 'Групповой этап', 'type' => StageType::Group, 'stage_order' => 1,
+            'has_standings' => true, 'rules' => config('matchiq.stage_rules.russian-cup'),
+        ]);
+
+        $groups = [];
+        foreach (['A', 'B', 'C', 'D'] as $i => $letter) {
+            $groups[$letter] = StageGroup::create(['stage_id' => $stage->id, 'name' => "Группа $letter", 'group_order' => $i + 1]);
+        }
+        foreach (['zenit', 'spartak', 'cska', 'dynamo'] as $slug) {
+            StageTeam::create(['stage_id' => $stage->id, 'team_id' => $this->teams[$slug]->id, 'stage_group_id' => $groups['C']->id]);
+        }
+        foreach (['A' => ['a1', 'a2'], 'B' => ['b1', 'b2'], 'D' => ['d1']] as $letter => $slugs) {
+            foreach ($slugs as $slug) {
+                $this->teams[$slug] = Team::create(['country_id' => $this->country->id, 'slug' => $slug, 'name' => strtoupper($slug), 'name_i18n' => ['ru' => strtoupper($slug)]]);
+                StageTeam::create(['stage_id' => $stage->id, 'team_id' => $this->teams[$slug]->id, 'stage_group_id' => $groups[$letter]->id]);
+            }
+        }
+
+        return ['cup' => $cup, 'stage' => $stage, 'groups' => $groups];
+    }
+
+    private function cupMatch(array $cup, string $group, string $home, string $away, string $kickoff, array $score, ?array $pens = null): FootballMatch
+    {
+        return FootballMatch::create([
+            'competition_id' => $cup['cup']->id, 'season_id' => $cup['stage']->season_id, 'stage_id' => $cup['stage']->id,
+            'stage_group_id' => $cup['groups'][$group]->id,
+            'home_team_id' => $this->teams[$home]->id, 'away_team_id' => $this->teams[$away]->id,
+            'kickoff_at' => $kickoff, 'status' => MatchStatus::Finished,
+            'home_goals' => $score[0], 'away_goals' => $score[1],
+            'home_pens' => $pens[0] ?? null, 'away_pens' => $pens[1] ?? null,
+        ]);
+    }
+
+    public function test_russian_cup_shows_group_tables_with_penalty_points(): void
+    {
+        $cup = $this->russianCupWithGroups();
+        $this->cupMatch($cup, 'C', 'zenit', 'spartak', '2026-09-01 18:00', [1, 0]);
+        $this->cupMatch($cup, 'C', 'cska', 'dynamo', '2026-09-01 20:00', [2, 2], [4, 3]);
+        $this->cupMatch($cup, 'C', 'zenit', 'cska', '2026-09-15 18:00', [1, 1], [3, 5]);
+        $this->cupMatch($cup, 'C', 'spartak', 'dynamo', '2026-09-15 20:00', [2, 1]);
+        $this->cupMatch($cup, 'C', 'zenit', 'dynamo', '2026-09-29 18:00', [0, 0], [4, 2]);
+        $this->cupMatch($cup, 'C', 'cska', 'spartak', '2026-09-29 20:00', [1, 0]);
+        $this->cupMatch($cup, 'A', 'a1', 'a2', '2026-09-01 16:00', [3, 0]);
+        $this->cupMatch($cup, 'B', 'b1', 'b2', '2026-09-01 14:00', [1, 1], [5, 4]);
+
+        $knockout = Stage::create(['season_id' => $cup['stage']->season_id, 'name' => '1/8 финала', 'type' => StageType::Knockout, 'stage_order' => 2]);
+        FootballMatch::create([
+            'competition_id' => $cup['cup']->id, 'season_id' => $knockout->season_id, 'stage_id' => $knockout->id,
+            'home_team_id' => $this->teams['zenit']->id, 'away_team_id' => $this->teams['spartak']->id,
+            'kickoff_at' => '2026-10-20 18:00', 'status' => MatchStatus::Finished, 'home_goals' => 5, 'away_goals' => 0,
+        ]);
+
+        $props = $this->get("/tournaments/{$cup['cup']->id}")
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Tournaments/Show')->where('standingsMode', 'groups'))
+            ->viewData('page')['props'];
+
+        $this->assertSame('Групповой этап', $props['tournament']['stage']);
+        $this->assertSame(['Группа A', 'Группа B', 'Группа C', 'Группа D'], array_column($props['groupStage']['groups'], 'name'));
+        $this->assertSame(
+            ['win' => 3, 'draw' => 1, 'loss' => 0, 'penalty_win' => 2, 'penalty_loss' => 1],
+            $props['groupStage']['rules'],
+        );
+        $this->assertNull($props['tournament']['summary']['leader']);
+        $this->assertNull($props['tournament']['summary']['gap']);
+
+        $byGroup = collect($props['standingsByContext']['overall'])->groupBy('group_id');
+        $groupC = $byGroup[$cup['groups']['C']->id]->keyBy('team');
+
+        $this->assertSame(['ЦСКА', 'Зенит', 'Спартак', 'Динамо'], $byGroup[$cup['groups']['C']->id]->pluck('team')->all());
+        $this->assertSame(['ЦСКА' => 7, 'Зенит' => 6, 'Спартак' => 3, 'Динамо' => 2], $groupC->map->pts->all(), 'не плоская 3-1-0: Зенит 5, ЦСКА 5');
+        $this->assertSame([1, 1, 1], [$groupC['Зенит']['wins'], $groupC['Зенит']['pen_wins'], $groupC['Зенит']['pen_losses']]);
+        $this->assertSame([0, 0, 3], [$groupC['Зенит']['draws'], $groupC['Динамо']['draws'], $groupC['Зенит']['played']]);
+        $this->assertSame([2, 3], [$groupC['Спартак']['gf'], $groupC['Спартак']['ga']], 'плей-офф 5:0 не попадает в таблицу группы');
+
+        $this->assertSame(['A1' => 3, 'A2' => 0], $byGroup[$cup['groups']['A']->id]->pluck('pts', 'team')->all());
+        $this->assertSame(['B1' => 2, 'B2' => 1], $byGroup[$cup['groups']['B']->id]->pluck('pts', 'team')->all());
+        $this->assertSame(['D1' => 0], $byGroup[$cup['groups']['D']->id]->pluck('pts', 'team')->all());
+        $this->assertSame(0, $byGroup[$cup['groups']['D']->id]->first()['played']);
+
+        $home = collect($props['standingsByContext']['home'])->where('group_id', $cup['groups']['C']->id)->keyBy('team');
+        $this->assertSame([6, 5], [$home['Зенит']['pts'], $home['ЦСКА']['pts']]);
+    }
+
+    public function test_league_page_keeps_flat_table_without_group_payload(): void
+    {
+        $this->playRounds();
+
+        $props = $this->get("/tournaments/{$this->competition->id}")->viewData('page')['props'];
+
+        $this->assertSame('league', $props['standingsMode']);
+        $this->assertNull($props['groupStage']);
+        $this->assertArrayNotHasKey('group_id', $props['standings'][0]);
+        $this->assertArrayNotHasKey('pen_wins', $props['standings'][0]);
+    }
+
+    public function test_cup_without_group_stage_keeps_flat_mode(): void
+    {
+        $cup = Competition::create([
+            'country_id' => $this->country->id, 'slug' => 'knockout-cup', 'name' => 'Cup', 'type' => CompetitionType::Cup,
+            'status' => CompetitionStatus::Live, 'sort_order' => 30,
+        ]);
+        $this->createSeason($cup, '2026-2027', true);
+
+        $this->get("/tournaments/{$cup->id}")->assertOk()
+            ->assertInertia(fn ($page) => $page->where('standingsMode', 'league')->where('groupStage', null));
+    }
+
+    public function test_group_standings_component_is_wired_for_cup_only(): void
+    {
+        $page = file_get_contents(resource_path('js/Pages/Tournaments/Show.vue'));
+        $this->assertStringContainsString("standingsMode === 'groups' && groupStage", $page);
+        $this->assertStringContainsString('<TournamentGroupStandings', $page);
+
+        $groups = file_get_contents(resource_path('js/Components/TournamentGroupStandings.vue'));
+        $this->assertStringContainsString('v-for="group in groups"', $groups);
+        $this->assertStringContainsString('title="Победы по пенальти"', $groups);
+        $this->assertStringContainsString('Очки за матч:', $groups);
     }
 }
