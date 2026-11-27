@@ -38,6 +38,12 @@ const navItems = computed(() => [
         href: route('news.index'),
         active: route().current('news.*'),
     },
+    {
+        key: 'about',
+        label: 'О проекте',
+        href: route('about'),
+        active: route().current('about'),
+    },
 ]);
 
 watch(

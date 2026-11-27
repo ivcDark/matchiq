@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AboutController;
 use App\Http\Controllers\ClubController;
 use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\MatchController;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [MatchController::class, 'index'])->name('matches.index');
 Route::get('/matches/{match}', [MatchController::class, 'show'])->name('matches.show');
 Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
+Route::get('/about', AboutController::class)->name('about');
 Route::get('/news', [NewsController::class, 'index'])->name('news.index');
 Route::get('/news/{news:slug}', [NewsController::class, 'show'])->name('news.show');
 Route::get('/tournaments/{id}', [TournamentController::class, 'show'])->name('tournaments.show')->whereNumber('id');
