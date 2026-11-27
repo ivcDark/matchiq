@@ -167,7 +167,7 @@ func matchStatus(code int) (string, *string, bool) {
 		return dto.MatchFinished, nil, true
 	case 43:
 		return dto.MatchPostponed, nil, true
-	case 36:
+	case 36, 37:
 		return dto.MatchAbandoned, nil, true
 	case 5:
 		return dto.MatchCancelled, nil, true

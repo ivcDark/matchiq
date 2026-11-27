@@ -121,7 +121,7 @@ func TestSyncFixturesRejectsBadPayload(t *testing.T) {
 func TestMatchStatusMapping(t *testing.T) {
 	cases := map[int]string{
 		1: dto.MatchScheduled, 12: dto.MatchLive, 45: dto.MatchLive, 3: dto.MatchFinished, 11: dto.MatchFinished,
-		9: dto.MatchFinished, 43: dto.MatchPostponed, 36: dto.MatchAbandoned, 5: dto.MatchCancelled,
+		9: dto.MatchFinished, 43: dto.MatchPostponed, 36: dto.MatchAbandoned, 37: dto.MatchAbandoned, 5: dto.MatchCancelled,
 	}
 	for code, want := range cases {
 		if got, _, ok := matchStatus(code); !ok || got != want {

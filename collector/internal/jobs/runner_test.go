@@ -293,3 +293,27 @@ func TestUnknownJobTypeFails(t *testing.T) {
 		t.Fatalf("expected failed, got %#v", msgs[0])
 	}
 }
+
+func TestSyncCatalogMarksContinentalLeaguesAsRegion(t *testing.T) {
+	src := fakeSource{
+		leagues: []sstats.LsLeague{
+			{ID: "UcL00001", Name: "Champions League", Country: sstats.LsCountry{Num: "6", ID: "europe", Name: "Europe", Abbr2: "ww", Abbr3: "EUR"}},
+		},
+		seasons: map[string][]sstats.LsSeason{
+			"UcL00001": {{UniqueID: "SeAs2026", TournamentID: "UcL00001", Years: "2026-2027", IsCurrentSeason: true}},
+		},
+	}
+	msgs := runCommand(t, src, dto.JobSyncCatalog, dto.CatalogPayload{
+		Filters: dto.CatalogFilters{LeagueIDs: []string{"UcL00001"}},
+	}, 200)
+
+	batch := msgs[0].(*dto.Batch)
+	country := batch.Entities[0].Data.(dto.CountryData)
+	if country.Code != "EUR" || country.Kind != dto.CountryKindRegion {
+		t.Fatalf("country = %+v", country)
+	}
+	competition := batch.Entities[1].Data.(dto.CompetitionData)
+	if competition.Scope != dto.ScopeContinental {
+		t.Fatalf("scope = %q, want continental", competition.Scope)
+	}
+}

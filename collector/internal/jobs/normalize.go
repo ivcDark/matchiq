@@ -16,8 +16,11 @@ func countryEntity(c sstats.LsCountry) (dto.Entity, bool) {
 
 	code := strings.ToUpper(strings.TrimSpace(c.Abbr2))
 	kind := dto.CountryKindCountry
-	if code == "" {
-		code = strings.ToUpper(strings.TrimSpace(c.ID))
+	if isRegion(c) {
+		code = strings.ToUpper(strings.TrimSpace(c.Abbr3))
+		if code == "" {
+			code = strings.ToUpper(strings.TrimSpace(c.ID))
+		}
 		kind = dto.CountryKindRegion
 	}
 
@@ -28,7 +31,12 @@ func countryEntity(c sstats.LsCountry) (dto.Entity, bool) {
 	}, code != ""
 }
 
-func isRegion(c sstats.LsCountry) bool { return strings.TrimSpace(c.Abbr2) == "" }
+// isRegion: SStats описывает континенты и «мир» (Europe, Asia, World) с abbr2 = "ww" либо без abbr2.
+func isRegion(c sstats.LsCountry) bool {
+	abbr2 := strings.ToLower(strings.TrimSpace(c.Abbr2))
+
+	return abbr2 == "" || abbr2 == "ww"
+}
 
 // absoluteURL оставляет только абсолютные URL: SStats Ls отдаёт и «имена файлов», их не передаём.
 func absoluteURL(raw string) string {

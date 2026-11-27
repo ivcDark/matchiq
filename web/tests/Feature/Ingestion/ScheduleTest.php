@@ -312,13 +312,25 @@ class ScheduleTest extends TestCase
 
         Competition::create(['slug' => 'premier-league', 'name' => 'RPL', 'type' => 'league']);
         Competition::create(['slug' => 'russian-cup', 'name' => 'Cup', 'type' => 'cup']);
-        Competition::create(['slug' => 'fnl', 'name' => 'FNL', 'type' => 'league', 'status' => 'hidden']);
+        foreach (['fnl', 'champions-league', 'europa-league', 'conference-league', 'premier-league-gb-eng', 'laliga', 'bundesliga', 'serie-a'] as $slug) {
+            Competition::create(['slug' => $slug, 'name' => $slug, 'type' => 'league', 'status' => 'hidden']);
+        }
         $this->seed(\Database\Seeders\IngestFlagsSeeder::class);
 
-        $this->assertSame(['fnl', 'premier-league', 'russian-cup'], Competition::where('ingest_enabled', true)->orderBy('slug')->pluck('slug')->all());
+        $this->assertSame(
+            ['bundesliga', 'champions-league', 'conference-league', 'europa-league', 'fnl', 'laliga', 'premier-league', 'premier-league-gb-eng', 'russian-cup', 'serie-a'],
+            Competition::where('ingest_enabled', true)->orderBy('slug')->pluck('slug')->all(),
+        );
         $fnl = Competition::where('slug', 'fnl')->first();
         $this->assertSame(CompetitionStatus::Live, $fnl->status);
         $this->assertSame('ФНЛ', $fnl->short_name_i18n['ru']);
+
+        $ucl = Competition::where('slug', 'champions-league')->first();
+        $this->assertSame(CompetitionStatus::Live, $ucl->status);
+        $this->assertSame('tournament', $ucl->type->value);
+        $this->assertSame('continental', $ucl->scope->value);
+        $this->assertSame('Лига чемпионов', $ucl->name_i18n['ru']);
+        $this->assertSame('league', Competition::where('slug', 'serie-a')->first()->type->value);
     }
 
     public function test_every_competition_job_respects_ingest_enabled(): void
