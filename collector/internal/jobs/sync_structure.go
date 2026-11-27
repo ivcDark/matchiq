@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
@@ -13,7 +14,9 @@ import (
 )
 
 // SyncStructure: стадии, группы, раунды, команды сезона и их участие в стадиях.
-// Эндпоинты: /Ls/SeasonStructure и (для стадий с группами) /Ls/Standings — состав групп.
+// Эндпоинты (Ls-fallback: у основного API нет этапов, групп и туров — /Seasons/standings отдаёт только таблицу без
+// id этапов и групп): /Ls/SeasonStructure и (для стадий с группами) /Ls/Standings — состав групп; /Ls/Seasons — только
+// когда сезон заведён из /Leagues и его Ls-id ещё неизвестен.
 type SyncStructure struct{}
 
 func (SyncStructure) Collect(ctx context.Context, src Source, cmd dto.Command) (*Output, error) {
@@ -21,8 +24,22 @@ func (SyncStructure) Collect(ctx context.Context, src Source, cmd dto.Command) (
 	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
 		return nil, &PermanentError{Msg: "invalid sync_structure payload: " + err.Error()}
 	}
+	if p.SeasonExternalID == "" && (p.SeasonLabel == "" || p.Competition.ExternalID == "") {
+		return nil, &PermanentError{Msg: "sync_structure requires season_external_id or season_label + competition.external_id"}
+	}
+
+	out := &Output{}
 	if p.SeasonExternalID == "" {
-		return nil, &PermanentError{Msg: "sync_structure requires season_external_id"}
+		id, err := lsSeasonID(ctx, src, p.Competition.ExternalID, p.SeasonLabel)
+		if err != nil {
+			return nil, err
+		}
+		p.SeasonExternalID = id
+		out.Add(dto.Entity{
+			EntityType: dto.EntitySeason,
+			ExternalID: id,
+			Data:       dto.SeasonData{CompetitionExternalID: p.Competition.ExternalID, Label: p.SeasonLabel},
+		})
 	}
 
 	structure, err := src.SeasonStructure(ctx, p.SeasonExternalID)
@@ -30,7 +47,6 @@ func (SyncStructure) Collect(ctx context.Context, src Source, cmd dto.Command) (
 		return nil, err
 	}
 
-	out := &Output{}
 	seenCountry := map[string]bool{}
 
 	tables := tablesByStage(structure.StandingTables)
@@ -176,6 +192,22 @@ func (SyncStructure) Collect(ctx context.Context, src Source, cmd dto.Command) (
 	}
 
 	return out, nil
+}
+
+// lsSeasonID находит Ls-id сезона по flash-id лиги и подписи лет («2026-2027» — как years у /Ls/Seasons).
+func lsSeasonID(ctx context.Context, src Source, leagueFlashID, label string) (string, error) {
+	seasons, err := src.Seasons(ctx, leagueFlashID)
+	if err != nil {
+		return "", err
+	}
+	want := strings.ReplaceAll(strings.TrimSpace(label), " ", "")
+	for _, s := range seasons {
+		if s.UniqueID != "" && strings.ReplaceAll(strings.TrimSpace(s.Years), " ", "") == want {
+			return s.UniqueID, nil
+		}
+	}
+
+	return "", &PermanentError{Msg: fmt.Sprintf("sync_structure: в /Ls/Seasons лиги %s нет сезона %s", leagueFlashID, label)}
 }
 
 func tablesByStage(tables []sstats.LsStandingTable) map[string][]sstats.LsStandingTable {

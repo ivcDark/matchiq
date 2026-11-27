@@ -29,16 +29,16 @@ class IngestRunScheduled extends Command
             return self::FAILURE;
         }
 
-        $provider = $providers->ensure(SourceProviderCode::Sstats);
+        $providerIds = [$providers->ensure(SourceProviderCode::SstatsApi)->id, $providers->ensure(SourceProviderCode::Sstats)->id];
 
         if ($job === 'catalog') {
-            return $this->dispatchCatalog($competitions, $provider->id);
+            return $this->dispatchCatalog($competitions, $providerIds);
         }
 
         $slugs = $job === 'squads'
             ? config('ingest.schedule.squads.competitions', [])
             : config('ingest.schedule.competitions', []);
-        $targets = $competitions->forScheduledIngest($provider->id, $slugs);
+        $targets = $competitions->forScheduledIngest($providerIds, $slugs);
         if ($targets->isEmpty()) {
             $this->warn('Нет соревнований для ingest (competitions.ingest_enabled с внешним id SStats или INGEST_COMPETITIONS).');
 
@@ -53,15 +53,19 @@ class IngestRunScheduled extends Command
         return $failed === 0 ? self::SUCCESS : self::FAILURE;
     }
 
-    /** Фильтры из INGEST_CATALOG_COUNTRY / _LEAGUE — override; иначе лиги соревнований с `ingest_enabled` по внешним id. */
-    private function dispatchCatalog(CompetitionRepository $competitions, int $providerId): int
+    /**
+     * Фильтры из INGEST_CATALOG_COUNTRY / _LEAGUE — override; иначе лиги соревнований с `ingest_enabled` по id SStats.
+     *
+     * @param  list<int>  $providerIds
+     */
+    private function dispatchCatalog(CompetitionRepository $competitions, array $providerIds): int
     {
         $country = (string) config('ingest.schedule.catalog.country');
         $league = (string) config('ingest.schedule.catalog.league');
         $leagueIds = [];
 
         if ($country === '' && $league === '') {
-            $leagueIds = $competitions->enabledExternalIds($providerId);
+            $leagueIds = $competitions->enabledExternalIds($providerIds);
             if ($leagueIds === []) {
                 $this->warn('sync_catalog пропущен: нет соревнований с ingest_enabled и внешним id SStats, INGEST_CATALOG_COUNTRY / INGEST_CATALOG_LEAGUE не заданы.');
 

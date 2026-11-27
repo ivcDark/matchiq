@@ -10,32 +10,38 @@ import (
 )
 
 type fakeSource struct {
-	leagues   []sstats.LsLeague
-	seasons   map[string][]sstats.LsSeason
-	structure sstats.LsSeasonStructure
-	standings []sstats.LsStandings
-	fixtures  []sstats.LsFixture
-	games     []sstats.GameRef
-	gamesErr  error
-	gotFlash  *[]string
-	gotQuery  *sstats.FixturesQuery
-	err       error
+	leagues    []sstats.League
+	seasons    map[string][]sstats.LsSeason
+	structure  sstats.LsSeasonStructure
+	gotSeason  *string
+	standings  []sstats.LsStandings
+	fixtures   []sstats.LsFixture
+	fixtureErr error
+	gotQuery   *sstats.FixturesQuery
+	games      []sstats.Game
+	gotGames   *sstats.GamesQuery
+	err        error
 
 	game       map[string]sstats.GameFull
 	gotGameIDs *[]string
 	detailsErr map[string]error
 
-	squads    map[string][]sstats.LsSquadPlayer
+	squads    map[string][]sstats.Player
 	squadErrs map[string]error
+	lsSquads  map[string][]sstats.LsSquadPlayer
+	lsErrs    map[string]error
 }
 
-func (f fakeSource) Leagues(context.Context, string) ([]sstats.LsLeague, error) {
+func (f fakeSource) Leagues(context.Context) ([]sstats.League, error) {
 	return f.leagues, f.err
 }
 func (f fakeSource) Seasons(_ context.Context, id string) ([]sstats.LsSeason, error) {
 	return f.seasons[id], f.err
 }
-func (f fakeSource) SeasonStructure(context.Context, string) (sstats.LsSeasonStructure, error) {
+func (f fakeSource) SeasonStructure(_ context.Context, id string) (sstats.LsSeasonStructure, error) {
+	if f.gotSeason != nil {
+		*f.gotSeason = id
+	}
 	return f.structure, f.err
 }
 func (f fakeSource) Standings(context.Context, string) ([]sstats.LsStandings, error) {
@@ -46,14 +52,17 @@ func (f fakeSource) Fixtures(_ context.Context, q sstats.FixturesQuery) ([]sstat
 	if f.gotQuery != nil {
 		*f.gotQuery = q
 	}
+	if f.fixtureErr != nil {
+		return nil, f.fixtureErr
+	}
 	return f.fixtures, f.err
 }
 
-func (f fakeSource) GamesByFlashIDs(_ context.Context, ids []string) ([]sstats.GameRef, error) {
-	if f.gotFlash != nil {
-		*f.gotFlash = ids
+func (f fakeSource) Games(_ context.Context, q sstats.GamesQuery) ([]sstats.Game, error) {
+	if f.gotGames != nil {
+		*f.gotGames = q
 	}
-	return f.games, f.gamesErr
+	return f.games, f.err
 }
 
 func (f fakeSource) Game(_ context.Context, id string) (sstats.GameFull, error) {
@@ -66,11 +75,18 @@ func (f fakeSource) Game(_ context.Context, id string) (sstats.GameFull, error) 
 	return f.game[id], f.err
 }
 
-func (f fakeSource) Players(_ context.Context, teamID string) ([]sstats.LsSquadPlayer, error) {
+func (f fakeSource) Players(_ context.Context, teamID string) ([]sstats.Player, error) {
 	if err := f.squadErrs[teamID]; err != nil {
 		return nil, err
 	}
 	return f.squads[teamID], f.err
+}
+
+func (f fakeSource) LsPlayers(_ context.Context, teamID string) ([]sstats.LsSquadPlayer, error) {
+	if err := f.lsErrs[teamID]; err != nil {
+		return nil, err
+	}
+	return f.lsSquads[teamID], f.err
 }
 
 type counter struct{}
@@ -106,57 +122,161 @@ func runCommand(t *testing.T, src Source, jobType string, payload any, batchSize
 	return out.msgs
 }
 
-func rplSource() fakeSource {
-	ru := sstats.LsCountry{Num: "189", ID: "russia", Name: "Russia", Abbr2: "ru"}
+func strp(s string) *string { return &s }
 
-	return fakeSource{
-		leagues: []sstats.LsLeague{
-			{ID: "AbCd1234", Name: "Premier League", Country: ru},
-			{ID: "ZzZz9999", Name: "Premier League", Country: sstats.LsCountry{Num: "198", ID: "england", Name: "England", Abbr2: "gb-eng"}},
-			{ID: "FNL00001", Name: "FNL", Country: ru},
-		},
-		seasons: map[string][]sstats.LsSeason{
-			"AbCd1234": {{UniqueID: "SeAs2025", TournamentID: "AbCd1234", Years: "2025-2026", IsCurrentSeason: true}, {UniqueID: "", Years: "x"}},
-		},
+func leaguesSource(t *testing.T) fakeSource {
+	t.Helper()
+	var leagues []sstats.League
+	err := json.Unmarshal([]byte(`[
+		{"mappings":{"flashscore":["YacqHHdS"],"pari":["11935","142242"]},"id":235,"name":"Premier League","country":{"code":"RU","name":"Russia"},"flashScoreId":"YacqHHdS",
+		 "seasons":[{"uid":"s-2025","year":2025,"dateStart":"2025-07-18T00:00:00","dateEnd":"2026-05-24T00:00:00","flashScoreId":"russia/premier-league-2025-2026"},
+		            {"uid":"s-2026","year":2026,"dateStart":"2026-07-25T00:00:00","dateEnd":"2026-12-07T00:00:00","flashScoreId":null},
+		            {"uid":"s-2099","year":2099,"dateStart":"2099-07-25T00:00:00","dateEnd":"2099-12-07T00:00:00"},
+		            {"uid":"","year":2020}]},
+		{"mappings":{},"id":39,"name":"Premier League","country":{"code":"GB-ENG","name":"England"},"flashScoreId":"dYlOSQOD","seasons":[]},
+		{"mappings":{},"id":651,"name":"Second League - Group 1","country":{"code":"RU","name":"Russia"},
+		 "seasons":[{"uid":"g-2022","year":2022,"dateStart":"2022-07-23T00:00:00","dateEnd":"2023-06-10T00:00:00"}]},
+		{"mappings":{"flashscore":["UmfIhP4H"]},"id":1025,"name":"Second League A - Division A Gold","country":{"code":"RU","name":"Russia"},"flashScoreId":"UmfIhP4H",
+		 "seasons":[{"uid":"a-2025","year":2025,"dateStart":"2025-07-20T00:00:00","dateEnd":"2026-06-21T00:00:00","flashScoreId":"russia/fnl-2-division-a-gold-2025-2026"}]},
+		{"mappings":{"flashscore":["UmfIhP4H"]},"id":1061,"name":"Second League A - Spring Season Gold","country":{"code":"RU","name":"Russia"},"flashScoreId":"UmfIhP4H",
+		 "seasons":[{"uid":"b-2024","year":2024,"dateStart":"2025-03-02T00:00:00","dateEnd":"2025-06-28T00:00:00","flashScoreId":null}]},
+		{"mappings":{"flashscore":["xGrwqq16"]},"id":2,"name":"UEFA Champions League","country":{"code":"WW","name":"World"},"flashScoreId":"xGrwqq16",
+		 "seasons":[{"uid":"c-2025","year":2025,"dateStart":"2025-07-08T00:00:00","dateEnd":"2026-05-30T00:00:00"},
+		            {"uid":"c-2026","year":2026,"dateStart":"2026-07-07T00:00:00","dateEnd":"2026-12-17T00:00:00"}]}
+	]`), &leagues)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return fakeSource{leagues: leagues}
+}
+
+func catalogEntities(t *testing.T, msgs []any) (map[string]dto.CompetitionData, map[string]dto.SeasonData, []dto.EntityError) {
+	t.Helper()
+	competitions, seasons := map[string]dto.CompetitionData{}, map[string]dto.SeasonData{}
+	var errs []dto.EntityError
+	for _, m := range msgs {
+		b, ok := m.(*dto.Batch)
+		if !ok {
+			continue
+		}
+		for _, e := range b.Entities {
+			switch d := e.Data.(type) {
+			case dto.CompetitionData:
+				if e.ExternalID != d.APIID {
+					t.Fatalf("competition key must be the numeric id: %+v", e)
+				}
+				competitions[e.ExternalID] = d
+			case dto.SeasonData:
+				seasons[e.ExternalID] = d
+			default:
+				t.Fatalf("unexpected entity %s", e.EntityType)
+			}
+		}
+		errs = append(errs, b.Errors...)
+	}
+
+	return competitions, seasons, errs
+}
+
+func TestSyncCatalogFromLeagues(t *testing.T) {
+	msgs := runCommand(t, leaguesSource(t), dto.JobSyncCatalog, dto.CatalogPayload{
+		Filters: dto.CatalogFilters{Country: "Russia"},
+	}, 200)
+	competitions, seasons, errs := catalogEntities(t, msgs)
+
+	rpl := competitions["235"]
+	if rpl.FlashID != "YacqHHdS" || rpl.CountryCode != "RU" || rpl.CountryName != "Russia" || rpl.Scope != dto.ScopeDomestic ||
+		rpl.Refs[dto.RefFlashscore] != "YacqHHdS" || rpl.Refs[dto.RefPari] != "11935" {
+		t.Fatalf("rpl = %+v", rpl)
+	}
+	if _, ok := competitions["39"]; ok {
+		t.Fatal("country filter must drop England")
+	}
+	if g := competitions["651"]; g.FlashID != "" || g.Refs != nil {
+		t.Fatalf("league without flash-id is kept by numeric id only: %+v", g)
+	}
+	if _, ok := competitions["1061"]; ok {
+		t.Fatal("duplicate flash-id: the league with Flashscore seasons wins")
+	}
+	if _, ok := competitions["1025"]; !ok {
+		t.Fatal("flash-id owner must be emitted")
+	}
+
+	cur := seasons["s-2026"]
+	if cur.Label != "2026-2027" || cur.IsCurrent == nil || !*cur.IsCurrent || cur.CompetitionAPIID != "235" || cur.CompetitionExternalID != "YacqHHdS" ||
+		cur.StartsOn != "2026-07-25" || cur.EndsOn != "2026-12-07" || cur.APIID != "s-2026" {
+		t.Fatalf("current season = %+v", cur)
+	}
+	if prev := seasons["s-2025"]; prev.IsCurrent == nil || *prev.IsCurrent || prev.Label != "2025-2026" {
+		t.Fatalf("previous season = %+v", prev)
+	}
+	if future := seasons["s-2099"]; *future.IsCurrent {
+		t.Fatalf("future season is not current: %+v", future)
+	}
+
+	var dup, noUID bool
+	for _, e := range errs {
+		dup = dup || (e.ExternalID == "1061" && e.EntityType == dto.EntityCompetition)
+		noUID = noUID || e.EntityType == dto.EntitySeason
+	}
+	if !dup || !noUID || len(errs) != 2 {
+		t.Fatalf("errors = %+v", errs)
 	}
 }
 
-func TestSyncCatalogFiltersAndNormalizes(t *testing.T) {
-	msgs := runCommand(t, rplSource(), dto.JobSyncCatalog, dto.CatalogPayload{
-		Filters: dto.CatalogFilters{Country: "Russia", LeagueName: "premier"},
+func TestSyncCatalogLeagueIDsMatchNumericAndFlash(t *testing.T) {
+	msgs := runCommand(t, leaguesSource(t), dto.JobSyncCatalog, dto.CatalogPayload{
+		Filters: dto.CatalogFilters{LeagueIDs: []string{"dYlOSQOD", "2"}},
 	}, 200)
-
-	batch := msgs[0].(*dto.Batch)
-	if batch.Kind != dto.KindBatch || batch.Seq != 1 {
-		t.Fatalf("unexpected batch: %+v", batch)
+	competitions, seasons, _ := catalogEntities(t, msgs)
+	if len(competitions) != 2 || competitions["39"].CountryCode != "GB-ENG" {
+		t.Fatalf("competitions = %+v", competitions)
 	}
-	types := []string{}
-	for _, e := range batch.Entities {
-		types = append(types, e.EntityType)
+	ucl := competitions["2"]
+	if ucl.Scope != dto.ScopeContinental || ucl.CountryCode != "WW" {
+		t.Fatalf("ucl = %+v", ucl)
 	}
-	want := []string{"country", "competition", "season"}
-	if len(types) != 3 || types[0] != want[0] || types[1] != want[1] || types[2] != want[2] {
-		t.Fatalf("entities = %v, want %v", types, want)
-	}
-	if len(batch.Errors) != 1 || batch.Errors[0].Phase != dto.PhaseNormalize {
-		t.Fatalf("expected one normalize error, got %+v", batch.Errors)
-	}
-	country := batch.Entities[0].Data.(dto.CountryData)
-	if country.Code != "RU" || country.Kind != dto.CountryKindCountry {
-		t.Fatalf("country = %+v", country)
-	}
-
-	done := msgs[len(msgs)-1].(dto.Done)
-	if done.BatchesTotal != 1 || done.EntitiesTotal != 3 || done.ErrorsTotal != 1 || done.Source.Requests != 3 {
-		t.Fatalf("done = %+v", done)
+	if s := seasons["c-2026"]; s.Label != "2026-2027" {
+		t.Fatalf("split seasons are detected league-wide (the current one ends in its start year so far): %+v", s)
 	}
 }
 
 func TestSyncCatalogRequiresFilters(t *testing.T) {
-	msgs := runCommand(t, rplSource(), dto.JobSyncCatalog, dto.CatalogPayload{}, 200)
+	msgs := runCommand(t, leaguesSource(t), dto.JobSyncCatalog, dto.CatalogPayload{}, 200)
 	f, ok := msgs[0].(dto.Failed)
 	if !ok || f.Retryable {
 		t.Fatalf("expected non-retryable failed, got %#v", msgs[0])
+	}
+}
+
+func TestSyncStructureResolvesLsSeasonByLabel(t *testing.T) {
+	var got string
+	src := fakeSource{
+		gotSeason: &got,
+		seasons:   map[string][]sstats.LsSeason{"jizXHcsM": {{UniqueID: "old", Years: "2025-2026"}, {UniqueID: "rXQUSf8L", Years: "2026-2027"}}},
+		structure: sstats.LsSeasonStructure{Stages: []sstats.LsStage{{ID: "StG00001", Name: "Main", StatsType: "table"}}},
+	}
+	msgs := runCommand(t, src, dto.JobSyncStructure, dto.StructurePayload{
+		Competition: dto.CompetitionRef{ID: 1, ExternalID: "jizXHcsM"}, SeasonLabel: "2026-2027",
+	}, 200)
+	batch := msgs[0].(*dto.Batch)
+	if got != "rXQUSf8L" || batch.Entities[0].EntityType != dto.EntitySeason || batch.Entities[0].ExternalID != "rXQUSf8L" {
+		t.Fatalf("season=%q entities=%+v", got, batch.Entities)
+	}
+	season := batch.Entities[0].Data.(dto.SeasonData)
+	if season.IsCurrent != nil || season.Label != "2026-2027" || season.CompetitionExternalID != "jizXHcsM" {
+		t.Fatalf("season = %+v", season)
+	}
+	if stage := batch.Entities[1].Data.(dto.StageData); stage.SeasonExternalID != "rXQUSf8L" {
+		t.Fatalf("stage = %+v", stage)
+	}
+
+	msgs = runCommand(t, src, dto.JobSyncStructure, dto.StructurePayload{
+		Competition: dto.CompetitionRef{ID: 1, ExternalID: "jizXHcsM"}, SeasonLabel: "2030-2031",
+	}, 200)
+	if f, ok := msgs[0].(dto.Failed); !ok || f.Retryable {
+		t.Fatalf("unknown season must fail permanently: %#v", msgs[0])
 	}
 }
 
@@ -300,29 +420,5 @@ func TestUnknownJobTypeFails(t *testing.T) {
 	msgs := runCommand(t, fakeSource{}, "nope", struct{}{}, 200)
 	if _, ok := msgs[0].(dto.Failed); !ok {
 		t.Fatalf("expected failed, got %#v", msgs[0])
-	}
-}
-
-func TestSyncCatalogMarksContinentalLeaguesAsRegion(t *testing.T) {
-	src := fakeSource{
-		leagues: []sstats.LsLeague{
-			{ID: "UcL00001", Name: "Champions League", Country: sstats.LsCountry{Num: "6", ID: "europe", Name: "Europe", Abbr2: "ww", Abbr3: "EUR"}},
-		},
-		seasons: map[string][]sstats.LsSeason{
-			"UcL00001": {{UniqueID: "SeAs2026", TournamentID: "UcL00001", Years: "2026-2027", IsCurrentSeason: true}},
-		},
-	}
-	msgs := runCommand(t, src, dto.JobSyncCatalog, dto.CatalogPayload{
-		Filters: dto.CatalogFilters{LeagueIDs: []string{"UcL00001"}},
-	}, 200)
-
-	batch := msgs[0].(*dto.Batch)
-	country := batch.Entities[0].Data.(dto.CountryData)
-	if country.Code != "EUR" || country.Kind != dto.CountryKindRegion {
-		t.Fatalf("country = %+v", country)
-	}
-	competition := batch.Entities[1].Data.(dto.CompetitionData)
-	if competition.Scope != dto.ScopeContinental {
-		t.Fatalf("scope = %q, want continental", competition.Scope)
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -100,109 +99,6 @@ func uniqueIDs(in []string) []string {
 	}
 
 	return out
-}
-
-// peopleRegistry собирает игроков, тренеров и страны, на которые ссылаются составы, события и статистика, без дублей.
-type peopleRegistry struct {
-	players   map[string]dto.Entity
-	coaches   map[string]dto.Entity
-	countries map[string]dto.Entity
-	order     []string
-}
-
-func newPeopleRegistry() *peopleRegistry {
-	return &peopleRegistry{
-		players:   map[string]dto.Entity{},
-		coaches:   map[string]dto.Entity{},
-		countries: map[string]dto.Entity{},
-	}
-}
-
-func (r *peopleRegistry) entities() []dto.Entity {
-	var out []dto.Entity
-	for _, id := range sortedKeys(r.countries) {
-		out = append(out, r.countries[id])
-	}
-	for _, id := range sortedKeys(r.coaches) {
-		out = append(out, r.coaches[id])
-	}
-	for _, id := range sortedKeys(r.players) {
-		out = append(out, r.players[id])
-	}
-
-	return out
-}
-
-func sortedKeys(m map[string]dto.Entity) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	return keys
-}
-
-func (r *peopleRegistry) country(c *sstats.LsCountry) string {
-	if c == nil {
-		return ""
-	}
-	e, ok := countryEntity(*c)
-	if !ok {
-		return ""
-	}
-	if _, seen := r.countries[e.ExternalID]; !seen {
-		r.countries[e.ExternalID] = e
-	}
-
-	return e.ExternalID
-}
-
-func (r *peopleRegistry) player(id, fallbackName, teamID, positionHint string, profile *sstats.LsPlayerProfile) bool {
-	if seen, ok := r.players[id]; ok && (profile == nil || seen.Data.(dto.PlayerData).HasProfile) {
-		return true
-	}
-	data := dto.PlayerData{TeamExternalID: teamID, Position: positionHint, HasProfile: profile != nil}
-	if profile != nil {
-		data.Name = strings.TrimSpace(profile.Name)
-		data.ShortName = strings.TrimSpace(profile.ShortName)
-		data.CountryExternalID = r.country(profile.Country)
-		data.BirthDate = validDate(profile.Birthdate)
-		data.PhotoURL = absoluteURL(profile.PhotoURL)
-		if pos := profilePosition(profile.Role); pos != "" {
-			data.Position = pos
-		}
-	}
-	if data.Name == "" {
-		data.Name = strings.TrimSpace(fallbackName)
-	}
-	if data.Name == "" {
-		return false
-	}
-	r.players[id] = dto.Entity{EntityType: dto.EntityPlayer, ExternalID: id, Data: data}
-
-	return true
-}
-
-func (r *peopleRegistry) coach(id, fallbackName, teamID string, profile *sstats.LsPlayerProfile) bool {
-	if seen, ok := r.coaches[id]; ok && (profile == nil || seen.Data.(dto.CoachData).HasProfile) {
-		return true
-	}
-	data := dto.CoachData{TeamExternalID: teamID, HasProfile: profile != nil}
-	if profile != nil {
-		data.Name = strings.TrimSpace(profile.Name)
-		data.CountryExternalID = r.country(profile.Country)
-		data.BirthDate = validDate(profile.Birthdate)
-	}
-	if data.Name == "" {
-		data.Name = strings.TrimSpace(fallbackName)
-	}
-	if data.Name == "" {
-		return false
-	}
-	r.coaches[id] = dto.Entity{EntityType: dto.EntityCoach, ExternalID: id, Data: data}
-
-	return true
 }
 
 func validDate(raw string) string {

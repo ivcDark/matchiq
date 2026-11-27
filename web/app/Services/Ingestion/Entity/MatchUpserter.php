@@ -10,7 +10,9 @@ use App\Enums\MatchPeriod;
 use App\Enums\MatchStatus;
 use App\Enums\RoundType;
 use App\Models\FootballMatch;
+use App\Models\Stage;
 use App\Repositories\ExternalIdRepository;
+use App\Repositories\MatchOddRepository;
 use App\Repositories\MatchRepository;
 use App\Repositories\RoundRepository;
 use App\Repositories\SeasonRepository;
@@ -20,8 +22,19 @@ use App\Services\Ingestion\Exceptions\IngestionEntityException;
 use Illuminate\Support\Carbon;
 use Throwable;
 
+/**
+ * Матч. Из /Games/list (`data.api_id`): ключ — числовой id матча SStats (`sstats_api`), сезон и команды — по их числовым id
+ * (иначе по Ls-id). Этапа /Games/list не знает: он берётся из `stage_external_id` (/Ls/List у многоэтапных сезонов),
+ * иначе у уже известного матча, иначе единственная стадия сезона. Счёт ET и серии пенальти /Games/list не отдаёт —
+ * без ключей `*_et`/`*_pens` сохранённые значения не трогаются. Коэффициенты (`odds`) синхронизируются в `match_odds`.
+ */
 class MatchUpserter implements EntityUpserter
 {
+    private const SCORE_KEYS = [
+        'home' => 'home_goals', 'away' => 'away_goals', 'home_ht' => 'home_goals_ht', 'away_ht' => 'away_goals_ht',
+        'home_et' => 'home_goals_et', 'away_et' => 'away_goals_et', 'home_pens' => 'home_pens', 'away_pens' => 'away_pens',
+    ];
+
     public function __construct(
         private readonly MatchRepository $matches,
         private readonly RoundRepository $rounds,
@@ -29,6 +42,8 @@ class MatchUpserter implements EntityUpserter
         private readonly StageRepository $stages,
         private readonly StageTeamRepository $stageTeams,
         private readonly ExternalIdRepository $externalIds,
+        private readonly SstatsApiIds $apiIds,
+        private readonly MatchOddRepository $odds,
     ) {}
 
     public function type(): ExternalEntityType
@@ -48,6 +63,9 @@ class MatchUpserter implements EntityUpserter
             $kickoff = Carbon::parse((string) ($data['kickoff_at'] ?? ''))->setTimezone(config('app.timezone'));
         } catch (Throwable) {
             throw IngestionEntityException::invalid('у матча некорректный kickoff_at', ['kickoff_at' => $data['kickoff_at'] ?? null]);
+        }
+        if (trim((string) ($data['api_id'] ?? '')) !== '') {
+            return $this->upsertFromApi($entity, $context, $status, $period, $kickoff);
         }
 
         $seasonId = $this->externalIds->requireEntityId($context->providerId, ExternalEntityType::Season, $data['season_external_id'] ?? null);
@@ -97,6 +115,132 @@ class MatchUpserter implements EntityUpserter
         $this->externalIds->track($context->providerId, $this->type(), $entity->externalId, $match->id, $context->runId, $entity->externalUrl);
 
         return new UpsertResult($outcome, $match->id);
+    }
+
+    private function upsertFromApi(ResultEntity $entity, UpsertContext $context, MatchStatus $status, ?MatchPeriod $period, Carbon $kickoff): UpsertResult
+    {
+        $data = $entity->data;
+
+        $season = $this->seasons->find($this->apiRef($data, 'season', ExternalEntityType::Season, $context))
+            ?? throw IngestionEntityException::missingReference(ExternalEntityType::Season->value, (string) ($data['season_api_id'] ?? ''));
+        $homeId = $this->apiRef($data, 'home_team', ExternalEntityType::Team, $context);
+        $awayId = $this->apiRef($data, 'away_team', ExternalEntityType::Team, $context);
+        if ($homeId === $awayId) {
+            throw IngestionEntityException::invalid('хозяева и гости — одна команда', ['team_id' => $homeId]);
+        }
+
+        $flashId = trim((string) ($data['flash_id'] ?? ''));
+        $existing = $this->resolveExistingFromApi($entity, $context, $flashId, $season->id, $homeId, $awayId, $kickoff);
+        $stage = $this->resolveStage($data, $context, $season->id, $existing);
+
+        $score = [];
+        foreach (self::SCORE_KEYS as $key => $column) {
+            $score[$key] = array_key_exists($column, $data) ? $this->score($data, $column) : $existing?->{$column};
+        }
+
+        [$match, $outcome] = $this->matches->upsert(
+            $existing,
+            $season->competition_id,
+            $season->id,
+            $stage->id,
+            $this->resolveRoundId($stage->id, $stage->type->hasStandings(), $data, $context) ?? $existing?->round_id,
+            $this->resolveGroupId($stage->id, $homeId, $awayId),
+            $homeId,
+            $awayId,
+            $kickoff,
+            $status,
+            $period,
+            $score,
+        );
+
+        $this->apiIds->track($this->type(), $entity->externalId, $match->id, $context->runId);
+        $children = [];
+        $refs = $this->apiIds->linkRefs($context->providerId, $this->type(), $match->id, $flashId, $data['refs'] ?? null, $context->runId);
+        if ($refs !== []) {
+            $children['external_ref'] = $refs;
+        }
+        $odds = $this->oddsOf($data);
+        if ($odds !== []) {
+            $children['match_odd'] = $this->odds->sync($match->id, $this->apiIds->providerId(), $odds);
+        }
+
+        return new UpsertResult($outcome, $match->id, $children);
+    }
+
+    /**
+     * Сезон или команда матча: по числовому id SStats (`{prefix}_api_id`), иначе по Ls-id (`{prefix}_external_id`) —
+     * например, сезон, выбранный по лиге и году, пока sync_catalog не привязал его uid.
+     */
+    private function apiRef(array $data, string $prefix, ExternalEntityType $type, UpsertContext $context): int
+    {
+        $apiId = trim((string) ($data[$prefix.'_api_id'] ?? ''));
+        $externalId = trim((string) ($data[$prefix.'_external_id'] ?? ''));
+        if ($apiId !== '' && ($id = $this->apiIds->find($type, $apiId)) !== null) {
+            return $id;
+        }
+        if ($apiId !== '' && $externalId === '') {
+            return $this->apiIds->require($type, $apiId);
+        }
+
+        return $this->externalIds->requireEntityId($context->providerId, $type, $externalId);
+    }
+
+    /** По числовому id; затем по flash-id (матчи, загруженные из Ls); затем та же пара в ±1 день без числового id. */
+    private function resolveExistingFromApi(ResultEntity $entity, UpsertContext $context, string $flashId, int $seasonId, int $homeId, int $awayId, Carbon $kickoff): ?FootballMatch
+    {
+        $id = $this->apiIds->find($this->type(), $entity->externalId)
+            ?? ($flashId !== '' ? $this->externalIds->findEntityId($context->providerId, $this->type(), $flashId) : null);
+        if ($id !== null) {
+            return $this->matches->find($id);
+        }
+
+        return $this->matches->findByTeamsAround($seasonId, $homeId, $awayId, $kickoff)
+            ->first(fn (FootballMatch $m) => ! $this->externalIds->isLinked($this->apiIds->providerId(), $this->type(), $m->id));
+    }
+
+    /** @throws IngestionEntityException */
+    private function resolveStage(array $data, UpsertContext $context, int $seasonId, ?FootballMatch $existing): Stage
+    {
+        $externalId = (string) ($data['stage_external_id'] ?? '');
+        if ($externalId !== '') {
+            $stage = $this->stages->find($this->externalIds->requireEntityId($context->providerId, ExternalEntityType::Stage, $externalId));
+            if ($stage === null || $stage->season_id !== $seasonId) {
+                throw IngestionEntityException::conflict('стадия не принадлежит сезону матча', ['stage_external_id' => $externalId]);
+            }
+
+            return $stage;
+        }
+
+        if ($existing !== null && $existing->season_id === $seasonId && ($stage = $this->stages->find($existing->stage_id)) !== null) {
+            return $stage;
+        }
+
+        return $this->stages->soleInSeason($seasonId) ?? throw IngestionEntityException::missingReference(
+            ExternalEntityType::Stage->value,
+            $this->stages->countInSeason($seasonId) === 0 ? 'в сезоне нет стадий (сначала sync_structure)' : 'этап матча не известен (несколько стадий, нет данных /Ls/List)',
+        );
+    }
+
+    /** @return list<array{market_id: int, market_name: ?string, outcome: string, value: float}> */
+    private function oddsOf(array $data): array
+    {
+        $odds = [];
+        foreach ((array) ($data['odds'] ?? []) as $row) {
+            $marketId = $row['market_id'] ?? null;
+            $outcome = trim((string) ($row['outcome'] ?? ''));
+            $value = $row['value'] ?? null;
+            if (! is_int($marketId) || $marketId < 1 || $outcome === '' || ! is_numeric($value) || $value <= 1 || $value >= 100000) {
+                continue;
+            }
+            $odds[] = [
+                'market_id' => $marketId,
+                'market_name' => trim((string) ($row['market_name'] ?? '')) ?: null,
+                'outcome' => mb_substr($outcome, 0, 64),
+                'value' => round((float) $value, 3),
+            ];
+        }
+
+        return $odds;
     }
 
     /** По external_id; новый — страховка от дублей: та же пара в сезоне в ±1 день, ещё не привязанная к источнику. */

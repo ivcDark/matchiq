@@ -30,6 +30,19 @@ class StageRepository
         return Stage::where('season_id', $seasonId)->where('stage_order', $order)->first();
     }
 
+    public function countInSeason(int $seasonId): int
+    {
+        return Stage::where('season_id', $seasonId)->count();
+    }
+
+    /** Единственная стадия сезона; null — стадий нет или их несколько. */
+    public function soleInSeason(int $seasonId): ?Stage
+    {
+        $stages = Stage::where('season_id', $seasonId)->limit(2)->get();
+
+        return $stages->count() === 1 ? $stages->first() : null;
+    }
+
     /** @return array{0: Stage, 1: UpsertOutcome} */
     public function upsert(?Stage $existing, int $seasonId, string $name, StageType $type, int $order, bool $hasStandings): array
     {

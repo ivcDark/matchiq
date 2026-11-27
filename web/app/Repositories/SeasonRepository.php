@@ -31,8 +31,12 @@ class SeasonRepository
         return Str::slug($label) ?: $label;
     }
 
-    /** @return array{0: Season, 1: UpsertOutcome} */
-    public function upsert(?Season $existing, int $competitionId, string $label, bool $isCurrent): array
+    /**
+     * Даты сезона, которых источник не отдал (null), не затираются.
+     *
+     * @return array{0: Season, 1: UpsertOutcome}
+     */
+    public function upsert(?Season $existing, int $competitionId, string $label, bool $isCurrent, ?string $startsOn = null, ?string $endsOn = null): array
     {
         if ($isCurrent) {
             // Частичный unique-индекс: у соревнования один текущий сезон.
@@ -42,10 +46,12 @@ class SeasonRepository
                 ->update(['is_current' => false]);
         }
 
-        return $this->persist(new Season, $existing, [
+        return $this->persist(new Season, $existing, array_filter([
             'competition_id' => $competitionId,
             'label' => $label,
             'is_current' => $isCurrent,
-        ], ['slug' => $this->slugFor($label)]);
+            'starts_on' => $startsOn,
+            'ends_on' => $endsOn,
+        ], fn ($v) => $v !== null), ['slug' => $this->slugFor($label)]);
     }
 }

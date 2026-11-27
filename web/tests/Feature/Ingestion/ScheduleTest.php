@@ -13,12 +13,15 @@ use App\Enums\SourceProviderCode;
 use App\Models\Competition;
 use App\Models\FootballMatch;
 use App\Models\IngestionRun;
+use App\Models\Team;
 use App\Repositories\SourceProviderRepository;
 use App\Services\Ingestion\ApplyIngestionResult;
 use App\Services\Ingestion\Messaging\CommandPublisher;
+use Database\Seeders\IngestFlagsSeeder;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
 
@@ -172,7 +175,7 @@ class ScheduleTest extends TestCase
         $this->artisan('ingest:run-scheduled', ['job' => 'fixtures'])->assertSuccessful();
 
         $this->assertCount(2, $publisher->sent);
-        $this->assertSame(2, IngestionRun::where('kind', IngestionKind::SyncFixtures->value)->count());
+        $this->assertSame(3, IngestionRun::where('kind', IngestionKind::SyncFixtures->value)->count(), 'сид + два плановых');
     }
 
     private function fakePublisher(): object
@@ -211,9 +214,8 @@ class ScheduleTest extends TestCase
         $apply->handle($this->message($catalog, [
             'kind' => 'batch', 'seq' => 1,
             'entities' => [
-                ['entity_type' => 'country', 'external_id' => '189', 'data' => ['code' => 'RU', 'name' => 'Russia', 'kind' => 'country']],
-                ['entity_type' => 'competition', 'external_id' => 'AbCd1234', 'data' => ['country_external_id' => '189', 'name' => 'Premier League', 'type' => 'league', 'scope' => 'domestic']],
-                ['entity_type' => 'season', 'external_id' => 'SeAs2026', 'data' => ['competition_external_id' => 'AbCd1234', 'label' => '2026-2027', 'is_current' => true]],
+                ['entity_type' => 'competition', 'external_id' => '235', 'data' => ['api_id' => '235', 'flash_id' => 'AbCd1234', 'country_code' => 'RU', 'country_name' => 'Russia', 'name' => 'Premier League', 'type' => 'league', 'scope' => 'domestic']],
+                ['entity_type' => 'season', 'external_id' => 'uid-2026', 'data' => ['api_id' => 'uid-2026', 'competition_api_id' => '235', 'competition_external_id' => 'AbCd1234', 'label' => '2026-2027', 'is_current' => true]],
             ],
         ]));
 
@@ -221,28 +223,30 @@ class ScheduleTest extends TestCase
         $apply->handle($this->message($structure, [
             'kind' => 'batch', 'seq' => 1,
             'entities' => [
-                ['entity_type' => 'team', 'external_id' => 'TeAm0001', 'data' => ['season_external_id' => 'SeAs2026', 'name' => 'Zenit', 'country_external_id' => '189']],
-                ['entity_type' => 'team', 'external_id' => 'TeAm0002', 'data' => ['season_external_id' => 'SeAs2026', 'name' => 'Spartak Moscow', 'country_external_id' => '189']],
+                ['entity_type' => 'season', 'external_id' => 'SeAs2026', 'data' => ['competition_external_id' => 'AbCd1234', 'label' => '2026-2027']],
+                ['entity_type' => 'team', 'external_id' => 'TeAm0001', 'data' => ['season_external_id' => 'SeAs2026', 'name' => 'Zenit']],
+                ['entity_type' => 'team', 'external_id' => 'TeAm0002', 'data' => ['season_external_id' => 'SeAs2026', 'name' => 'Spartak Moscow']],
                 ['entity_type' => 'stage', 'external_id' => 'StG00001', 'data' => ['season_external_id' => 'SeAs2026', 'name' => 'Main', 'type' => 'league', 'stage_order' => 1, 'has_standings' => true]],
             ],
         ]));
 
-        if ($finished) {
-            $fixtures = $this->newRun(IngestionKind::SyncFixtures, now());
-            $apply->handle($this->message($fixtures, [
-                'kind' => 'batch', 'seq' => 1,
-                'entities' => [[
-                    'entity_type' => 'match', 'external_id' => 'Mat00001',
-                    'data' => [
-                        'competition_external_id' => 'AbCd1234', 'season_external_id' => 'SeAs2026', 'stage_external_id' => 'StG00001',
-                        'round_name' => 'Round 1', 'round_number' => 1,
-                        'home_team_external_id' => 'TeAm0001', 'away_team_external_id' => 'TeAm0002',
-                        'kickoff_at' => now()->subDay()->toIso8601ZuluString(), 'status' => 'finished', 'period' => null,
-                        'home_goals' => 2, 'away_goals' => 1,
-                    ],
-                ]],
-            ]));
-        }
+        $fixtures = $this->newRun(IngestionKind::SyncFixtures, now());
+        $apply->handle($this->message($fixtures, [
+            'kind' => 'batch', 'seq' => 1,
+            'entities' => array_merge([
+                ['entity_type' => 'team', 'external_id' => '596', 'data' => ['api_id' => '596', 'flash_id' => 'TeAm0001', 'name' => 'Zenit', 'country_code' => 'RU']],
+                ['entity_type' => 'team', 'external_id' => '597', 'data' => ['api_id' => '597', 'flash_id' => 'TeAm0002', 'name' => 'Spartak Moscow', 'country_code' => 'RU']],
+            ], $finished ? [[
+                'entity_type' => 'match', 'external_id' => '9001',
+                'data' => [
+                    'api_id' => '9001', 'flash_id' => 'Mat00001', 'season_api_id' => 'uid-2026',
+                    'round_name' => 'Round 1', 'round_number' => 1,
+                    'home_team_api_id' => '596', 'away_team_api_id' => '597',
+                    'kickoff_at' => now()->subDay()->toIso8601ZuluString(), 'status' => 'finished', 'period' => null,
+                    'home_goals' => 2, 'away_goals' => 1, 'home_goals_ht' => null, 'away_goals_ht' => null,
+                ],
+            ]] : []),
+        ]));
 
         IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
         Competition::query()->update(['status' => CompetitionStatus::Live, 'ingest_enabled' => true]);
@@ -258,7 +262,9 @@ class ScheduleTest extends TestCase
 
         $sent = $publisher->sent[0];
         $this->assertSame('sync_fixtures', $sent['job_type']);
+        $this->assertSame('uid-2026', $sent['payload']['season_api_id']);
         $this->assertSame('SeAs2026', $sent['payload']['season_external_id']);
+        $this->assertArrayNotHasKey('ls_stages', $sent['payload'], 'одна стадия — этап из БД, без /Ls/List');
         $this->assertSame([
             'from' => now('Europe/Moscow')->subDays(2)->toDateString(),
             'to' => now('Europe/Moscow')->addDays(3)->toDateString(),
@@ -271,7 +277,7 @@ class ScheduleTest extends TestCase
         $this->seedCompetition();
         $publisher = $this->fakePublisher();
         config(['ingest.schedule.fixtures.days_back' => 2, 'ingest.schedule.fixtures.days_forward' => 3]);
-        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-27 22:30:00', 'UTC'));
+        $this->travelTo(Carbon::parse('2026-11-27 22:30:00', 'UTC'));
 
         $this->artisan('ingest:run-scheduled', ['job' => 'fixtures'])->assertSuccessful();
 
@@ -318,7 +324,7 @@ class ScheduleTest extends TestCase
         foreach (['fnl', 'champions-league', 'europa-league', 'conference-league', 'premier-league-gb-eng', 'laliga', 'bundesliga', 'serie-a'] as $slug) {
             Competition::create(['slug' => $slug, 'name' => $slug, 'type' => 'league', 'status' => 'hidden']);
         }
-        $this->seed(\Database\Seeders\IngestFlagsSeeder::class);
+        $this->seed(IngestFlagsSeeder::class);
 
         $this->assertSame(
             ['bundesliga', 'champions-league', 'conference-league', 'europa-league', 'fnl', 'laliga', 'premier-league', 'premier-league-gb-eng', 'russian-cup', 'serie-a'],
@@ -362,11 +368,11 @@ class ScheduleTest extends TestCase
     {
         $this->seedCompetition(finished: true);
         $publisher = $this->fakePublisher();
-        \App\Models\Team::where('name', 'Spartak Moscow')->update(['ingest_enabled' => false]);
+        Team::where('name', 'Spartak Moscow')->update(['ingest_enabled' => false]);
 
         $this->artisan('ingest:run-scheduled', ['job' => 'squads'])->assertSuccessful();
 
-        $this->assertSame(['TeAm0001'], $publisher->sent[0]['payload']['team_external_ids']);
+        $this->assertSame(['596'], $publisher->sent[0]['payload']['team_external_ids']);
     }
 
     public function test_run_scheduled_does_not_fail_when_previous_run_is_still_active(): void
@@ -390,7 +396,8 @@ class ScheduleTest extends TestCase
         $sent = $publisher->sent[0];
         $this->assertSame('sync_squads', $sent['job_type']);
         $this->assertSame('SeAs2026', $sent['payload']['season_external_id']);
-        $this->assertSame(['TeAm0001', 'TeAm0002'], $sent['payload']['team_external_ids']);
+        $this->assertSame(['596', '597'], $sent['payload']['team_external_ids']);
+        $this->assertSame(['596' => 'TeAm0001', '597' => 'TeAm0002'], $sent['payload']['team_flash_ids']);
         $this->assertSame('schedule', $sent['payload']['context']['trigger']);
 
         IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
@@ -403,14 +410,17 @@ class ScheduleTest extends TestCase
     {
         $this->seedCompetition(finished: true);
         $publisher = $this->fakePublisher();
-        $slug = \App\Models\Team::where('name', 'Zenit')->value('slug');
+        $slug = Team::where('name', 'Zenit')->value('slug');
 
         $this->artisan('ingest:dispatch', ['type' => 'sync_squads', '--competition' => 'premier-league', '--team' => [$slug, 'TeAm0002']])->assertSuccessful();
-        $this->assertSame(['TeAm0001', 'TeAm0002'], $publisher->sent[0]['payload']['team_external_ids']);
+        $this->assertSame(['596', '597'], $publisher->sent[0]['payload']['team_external_ids']);
+        IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+        $this->artisan('ingest:dispatch', ['type' => 'sync_squads', '--competition' => 'premier-league', '--team' => ['597']])->assertSuccessful();
+        $this->assertSame(['597'], $publisher->sent[1]['payload']['team_external_ids']);
 
         IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
         $this->artisan('ingest:dispatch', ['type' => 'sync_squads', '--competition' => 'premier-league', '--team' => ['unknown']])->assertFailed();
-        $this->assertCount(1, $publisher->sent);
+        $this->assertCount(2, $publisher->sent);
     }
 
     public function test_run_scheduled_details_missing_and_recent(): void
@@ -421,6 +431,7 @@ class ScheduleTest extends TestCase
 
         $this->artisan('ingest:run-scheduled', ['job' => 'details_missing'])->assertSuccessful();
         $this->assertSame(['Mat00001'], $publisher->sent[0]['payload']['match_external_ids']);
+        $this->assertSame(['Mat00001' => '9001'], $publisher->sent[0]['payload']['match_api_ids']);
         IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
 
         $this->artisan('ingest:run-scheduled', ['job' => 'details_recent'])->assertSuccessful();
@@ -545,7 +556,7 @@ class ScheduleTest extends TestCase
 
         $this->artisan('ingest:run-scheduled', ['job' => 'catalog'])->assertSuccessful();
         $filters = $publisher->sent[0]['payload']['filters'];
-        $this->assertSame(['AbCd1234'], $filters['league_ids']);
+        $this->assertSame(['235'], $filters['league_ids'], 'числовой id лиги SStats предпочтительнее flash-id');
         $this->assertSame('', $filters['country']);
 
         IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);

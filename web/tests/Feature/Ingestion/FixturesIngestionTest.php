@@ -4,6 +4,7 @@ namespace Tests\Feature\Ingestion;
 
 use App\Data\Ingestion\CommandMessage;
 use App\Data\Ingestion\ResultMessage;
+use App\Enums\ExternalEntityType;
 use App\Enums\IngestionKind;
 use App\Enums\IngestionPhase;
 use App\Enums\IngestionStatus;
@@ -11,11 +12,13 @@ use App\Enums\MatchPeriod;
 use App\Enums\MatchStatus;
 use App\Enums\RoundType;
 use App\Enums\SourceProviderCode;
+use App\Models\Competition;
 use App\Models\ExternalId;
 use App\Models\FootballMatch;
 use App\Models\IngestionRun;
 use App\Models\Round;
 use App\Models\Stage;
+use App\Repositories\ExternalIdRepository;
 use App\Repositories\SourceProviderRepository;
 use App\Services\Ingestion\ApplyIngestionResult;
 use App\Services\Ingestion\Messaging\CommandPublisher;
@@ -76,6 +79,19 @@ class FixturesIngestionTest extends TestCase
                 ['entity_type' => 'stage', 'external_id' => 'StG0OLD1', 'data' => ['season_external_id' => 'SeAs2025', 'name' => 'Main', 'type' => 'league', 'stage_order' => 1, 'has_standings' => true]],
             ],
         ]));
+    }
+
+    /** Каталог из /Leagues: числовой id лиги и uid сезона привязываются к уже известным по flash-id и label. */
+    private function linkApiIds(): void
+    {
+        app(ApplyIngestionResult::class)->handle($this->message($this->newRun(IngestionKind::SyncCatalog), [
+            'kind' => 'batch', 'seq' => 1,
+            'entities' => [
+                ['entity_type' => 'competition', 'external_id' => '235', 'data' => ['api_id' => '235', 'flash_id' => 'AbCd1234', 'country_code' => 'RU', 'name' => 'Premier League']],
+                ['entity_type' => 'season', 'external_id' => 'uid-2026', 'data' => ['api_id' => 'uid-2026', 'competition_api_id' => '235', 'label' => '2026-2027', 'is_current' => true]],
+            ],
+        ]));
+        IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
     }
 
     private function match(string $id, array $data = []): array
@@ -245,6 +261,7 @@ class FixturesIngestionTest extends TestCase
     public function test_dispatch_builds_fixtures_payload_with_filters(): void
     {
         $this->seedStructure();
+        $this->linkApiIds();
         $publisher = new class implements CommandPublisher
         {
             public array $sent = [];
@@ -262,8 +279,10 @@ class FixturesIngestionTest extends TestCase
 
         $sent = $publisher->sent[0];
         $this->assertSame('sync_fixtures', $sent['job_type']);
+        $this->assertSame('uid-2026', $sent['payload']['season_api_id']);
         $this->assertSame('SeAs2026', $sent['payload']['season_external_id']);
         $this->assertSame('StG00001', $sent['payload']['stage_external_id']);
+        $this->assertArrayNotHasKey('ls_stages', $sent['payload']);
         $this->assertSame('AbCd1234', $sent['payload']['competition']['external_id']);
         $this->assertSame(['from' => '2026-08-01', 'to' => '2026-08-31'], $sent['payload']['window']);
 
@@ -275,6 +294,7 @@ class FixturesIngestionTest extends TestCase
     public function test_dispatch_without_filters_uses_current_season_and_all_stages(): void
     {
         $this->seedStructure();
+        $this->linkApiIds();
         $publisher = new class implements CommandPublisher
         {
             public array $sent = [];
@@ -289,9 +309,47 @@ class FixturesIngestionTest extends TestCase
         $this->artisan('ingest:dispatch', ['type' => 'sync_fixtures', '--competition' => 'premier-league'])->assertSuccessful();
 
         $payload = $publisher->sent[0]['payload'];
+        $this->assertSame('uid-2026', $payload['season_api_id']);
         $this->assertSame('SeAs2026', $payload['season_external_id']);
         $this->assertArrayNotHasKey('stage_external_id', $payload);
         $this->assertArrayNotHasKey('window', $payload);
+        $this->assertArrayNotHasKey('ls_stages', $payload, 'одна стадия — этап берётся из БД');
+
+        app(ApplyIngestionResult::class)->handle($this->message($this->newRun(IngestionKind::SyncStructure), [
+            'kind' => 'batch', 'seq' => 1,
+            'entities' => [['entity_type' => 'stage', 'external_id' => 'StG00002', 'data' => ['season_external_id' => 'SeAs2026', 'name' => 'Play-off', 'type' => 'knockout', 'stage_order' => 2, 'has_standings' => false]]],
+        ]));
+        IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+        $this->artisan('ingest:dispatch', ['type' => 'sync_fixtures', '--competition' => 'premier-league'])->assertSuccessful();
+        $this->assertTrue($publisher->sent[1]['payload']['ls_stages'], 'многоэтапный сезон — этап и тур из /Ls/List');
+    }
+
+    public function test_dispatch_without_api_ids_falls_back_to_league_and_year_or_fails(): void
+    {
+        $this->seedStructure();
+        $this->artisan('ingest:dispatch', ['type' => 'sync_fixtures', '--competition' => 'premier-league'])->assertFailed();
+
+        $competition = Competition::firstOrFail();
+        app(ExternalIdRepository::class)->track(
+            app(SourceProviderRepository::class)->ensure(SourceProviderCode::SstatsApi)->id, ExternalEntityType::Competition, '235', $competition->id, IngestionRun::firstOrFail()->id,
+        );
+        $publisher = new class implements CommandPublisher
+        {
+            public array $sent = [];
+
+            public function publish(CommandMessage $command): void
+            {
+                $this->sent[] = $command->toArray();
+            }
+        };
+        $this->app->instance(CommandPublisher::class, $publisher);
+        IngestionRun::query()->update(['status' => IngestionStatus::Ok, 'finished_at' => now()]);
+
+        $this->artisan('ingest:dispatch', ['type' => 'sync_fixtures', '--competition' => 'premier-league'])->assertSuccessful();
+        $payload = $publisher->sent[0]['payload'];
+        $this->assertSame('235', $payload['league_api_id']);
+        $this->assertSame(2026, $payload['season_year']);
+        $this->assertArrayNotHasKey('season_api_id', $payload);
     }
 
     public function test_dispatch_rejects_bad_input(): void

@@ -28,7 +28,7 @@ func normalizeGame(matchID string, g sstats.GameFull) (*dto.MatchDetailsData, []
 	}
 
 	game := g.Game
-	if game.FlashID != "" && game.FlashID != matchID {
+	if game.FlashID != "" && game.FlashID != matchID && game.ID.String() != matchID {
 		bad("Games вернул другой матч", map[string]any{"returned_flash_id": game.FlashID})
 		return nil, errs
 	}
@@ -147,11 +147,40 @@ func gameState(g sstats.GameInfo) *dto.MatchStateData {
 	if state.Status == dto.MatchLive {
 		state.Minute = flexIntPtr(g.Elapsed)
 	}
+	if hadExtraTime(g) {
+		state.HomeGoalsET = extraGoals(g.HomeResult, g.HomeFT)
+		state.AwayGoalsET = extraGoals(g.AwayResult, g.AwayFT)
+	}
 	if state.Status == dto.MatchScheduled {
 		state.HomeGoals, state.AwayGoals, state.HomeGoalsHT, state.AwayGoalsHT = nil, nil, nil, nil
 	}
 
 	return state
+}
+
+// hadExtraTime: коды /Games 6 (доп. время), 7 (серия пенальти), 9 (после доп. времени), 10 (после пенальти),
+// 11 (перерыв в доп. времени); без кода — по названию статуса.
+func hadExtraTime(g sstats.GameInfo) bool {
+	if g.Status != nil {
+		switch int(*g.Status) {
+		case 6, 7, 9, 10, 11:
+			return true
+		}
+
+		return false
+	}
+	n := strings.ToLower(g.StatusName)
+
+	return strings.Contains(n, "extra time") || strings.Contains(n, "penalt")
+}
+
+func extraGoals(total, regular *sstats.FlexInt) *int {
+	if total == nil || regular == nil || *total < *regular {
+		return nil
+	}
+	n := int(*total - *regular)
+
+	return &n
 }
 
 // gameStatus по statusName (числовые коды /Games SStats не документированы): Not Started, First Half, Halftime,

@@ -10,6 +10,7 @@ use App\Models\Competition;
 use App\Models\ExternalId;
 use App\Repositories\Concerns\GeneratesUniqueSlugs;
 use App\Repositories\Concerns\UpsertsModels;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class CompetitionRepository
@@ -30,18 +31,19 @@ class CompetitionRepository
 
     /**
      * Соревнования для регулярного ingest: явный список slug'ов (override из env) либо все с `ingest_enabled`
-     * и внешним id провайдера. Витринный `status` не учитывается.
+     * и внешним id одного из провайдеров. Витринный `status` не учитывается.
      *
+     * @param  list<int>  $providerIds
      * @param  list<string>  $slugs
      * @return Collection<int, Competition>
      */
-    public function forScheduledIngest(int $providerId, array $slugs = []): Collection
+    public function forScheduledIngest(array $providerIds, array $slugs = []): Collection
     {
         return Competition::query()
             ->when(
                 $slugs !== [],
                 fn ($q) => $q->whereIn('slug', $slugs),
-                fn ($q) => $q->where('ingest_enabled', true)->whereIn('id', $this->externalCompetitionIds($providerId)),
+                fn ($q) => $q->where('ingest_enabled', true)->whereIn('id', $this->externalCompetitionIds($providerIds)),
             )
             ->orderBy('sort_order')
             ->orderBy('id')
@@ -49,18 +51,24 @@ class CompetitionRepository
     }
 
     /**
-     * Внешние id лиг у провайдера для соревнований с `ingest_enabled` (фильтр `league_ids` в sync_catalog).
+     * Id лиг для соревнований с `ingest_enabled` (фильтр `league_ids` в sync_catalog): по одному на соревнование,
+     * от первого провайдера списка, у которого он есть (числовой id SStats, иначе flash-id).
      *
+     * @param  list<int>  $providerIds  в порядке предпочтения
      * @return list<string>
      */
-    public function enabledExternalIds(int $providerId): array
+    public function enabledExternalIds(array $providerIds): array
     {
-        return ExternalId::where('source_provider_id', $providerId)
+        $rank = array_flip($providerIds);
+
+        return ExternalId::whereIn('source_provider_id', $providerIds)
             ->where('entity_type', ExternalEntityType::Competition->value)
             ->whereIn('entity_id', Competition::where('ingest_enabled', true)->select('id'))
-            ->orderBy('entity_id')
-            ->pluck('external_id')
-            ->map(fn ($id) => (string) $id)
+            ->get(['entity_id', 'source_provider_id', 'external_id'])
+            ->sortBy(fn (ExternalId $e) => [$e->entity_id, $rank[$e->source_provider_id]])
+            ->unique('entity_id')
+            ->map(fn (ExternalId $e) => (string) $e->external_id)
+            ->values()
             ->all();
     }
 
@@ -71,10 +79,13 @@ class CompetitionRepository
         return $competition;
     }
 
-    /** @return \Illuminate\Database\Eloquent\Builder<ExternalId> */
-    private function externalCompetitionIds(int $providerId)
+    /**
+     * @param  list<int>  $providerIds
+     * @return Builder<ExternalId>
+     */
+    private function externalCompetitionIds(array $providerIds)
     {
-        return ExternalId::where('source_provider_id', $providerId)
+        return ExternalId::whereIn('source_provider_id', $providerIds)
             ->where('entity_type', ExternalEntityType::Competition->value)
             ->select('entity_id');
     }

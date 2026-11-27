@@ -68,13 +68,30 @@ type LsCountry struct {
 	Abbr3 string     `json:"abbr3"`
 }
 
-type LsLeague struct {
-	ID      string    `json:"id"`
-	UID     string    `json:"uid"`
-	Name    string    `json:"name"`
-	AliasID string    `json:"aliasId"`
-	LogoURL string    `json:"logoUrl"`
-	Country LsCountry `json:"country"`
+// Country — страна основного API: код (RU, GB-ENG; WW — «мир») и английское название.
+type Country struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+// League — лига /Leagues: числовой id SStats, flash-id (= id Ls-эндпоинтов), mappings и сезоны.
+type League struct {
+	ID           FlexString             `json:"id"`
+	Name         string                 `json:"name"`
+	Country      *Country               `json:"country"`
+	FlashScoreID string                 `json:"flashScoreId"`
+	Mappings     map[string]FlexStrings `json:"mappings"`
+	Seasons      []LeagueSeason         `json:"seasons"`
+}
+
+// LeagueSeason — сезон лиги: uuid, год начала, даты первого и последнего матча (по известному календарю).
+// FlashScoreID — slug Flashscore («russia/fnl-2025-2026»), у новых сезонов бывает null.
+type LeagueSeason struct {
+	UID          string  `json:"uid"`
+	Year         FlexInt `json:"year"`
+	DateStart    string  `json:"dateStart"`
+	DateEnd      string  `json:"dateEnd"`
+	FlashScoreID *string `json:"flashScoreId"`
 }
 
 type LsSeason struct {
@@ -143,32 +160,16 @@ type LsStandingsRow struct {
 	TeamID string `json:"teamId"`
 }
 
-// LsFixture — матч из /Ls/List (используются только нужные каноническому DTO поля).
+// LsFixture — матч из /Ls/List: нужен только этап и тур (запасной источник для многоэтапных сезонов).
 type LsFixture struct {
 	ID           string     `json:"id"`
-	TournamentID string     `json:"tournamentId"`
-	SeasonID     string     `json:"seasonId"`
 	StageID      string     `json:"stageId"`
 	RoundID      FlexString `json:"roundId"`
 	RoundName    string     `json:"roundName"`
 	HomeTeamID   string     `json:"homeTeamId"`
 	AwayTeamID   string     `json:"awayTeamId"`
-	Date         string     `json:"date"`
-	DateUTC      FlexString `json:"dateUtc"`
-	Status       FlexInt    `json:"status"`
-	StatusName   string     `json:"statusName"`
-	LiveStage    *FlexInt   `json:"liveStage"`
-
-	HomeResult   *FlexInt `json:"homeResult"`
-	AwayResult   *FlexInt `json:"awayResult"`
-	HomeResultHT *FlexInt `json:"homeResultHT"`
-	AwayResultHT *FlexInt `json:"awayResultHT"`
-	HomeResultFT *FlexInt `json:"homeResultFT"`
-	AwayResultFT *FlexInt `json:"awayResultFT"`
-	HomeResultET *FlexInt `json:"homeResultET"`
-	AwayResultET *FlexInt `json:"awayResultET"`
-	HomeResultAP *FlexInt `json:"homeResultAP"`
-	AwayResultAP *FlexInt `json:"awayResultAP"`
+	HomeResultAP *FlexInt   `json:"homeResultAP"`
+	AwayResultAP *FlexInt   `json:"awayResultAP"`
 }
 
 // FixturesQuery — фильтры /Ls/List. Нулевые значения не отправляются.
@@ -200,28 +201,35 @@ func (f *FlexFloat) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type LsPlayerProfile struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	ShortName string     `json:"shortName"`
-	Role      string     `json:"role"`
-	Birthdate string     `json:"birthdate"`
-	PhotoURL  string     `json:"photoUrl"`
-	Country   *LsCountry `json:"country"`
+// Player — игрок /Players/list: только сам игрок (позиции и номера в ответе нет). Name — короткое имя («I. Diveev»).
+type Player struct {
+	ID          FlexString `json:"id"`
+	Name        string     `json:"name"`
+	FirstName   *string    `json:"firstName"`
+	LastName    *string    `json:"lastName"`
+	Nationality *string    `json:"nationality"`
+	Height      FlexString `json:"height"`
+	BirthDate   *string    `json:"birthDate"`
+	PhotoURL    *string    `json:"photoUrl"`
+	// Unavailabilities — травмы и дисквалификации; null, если источник ничего не знает.
+	Unavailabilities []PlayerUnavailability `json:"unavailabilities"`
 }
 
-// LsSquadPlayer — запись /Ls/Players (каталог людей): игрок или тренер текущей команды профиля.
-// ProfileUpdatedAt == nil — полный профиль ещё не получен (человек известен только из матчей).
+type PlayerUnavailability struct {
+	Start    *string `json:"start"`
+	End      *string `json:"end"`
+	TypeID   FlexInt `json:"typeId"`
+	TypeName string  `json:"typeName"`
+}
+
+// LsSquadPlayer — запись /Ls/Players (каталог людей Ls по текущей команде профиля). Нужна только ради позиции (role),
+// которой нет в /Players/list. ID — flash-id человека.
 type LsSquadPlayer struct {
-	ID               string     `json:"id"`
-	Name             string     `json:"name"`
-	ShortName        *string    `json:"shortName"`
-	Role             *string    `json:"role"`
-	Birthdate        *string    `json:"birthdate"`
-	PhotoURL         *string    `json:"photoUrl"`
-	Country          *LsCountry `json:"country"`
-	CurrentTeamID    *string    `json:"currentTeamId"`
-	ProfileUpdatedAt *string    `json:"profileUpdatedAt"`
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	ShortName *string `json:"shortName"`
+	Role      *string `json:"role"`
+	Birthdate *string `json:"birthdate"`
 }
 
 // FlexStrings принимает строку или массив строк (mappings команд и лиг — массивы, матча — строка).
@@ -268,21 +276,60 @@ func (f FlexStrings) First() string {
 	return ""
 }
 
-// GameRef — матч из /Games/list: числовой id SStats и идентификаторы в других источниках (mappings).
-type GameRef struct {
-	ID       FlexString             `json:"id"`
-	FlashID  string                 `json:"flashId"`
-	Mappings map[string]FlexStrings `json:"mappings"`
-	Home     GameTeamRef            `json:"homeTeam"`
-	Away     GameTeamRef            `json:"awayTeam"`
-	Season   struct {
-		League GameLeagueRef `json:"league"`
-	} `json:"season"`
+// Game — матч из /Games/list (сокращённый вид): числовой id SStats, flash-id, mappings, время, статус, счёт, команды,
+// сезон и название тура. Этапа и id тура нет; счёта доп. времени и серии пенальти — тоже.
+type Game struct {
+	ID           FlexString             `json:"id"`
+	FlashID      string                 `json:"flashId"`
+	Mappings     map[string]FlexStrings `json:"mappings"`
+	Date         string                 `json:"date"`
+	DateUTC      FlexString             `json:"dateUtc"`
+	Status       *FlexInt               `json:"status"`
+	StatusName   string                 `json:"statusName"`
+	HomeResult   *FlexInt               `json:"homeResult"`
+	AwayResult   *FlexInt               `json:"awayResult"`
+	HomeHTResult *FlexInt               `json:"homeHTResult"`
+	AwayHTResult *FlexInt               `json:"awayHTResult"`
+	Home         GameTeamRef            `json:"homeTeam"`
+	Away         GameTeamRef            `json:"awayTeam"`
+	Season       GameSeasonRef          `json:"season"`
+	RoundName    string                 `json:"roundName"`
+	Odds         []GameBet              `json:"odds"`
+}
+
+// GameBet — рынок коэффициентов закрытия линии в /Games (1X2, тоталы и т.п.; marketName бывает null).
+type GameBet struct {
+	MarketID   FlexInt     `json:"marketId"`
+	MarketName string      `json:"marketName"`
+	Odds       []GamePrice `json:"odds"`
+}
+
+type GamePrice struct {
+	Name  string    `json:"name"`
+	Value FlexFloat `json:"value"`
+}
+
+type GameSeasonRef struct {
+	UID    string        `json:"uid"`
+	Year   FlexInt       `json:"year"`
+	League GameLeagueRef `json:"league"`
+}
+
+// GamesQuery — фильтры /Games/list: сезон по uuid либо лига + год; окно From включительно, To исключительно (UTC).
+type GamesQuery struct {
+	SeasonUID string
+	LeagueID  string
+	Year      int
+	From      time.Time
+	To        time.Time
 }
 
 type GameTeamRef struct {
 	ID       FlexString             `json:"id"`
+	Name     string                 `json:"name"`
 	FlashID  string                 `json:"flashId"`
+	LogoURL  string                 `json:"logoUrl"`
+	Country  *Country               `json:"country"`
 	Mappings map[string]FlexStrings `json:"mappings"`
 }
 
@@ -313,6 +360,8 @@ type GameInfo struct {
 	AwayResult *FlexInt    `json:"awayResult"`
 	HomeHT     *FlexInt    `json:"homeHTResult"`
 	AwayHT     *FlexInt    `json:"awayHTResult"`
+	HomeFT     *FlexInt    `json:"homeFTResult"`
+	AwayFT     *FlexInt    `json:"awayFTResult"`
 	HomeTeam   GameTeamRef `json:"homeTeam"`
 	AwayTeam   GameTeamRef `json:"awayTeam"`
 }

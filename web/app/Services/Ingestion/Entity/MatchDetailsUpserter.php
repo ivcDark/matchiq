@@ -34,7 +34,8 @@ use Illuminate\Support\Collection;
  * `people_source = sstats_api` (детали из /Games/{id}): игроки названы числовыми id SStats и именами. Их опознаёт
  * `ApiPlayerResolver`; неопознанный игрок события — null (имя уходит в details.person_name), неопознанный участник состава
  * или статистики пропускается (`skipped`), и тогда секция только дополняется, не удаляя строки. Необязательная секция `state`
- * обновляет статус, минуту и счёт самого матча.
+ * обновляет статус, минуту и счёт самого матча (голы доп. времени `*_goals_et` — когда источник их дал).
+ * Матч ищется по flash-id (провайдер `sstats`), а матч без flash-id — по числовому id SStats (`sstats_api`).
  */
 class MatchDetailsUpserter implements EntityUpserter
 {
@@ -59,7 +60,8 @@ class MatchDetailsUpserter implements EntityUpserter
     public function upsert(ResultEntity $entity, UpsertContext $context): UpsertResult
     {
         $data = $entity->data;
-        $matchId = $this->externalIds->requireEntityId($context->providerId, ExternalEntityType::Match, $entity->externalId);
+        $matchId = $this->externalIds->findEntityId($context->providerId, ExternalEntityType::Match, $entity->externalId)
+            ?? $this->externalIds->requireEntityId($this->providers->ensure(SourceProviderCode::SstatsApi)->id, ExternalEntityType::Match, $entity->externalId);
         $match = $this->matches->find($matchId)
             ?? throw IngestionEntityException::missingReference(ExternalEntityType::Match->value, $entity->externalId);
 
@@ -356,6 +358,14 @@ class MatchDetailsUpserter implements EntityUpserter
         $writeScore = $status === MatchStatus::Live || ($status === MatchStatus::Finished && ! $wasFinished) || $match->home_goals === null;
         if ($writeScore && $status !== MatchStatus::Scheduled) {
             foreach (['home_goals', 'away_goals', 'home_goals_ht', 'away_goals_ht'] as $column) {
+                $value = $this->int($state[$column] ?? null, $column);
+                if ($value !== null) {
+                    $attributes[$column] = $value;
+                }
+            }
+        }
+        if ($status === MatchStatus::Finished && ($writeScore || $match->home_goals_et === null)) {
+            foreach (['home_goals_et', 'away_goals_et'] as $column) {
                 $value = $this->int($state[$column] ?? null, $column);
                 if ($value !== null) {
                     $attributes[$column] = $value;

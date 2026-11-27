@@ -28,4 +28,4 @@
 | Команды и игроки | `GET /Teams/list`, `GET /Teams/{id}`, `GET /Players/list`, `GET /Ls/Players`, `GET /Ls/PlayerInfo` |
 | Травмы, форма, коэффициенты | `GET /Games/injuries`, `GET /Games/last-games-stats`, `GET /Odds/{gameId}`, `GET /Ls/GameOdds` |
 
-Соответствие `ingestion_runs.kind` ↔ эндпоинты и точные поля канона DTO уточняются при реализации сборщиков; покрытие данных относительно UI MatchIQ нужно сверить на реальных ответах (по аналогии с [api-football-coverage-vs-ui.md](api-football-coverage-vs-ui.md)).
+Правило выбора: основной API (`/Leagues`, `/Games/list`, `/Games/{id}`, `/Players/list`); `/Ls/*` — только если основного эндпоинта нет или в нём не хватает полей для UI/БД. Какой job ходит в какой эндпоинт и что осталось на `/Ls/*` — таблица «Эндпоинты SStats по job'ам» в [../architecture/ingestion.md](../architecture/ingestion.md).

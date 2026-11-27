@@ -99,15 +99,12 @@ type Session struct {
 func (s *Session) Requests() int    { return int(s.requests.Load()) }
 func (s *Session) RateLimited() int { return int(s.rateLimited.Load()) }
 
-func (s *Session) Leagues(ctx context.Context, name string) ([]LsLeague, error) {
-	q := url.Values{}
-	if name != "" {
-		q.Set("name", name)
-	}
-
-	return get[[]LsLeague](ctx, s, "/Ls/Leagues", q)
+// Leagues — все лиги с сезонами (/Leagues, один запрос без фильтров).
+func (s *Session) Leagues(ctx context.Context) ([]League, error) {
+	return get[[]League](ctx, s, "/Leagues", nil)
 }
 
+// Seasons — сезоны лиги по Ls-эндпоинту; нужен только sync_structure, чтобы найти Ls-id сезона для /Ls/SeasonStructure.
 func (s *Session) Seasons(ctx context.Context, leagueID string) ([]LsSeason, error) {
 	return get[[]LsSeason](ctx, s, "/Ls/Seasons", url.Values{"leagueId": {leagueID}})
 }
@@ -125,7 +122,8 @@ const (
 	fixturesMaxPages = 50
 )
 
-// Fixtures возвращает все матчи по фильтрам, листая /Ls/List по Offset.
+// Fixtures возвращает все матчи по фильтрам, листая /Ls/List по Offset. Только запасной источник этапа и тура матча
+// для многоэтапных сезонов: /Games/list их не отдаёт.
 func (s *Session) Fixtures(ctx context.Context, f FixturesQuery) ([]LsFixture, error) {
 	var all []LsFixture
 	for page := 0; page < fixturesMaxPages; page++ {
@@ -161,25 +159,44 @@ func (s *Session) Fixtures(ctx context.Context, f FixturesQuery) ([]LsFixture, e
 	return nil, fmt.Errorf("sstats: /Ls/List вернул больше %d страниц", fixturesMaxPages)
 }
 
-const gamesListChunk = 100
+// Games возвращает все матчи сезона /Games/list (по uuid сезона либо лиге и году), листая по Offset.
+func (s *Session) Games(ctx context.Context, f GamesQuery) ([]Game, error) {
+	if f.SeasonUID == "" && (f.LeagueID == "" || f.Year == 0) {
+		return nil, fmt.Errorf("sstats: /Games/list требует SeasonUid либо LeagueId и Year")
+	}
 
-// GamesByFlashIDs возвращает матчи /Games/list по flash-id (пачками): числовой id SStats и mappings flashscore/pari.
-func (s *Session) GamesByFlashIDs(ctx context.Context, flashIDs []string) ([]GameRef, error) {
-	var all []GameRef
-	for start := 0; start < len(flashIDs); start += gamesListChunk {
-		end := min(start+gamesListChunk, len(flashIDs))
+	var all []Game
+	for page := 0; page < fixturesMaxPages; page++ {
 		q := url.Values{
-			"FlashId": {strings.Join(flashIDs[start:end], ",")},
-			"Limit":   {strconv.Itoa(gamesListChunk)},
+			"Limit":    {strconv.Itoa(fixturesPageSize)},
+			"Offset":   {strconv.Itoa(page * fixturesPageSize)},
+			"Order":    {"1"},
+			"TimeZone": {"0"},
 		}
-		items, err := get[[]GameRef](ctx, s, "/Games/list", q)
+		if f.SeasonUID != "" {
+			q.Set("SeasonUid", f.SeasonUID)
+		} else {
+			q.Set("LeagueId", f.LeagueID)
+			q.Set("Year", strconv.Itoa(f.Year))
+		}
+		if !f.From.IsZero() {
+			q.Set("From", f.From.UTC().Format("2006-01-02T15:04:05"))
+		}
+		if !f.To.IsZero() {
+			q.Set("To", f.To.UTC().Format("2006-01-02T15:04:05"))
+		}
+
+		items, err := get[[]Game](ctx, s, "/Games/list", q)
 		if err != nil {
 			return nil, err
 		}
 		all = append(all, items...)
+		if len(items) < fixturesPageSize {
+			return all, nil
+		}
 	}
 
-	return all, nil
+	return nil, fmt.Errorf("sstats: /Games/list вернул больше %d страниц", fixturesMaxPages)
 }
 
 // Game — матч целиком (/Games/{id}); id — числовой id SStats или flash-id.
@@ -192,12 +209,34 @@ const (
 	playersMaxPages = 5
 )
 
-// Players возвращает всех людей текущей команды (/Ls/Players?teamId=), листая по offset.
-func (s *Session) Players(ctx context.Context, teamID string) ([]LsSquadPlayer, error) {
-	var all []LsSquadPlayer
+// Players возвращает игроков текущего состава команды (/Players/list?teamId=<числовой id>), листая по offset.
+func (s *Session) Players(ctx context.Context, teamID string) ([]Player, error) {
+	var all []Player
 	for page := 0; page < playersMaxPages; page++ {
 		q := url.Values{
 			"teamId": {teamID},
+			"limit":  {strconv.Itoa(playersPageSize)},
+			"offset": {strconv.Itoa(page * playersPageSize)},
+		}
+		items, err := get[[]Player](ctx, s, "/Players/list", q)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, items...)
+		if len(items) < playersPageSize {
+			return all, nil
+		}
+	}
+
+	return nil, fmt.Errorf("sstats: /Players/list вернул больше %d страниц", playersMaxPages)
+}
+
+// LsPlayers — люди команды по Ls-эндпоинту (/Ls/Players?teamId=<flash-id>): запасной источник позиции игрока.
+func (s *Session) LsPlayers(ctx context.Context, teamFlashID string) ([]LsSquadPlayer, error) {
+	var all []LsSquadPlayer
+	for page := 0; page < playersMaxPages; page++ {
+		q := url.Values{
+			"teamId": {teamFlashID},
 			"limit":  {strconv.Itoa(playersPageSize)},
 			"offset": {strconv.Itoa(page * playersPageSize)},
 		}

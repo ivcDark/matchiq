@@ -33,15 +33,15 @@ class IngestDispatch extends Command
         {type : sync_catalog | sync_structure | sync_fixtures | sync_match_details | sync_squads}
         {--country= : sync_catalog: страна (название, alias или ISO-код)}
         {--league= : sync_catalog: часть названия лиги}
-        {--league-id=* : sync_catalog: внешние id лиг SStats}
+        {--league-id=* : sync_catalog: id лиг SStats (числовой или flash-id)}
         {--competition= : sync_structure, sync_fixtures: slug или id соревнования}
         {--season= : sync_structure, sync_fixtures: slug сезона (по умолчанию текущий)}
         {--stage= : sync_fixtures, sync_match_details: id или название стадии сезона (по умолчанию все стадии)}
         {--from= : sync_fixtures, sync_match_details: начало окна дат YYYY-MM-DD, включительно}
         {--to= : sync_fixtures, sync_match_details: конец окна дат YYYY-MM-DD, включительно}
-        {--match=* : sync_match_details: внешний id матча (можно несколько); вместо выборки по сезону}
+        {--match=* : sync_match_details: flash-id или числовой id SStats матча (можно несколько); вместо выборки по сезону}
         {--limit= : sync_match_details: сколько завершённых матчей взять (по умолчанию 50, максимум 500), свежие первыми}
-        {--team=* : sync_squads: slug или внешний id команды (можно несколько); по умолчанию все команды сезона соревнования}
+        {--team=* : sync_squads: slug, числовой id SStats или flash-id команды (можно несколько); по умолчанию все команды сезона соревнования}
         {--missing : sync_match_details: только матчи, по которым детали ещё не загружены}
         {--live : sync_match_details: только идущие сейчас матчи (status = live) вместо завершённых}
         {--scheduled : вызов из расписания: stats.context.trigger = schedule, «уже идёт» и «нечего грузить» — не ошибка}';
@@ -117,12 +117,16 @@ class IngestDispatch extends Command
         SeasonRepository $seasons,
         ExternalIdRepository $externalIds,
     ): array {
-        [$competition, $competitionExternalId, $season, $seasonExternalId] = $this->resolveTarget($providers, $competitions, $seasons, $externalIds, 'sync_structure');
+        [$competition, $ids, $season] = $this->resolveTarget($providers, $competitions, $seasons, $externalIds, 'sync_structure');
+        if ($ids['season'] === null && $ids['competition'] === null) {
+            throw new InvalidArgumentException('Структура сезона есть только в Ls-эндпоинтах SStats, а у соревнования нет flash-id.');
+        }
 
-        return [[
-            'competition' => ['id' => $competition->id, 'external_id' => $competitionExternalId],
-            'season_external_id' => $seasonExternalId,
-        ], $competition->id];
+        return [array_filter([
+            'competition' => ['id' => $competition->id, 'external_id' => $ids['competition'] ?? ''],
+            'season_external_id' => $ids['season'],
+            'season_label' => $ids['season'] === null ? $season->label : null,
+        ], fn ($v) => $v !== null), $competition->id];
     }
 
     /** @return array{0: array, 1: int} */
@@ -133,12 +137,22 @@ class IngestDispatch extends Command
         StageRepository $stages,
         ExternalIdRepository $externalIds,
     ): array {
-        [$competition, $competitionExternalId, $season, $seasonExternalId] = $this->resolveTarget($providers, $competitions, $seasons, $externalIds, 'sync_fixtures');
+        [$competition, $ids, $season] = $this->resolveTarget($providers, $competitions, $seasons, $externalIds, 'sync_fixtures');
 
-        $payload = [
-            'competition' => ['id' => $competition->id, 'external_id' => $competitionExternalId],
-            'season_external_id' => $seasonExternalId,
-        ];
+        $year = preg_match('/^(\d{4})/', $season->label, $m) === 1 ? (int) $m[1] : null;
+        if ($ids['season_api'] === null && ($ids['competition_api'] === null || $year === null)) {
+            throw new InvalidArgumentException('У сезона нет uid SStats, а у соревнования — числового id: сначала выполните sync_catalog.');
+        }
+
+        $payload = array_filter([
+            'competition' => ['id' => $competition->id, 'external_id' => $ids['competition'] ?? $ids['competition_api']],
+            'season_api_id' => $ids['season_api'],
+            'league_api_id' => $ids['season_api'] === null ? $ids['competition_api'] : null,
+            'season_year' => $ids['season_api'] === null ? $year : null,
+            'season_external_id' => $ids['season'],
+            // Этап и тур /Games/list не отдаёт: у многоэтапного сезона их даёт запасной /Ls/List.
+            'ls_stages' => $ids['season'] !== null && $stages->countInSeason($season->id) > 1 ? true : null,
+        ], fn ($v) => $v !== null);
 
         $stageRef = (string) $this->option('stage');
         if ($stageRef !== '') {
@@ -147,6 +161,7 @@ class IngestDispatch extends Command
             $provider = $providers->ensure(SourceProviderCode::Sstats);
             $payload['stage_external_id'] = $externalIds->externalIdFor($provider->id, ExternalEntityType::Stage, $stage->id)
                 ?? throw new InvalidArgumentException('У стадии нет внешнего id SStats.');
+            unset($payload['ls_stages']);
         }
 
         $window = array_filter([
@@ -177,6 +192,7 @@ class IngestDispatch extends Command
         ExternalIdRepository $externalIds,
     ): array {
         $provider = $providers->ensure(SourceProviderCode::Sstats);
+        $apiProvider = $providers->ensure(SourceProviderCode::SstatsApi);
         $explicit = array_values(array_unique(array_filter(array_map('trim', (array) $this->option('match')))));
 
         if (count($explicit) > self::MAX_DETAILS_LIMIT) {
@@ -184,8 +200,9 @@ class IngestDispatch extends Command
         }
 
         if ($explicit !== []) {
-            $found = $externalIds->entityIdsFor($provider->id, ExternalEntityType::Match, $explicit);
-            $unknown = array_values(array_diff($explicit, array_keys($found)));
+            $found = $externalIds->entityIdsFor($provider->id, ExternalEntityType::Match, $explicit)
+                + $externalIds->entityIdsFor($apiProvider->id, ExternalEntityType::Match, $explicit);
+            $unknown = array_values(array_diff($explicit, array_map('strval', array_keys($found))));
             if ($unknown !== []) {
                 throw new InvalidArgumentException('Матчи не найдены (сначала sync_fixtures): '.implode(', ', $unknown));
             }
@@ -199,7 +216,7 @@ class IngestDispatch extends Command
             $this->assertCompetitionOption($competitions, $competition?->id);
             $season = $rows->pluck('season_id')->unique()->count() === 1 ? $seasons->find((int) $rows->first()->season_id) : null;
 
-            $externalMatchIds = $explicit;
+            $matchIds = array_values(array_unique($found));
         } else {
             $limit = $this->limitOption();
             [$competition, , $season] = $this->resolveTarget($providers, $competitions, $seasons, $externalIds, 'sync_match_details');
@@ -226,22 +243,38 @@ class IngestDispatch extends Command
             } else {
                 $rows = $matches->selectFinishedForDetails($season->id, $stageId, $from, $to, (bool) $this->option('missing'), $limit);
             }
-            $map = $externalIds->externalIdsFor($provider->id, ExternalEntityType::Match, $rows->pluck('id')->all());
-            $externalMatchIds = $rows->map(fn ($m) => $map[$m->id] ?? null)->filter()->values()->all();
-            if ($externalMatchIds === []) {
-                throw new IngestionSkipped($this->option('live')
-                    ? 'Нет идущих матчей с внешним id SStats.'
-                    : 'Нет подходящих завершённых матчей с внешним id SStats (сначала sync_fixtures).');
+            $matchIds = $rows->pluck('id')->all();
+        }
+
+        // Ключ матча в collector — flash-id, у матча без него — числовой id SStats; /Games/{id} вызывается по числовому.
+        $flashIds = $externalIds->externalIdsFor($provider->id, ExternalEntityType::Match, $matchIds);
+        $apiIds = $externalIds->externalIdsFor($apiProvider->id, ExternalEntityType::Match, $matchIds);
+        $externalMatchIds = [];
+        $matchApiIds = [];
+        foreach ($matchIds as $id) {
+            $key = $flashIds[$id] ?? $apiIds[$id] ?? null;
+            if ($key === null) {
+                continue;
             }
+            $externalMatchIds[] = $key;
+            if (isset($flashIds[$id], $apiIds[$id])) {
+                $matchApiIds[$key] = $apiIds[$id];
+            }
+        }
+        if ($externalMatchIds === []) {
+            throw new IngestionSkipped($this->option('live')
+                ? 'Нет идущих матчей с id SStats.'
+                : 'Нет подходящих завершённых матчей с id SStats (сначала sync_fixtures).');
         }
 
         $competitionExternalId = $externalIds->externalIdFor($provider->id, ExternalEntityType::Competition, $competition->id)
-            ?? throw new InvalidArgumentException('У соревнования нет внешнего id SStats.');
-        $seasonExternalId = $season !== null ? $externalIds->externalIdFor($provider->id, ExternalEntityType::Season, $season->id) : null;
+            ?? $externalIds->externalIdFor($apiProvider->id, ExternalEntityType::Competition, $competition->id)
+            ?? throw new InvalidArgumentException('У соревнования нет id SStats.');
+        $seasonExternalId = $season !== null
+            ? ($externalIds->externalIdFor($provider->id, ExternalEntityType::Season, $season->id) ?? $externalIds->externalIdFor($apiProvider->id, ExternalEntityType::Season, $season->id))
+            : null;
 
         $this->line('Матчей в прогоне: '.count($externalMatchIds));
-
-        $matchApiIds = $this->matchApiIds($providers, $externalIds, $provider->id, $externalMatchIds);
 
         return [array_filter([
             'competition' => ['id' => $competition->id, 'external_id' => $competitionExternalId],
@@ -252,31 +285,8 @@ class IngestDispatch extends Command
     }
 
     /**
-     * Числовые id SStats матчей (провайдер sstats_api): /Games/{id} надёжнее принимает их, чем flash-id.
-     * У матча без числового id коллектор обращается к /Games по flash-id.
-     *
-     * @param  list<string>  $externalMatchIds
-     * @return array<string, string> flash-id → числовой id
-     */
-    private function matchApiIds(SourceProviderRepository $providers, ExternalIdRepository $externalIds, int $providerId, array $externalMatchIds): array
-    {
-        $entityIds = $externalIds->entityIdsFor($providerId, ExternalEntityType::Match, $externalMatchIds);
-        $apiProvider = $providers->ensure(SourceProviderCode::SstatsApi);
-        $apiIds = $externalIds->externalIdsFor($apiProvider->id, ExternalEntityType::Match, array_values($entityIds));
-
-        $result = [];
-        foreach ($entityIds as $flashId => $entityId) {
-            if (isset($apiIds[$entityId])) {
-                $result[(string) $flashId] = $apiIds[$entityId];
-            }
-        }
-
-        return $result;
-    }
-
-    /**
      * Составы клубов: команды выбирает Laravel (команды текущего сезона соревнования с `teams.ingest_enabled` либо явные `--team`),
-     * в collector уходят внешние id команд.
+     * в collector уходят числовые id команд SStats (/Players/list) и их flash-id (позиции из /Ls/Players).
      *
      * @return array{0: array, 1: int}
      */
@@ -287,29 +297,45 @@ class IngestDispatch extends Command
         TeamRepository $teams,
         ExternalIdRepository $externalIds,
     ): array {
-        [$competition, $competitionExternalId, $season, $seasonExternalId] = $this->resolveTarget($providers, $competitions, $seasons, $externalIds, 'sync_squads');
+        [$competition, $ids, $season] = $this->resolveTarget($providers, $competitions, $seasons, $externalIds, 'sync_squads');
         $provider = $providers->ensure(SourceProviderCode::Sstats);
+        $apiProvider = $providers->ensure(SourceProviderCode::SstatsApi);
 
         $explicit = array_values(array_unique(array_filter(array_map('trim', (array) $this->option('team')))));
         if ($explicit !== []) {
-            $externalTeamIds = [];
+            $teamIds = [];
             foreach ($explicit as $ref) {
-                $team = $teams->findBySlug($ref);
-                $externalTeamIds[] = $team !== null
-                    ? ($externalIds->externalIdFor($provider->id, ExternalEntityType::Team, $team->id)
-                        ?? throw new InvalidArgumentException("У команды {$ref} нет внешнего id SStats."))
-                    : (isset($externalIds->entityIdsFor($provider->id, ExternalEntityType::Team, [$ref])[$ref])
-                        ? $ref
-                        : throw new InvalidArgumentException("Команда {$ref} не найдена (slug или внешний id SStats; сначала sync_structure)."));
+                $teamIds[] = $teams->findBySlug($ref)?->id
+                    ?? $externalIds->findEntityId($apiProvider->id, ExternalEntityType::Team, $ref)
+                    ?? $externalIds->findEntityId($provider->id, ExternalEntityType::Team, $ref)
+                    ?? throw new InvalidArgumentException("Команда {$ref} не найдена (slug, числовой id SStats или flash-id).");
+            }
+            $apiIds = $externalIds->externalIdsFor($apiProvider->id, ExternalEntityType::Team, $teamIds);
+            foreach ($explicit as $i => $ref) {
+                if (! isset($apiIds[$teamIds[$i]])) {
+                    throw new InvalidArgumentException("У команды {$ref} нет числового id SStats (сначала sync_fixtures).");
+                }
             }
         } else {
             $teamIds = $teams->idsInSeason($season->id, onlyIngestEnabled: true);
-            $map = $externalIds->externalIdsFor($provider->id, ExternalEntityType::Team, $teamIds);
-            $externalTeamIds = array_values(array_filter(array_map(fn (int $id) => $map[$id] ?? null, $teamIds)));
+            $apiIds = $externalIds->externalIdsFor($apiProvider->id, ExternalEntityType::Team, $teamIds);
+        }
+
+        $flashIds = $externalIds->externalIdsFor($provider->id, ExternalEntityType::Team, $teamIds);
+        $externalTeamIds = [];
+        $teamFlashIds = [];
+        foreach (array_unique($teamIds) as $id) {
+            if (! isset($apiIds[$id])) {
+                continue;
+            }
+            $externalTeamIds[] = $apiIds[$id];
+            if (isset($flashIds[$id])) {
+                $teamFlashIds[$apiIds[$id]] = $flashIds[$id];
+            }
         }
 
         if ($externalTeamIds === []) {
-            throw new IngestionSkipped('Нет команд сезона с внешним id SStats (сначала sync_structure / sync_fixtures).');
+            throw new IngestionSkipped('Нет команд сезона с числовым id SStats (сначала sync_fixtures).');
         }
         if (count($externalTeamIds) > self::MAX_SQUAD_TEAMS) {
             throw new InvalidArgumentException('sync_squads: не более '.self::MAX_SQUAD_TEAMS.' команд за прогон, выберите команды через --team.');
@@ -317,11 +343,12 @@ class IngestDispatch extends Command
 
         $this->line('Команд в прогоне: '.count($externalTeamIds));
 
-        return [[
-            'competition' => ['id' => $competition->id, 'external_id' => $competitionExternalId],
-            'season_external_id' => $seasonExternalId,
+        return [array_filter([
+            'competition' => ['id' => $competition->id, 'external_id' => $ids['competition'] ?? $ids['competition_api']],
+            'season_external_id' => $ids['season'] ?? $ids['season_api'],
             'team_external_ids' => $externalTeamIds,
-        ], $competition->id];
+            'team_flash_ids' => $teamFlashIds === [] ? null : $teamFlashIds,
+        ], fn ($v) => $v !== null), $competition->id];
     }
 
     private function assertCompetitionOption(CompetitionRepository $competitions, ?int $matchCompetitionId): void
@@ -369,7 +396,12 @@ class IngestDispatch extends Command
         return $value;
     }
 
-    /** @return array{0: Competition, 1: string, 2: Season, 3: string} */
+    /**
+     * Соревнование, сезон и их id SStats: `competition`/`season` — Ls-ключи (провайдер `sstats`, flash-id лиги и id Ls-сезона),
+     * `competition_api`/`season_api` — числовой id лиги и uid сезона основного API (`sstats_api`). Отсутствующий — null.
+     *
+     * @return array{0: Competition, 1: array{competition: ?string, season: ?string, competition_api: ?string, season_api: ?string}, 2: Season}
+     */
     private function resolveTarget(
         SourceProviderRepository $providers,
         CompetitionRepository $competitions,
@@ -386,8 +418,12 @@ class IngestDispatch extends Command
             ?? throw new InvalidArgumentException("Соревнование {$ref} не найдено: сначала выполните sync_catalog.");
 
         $provider = $providers->ensure(SourceProviderCode::Sstats);
-        $competitionExternalId = $externalIds->externalIdFor($provider->id, ExternalEntityType::Competition, $competition->id)
-            ?? throw new InvalidArgumentException('У соревнования нет внешнего id SStats.');
+        $apiProvider = $providers->ensure(SourceProviderCode::SstatsApi);
+        $competitionExternalId = $externalIds->externalIdFor($provider->id, ExternalEntityType::Competition, $competition->id);
+        $competitionApiId = $externalIds->externalIdFor($apiProvider->id, ExternalEntityType::Competition, $competition->id);
+        if ($competitionExternalId === null && $competitionApiId === null) {
+            throw new InvalidArgumentException('У соревнования нет id SStats: сначала выполните sync_catalog.');
+        }
 
         $seasonSlug = (string) $this->option('season');
         $season = $seasonSlug !== ''
@@ -397,9 +433,11 @@ class IngestDispatch extends Command
             throw new InvalidArgumentException('Сезон не найден (укажите --season=<slug> или отметьте текущий через sync_catalog).');
         }
 
-        $seasonExternalId = $externalIds->externalIdFor($provider->id, ExternalEntityType::Season, $season->id)
-            ?? throw new InvalidArgumentException('У сезона нет внешнего id SStats.');
-
-        return [$competition, $competitionExternalId, $season, $seasonExternalId];
+        return [$competition, [
+            'competition' => $competitionExternalId,
+            'season' => $externalIds->externalIdFor($provider->id, ExternalEntityType::Season, $season->id),
+            'competition_api' => $competitionApiId,
+            'season_api' => $externalIds->externalIdFor($apiProvider->id, ExternalEntityType::Season, $season->id),
+        ], $season];
     }
 }

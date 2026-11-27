@@ -10,15 +10,19 @@ import (
 )
 
 // Source — то, что сборщикам нужно от клиента источника (в тестах подменяется).
+// Основной API: Leagues, Games, Game, Players. Ls-эндпоинты (Seasons, SeasonStructure, Standings, Fixtures) — только
+// там, где основного аналога нет: этапы, группы, туры (см. docs/architecture/ingestion.md).
 type Source interface {
-	Leagues(ctx context.Context, name string) ([]sstats.LsLeague, error)
+	Leagues(ctx context.Context) ([]sstats.League, error)
+	Games(ctx context.Context, q sstats.GamesQuery) ([]sstats.Game, error)
+	Game(ctx context.Context, id string) (sstats.GameFull, error)
+	Players(ctx context.Context, teamID string) ([]sstats.Player, error)
+
 	Seasons(ctx context.Context, leagueID string) ([]sstats.LsSeason, error)
 	SeasonStructure(ctx context.Context, seasonID string) (sstats.LsSeasonStructure, error)
 	Standings(ctx context.Context, seasonID string) ([]sstats.LsStandings, error)
 	Fixtures(ctx context.Context, q sstats.FixturesQuery) ([]sstats.LsFixture, error)
-	GamesByFlashIDs(ctx context.Context, flashIDs []string) ([]sstats.GameRef, error)
-	Game(ctx context.Context, id string) (sstats.GameFull, error)
-	Players(ctx context.Context, teamID string) ([]sstats.LsSquadPlayer, error)
+	LsPlayers(ctx context.Context, teamFlashID string) ([]sstats.LsSquadPlayer, error)
 }
 
 // Output — нормализованный результат сборщика: сущности и ошибки отдельных сущностей.

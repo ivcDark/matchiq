@@ -35,7 +35,10 @@ class PlayerRepository
         return Player::whereIn('id', $ids)->pluck('name', 'id')->all();
     }
 
-    /** @return array{0: Player, 1: UpsertOutcome} */
+    /**
+     * @param  array{first_name?: ?string, last_name?: ?string, height_cm?: ?int}  $profile  поля профиля из /Players/list; нет ключа — не трогаются
+     * @return array{0: Player, 1: UpsertOutcome}
+     */
     public function upsert(
         ?Player $existing,
         int $countryId,
@@ -44,6 +47,7 @@ class PlayerRepository
         ?PlayerPosition $position,
         ?string $photoUrl,
         array $slugHints = [],
+        array $profile = [],
     ): array {
         $onCreate = [];
         if ($existing === null) {
@@ -56,6 +60,6 @@ class PlayerRepository
             'birth_date' => $birthDate,
             'position' => $position,
             'photo_url' => $photoUrl,
-        ], $onCreate);
+        ] + array_intersect_key($profile, array_flip(['first_name', 'last_name', 'height_cm'])), $onCreate);
     }
 }

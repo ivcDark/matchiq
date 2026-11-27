@@ -21,6 +21,12 @@ class CountryRepository
         return Country::where('code', $code)->first();
     }
 
+    /** Страна по названию на английском (как в SStats), без учёта регистра. */
+    public function findByName(string $name): ?Country
+    {
+        return Country::whereRaw('LOWER(name) = ?', [mb_strtolower(trim($name))])->orderBy('id')->first();
+    }
+
     /** @return array{0: Country, 1: UpsertOutcome} */
     public function upsert(?Country $existing, string $code, string $name, CountryKind $kind): array
     {

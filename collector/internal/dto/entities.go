@@ -72,18 +72,31 @@ type CountryData struct {
 	Kind string `json:"kind"`
 }
 
+// CompetitionData — соревнование из /Leagues. APIID — числовой id SStats (провайдер sstats_api); FlashID — flash-id,
+// он же ключ Ls-эндпоинтов (провайдер sstats), у части лиг пуст. Страна задаётся кодом и названием основного API.
+// Refs — справочные id (flashscore, pari).
 type CompetitionData struct {
-	CountryExternalID string `json:"country_external_id,omitempty"`
-	Name              string `json:"name"`
-	Type              string `json:"type"`
-	Scope             string `json:"scope"`
-	LogoURL           string `json:"logo_url,omitempty"`
+	APIID       string            `json:"api_id"`
+	FlashID     string            `json:"flash_id,omitempty"`
+	CountryCode string            `json:"country_code,omitempty"`
+	CountryName string            `json:"country_name,omitempty"`
+	Name        string            `json:"name"`
+	Type        string            `json:"type"`
+	Scope       string            `json:"scope"`
+	LogoURL     string            `json:"logo_url,omitempty"`
+	Refs        map[string]string `json:"refs,omitempty"`
 }
 
+// SeasonData — сезон соревнования. Из /Leagues: APIID (uuid, провайдер sstats_api), CompetitionAPIID, даты, IsCurrent.
+// Из Ls (sync_structure, когда у сезона ещё нет Ls-id): competition_external_id и label, IsCurrent = nil — не трогать.
 type SeasonData struct {
-	CompetitionExternalID string `json:"competition_external_id"`
+	APIID                 string `json:"api_id,omitempty"`
+	CompetitionExternalID string `json:"competition_external_id,omitempty"`
+	CompetitionAPIID      string `json:"competition_api_id,omitempty"`
 	Label                 string `json:"label"`
-	IsCurrent             bool   `json:"is_current"`
+	IsCurrent             *bool  `json:"is_current,omitempty"`
+	StartsOn              string `json:"starts_on,omitempty"`
+	EndsOn                string `json:"ends_on,omitempty"`
 }
 
 type StageData struct {
@@ -117,12 +130,19 @@ type RoundData struct {
 	Code            string `json:"code,omitempty"`
 }
 
+// TeamData — команда. Из Ls-структуры (sync_structure): ключ — flash-id, страна — id страны Ls. Из /Games/list
+// (sync_fixtures): APIID — числовой id SStats (ключ, провайдер sstats_api), FlashID может быть пуст, страна — кодом.
 type TeamData struct {
-	SeasonExternalID  string `json:"season_external_id,omitempty"`
-	CountryExternalID string `json:"country_external_id,omitempty"`
-	Name              string `json:"name"`
-	ShortName         string `json:"short_name,omitempty"`
-	LogoURL           string `json:"logo_url,omitempty"`
+	APIID             string            `json:"api_id,omitempty"`
+	FlashID           string            `json:"flash_id,omitempty"`
+	SeasonExternalID  string            `json:"season_external_id,omitempty"`
+	CountryExternalID string            `json:"country_external_id,omitempty"`
+	CountryCode       string            `json:"country_code,omitempty"`
+	CountryName       string            `json:"country_name,omitempty"`
+	Name              string            `json:"name"`
+	ShortName         string            `json:"short_name,omitempty"`
+	LogoURL           string            `json:"logo_url,omitempty"`
+	Refs              map[string]string `json:"refs,omitempty"`
 }
 
 // CatalogPayload — payload sync_catalog.
@@ -141,10 +161,12 @@ func (f CatalogFilters) Empty() bool {
 	return f.Country == "" && f.LeagueName == "" && len(f.LeagueIDs) == 0
 }
 
-// StructurePayload — payload sync_structure.
+// StructurePayload — payload sync_structure. Сезон без Ls-id (заведён из /Leagues) задаётся SeasonLabel: collector
+// находит его Ls-id через /Ls/Seasons по flash-id соревнования.
 type StructurePayload struct {
 	Competition      CompetitionRef  `json:"competition"`
 	SeasonExternalID string          `json:"season_external_id"`
+	SeasonLabel      string          `json:"season_label,omitempty"`
 	Context          json.RawMessage `json:"context,omitempty"`
 }
 
@@ -169,34 +191,59 @@ const (
 	PeriodPenalties  = "penalties"
 )
 
-// MatchData — канонический матч. Ссылки — только внешние id источника; счёт nil, пока неизвестен.
+// MatchData — канонический матч из /Games/list. Каждая ссылка — парой id: flash-id (провайдер sstats, может быть пуст)
+// и числовой id / uuid SStats (провайдер sstats_api); Laravel ищет по любому. Этап и id тура /Games/list не отдаёт:
+// stage/round_external_id пусты, если их не дал запасной /Ls/List. Счёт доп. времени не передаётся, пенальти — только
+// из уже запрошенного /Ls/List (ключей нет — Laravel их не трогает). Refs — справочные id матча (flashscore, pari).
 type MatchData struct {
-	CompetitionExternalID string  `json:"competition_external_id,omitempty"`
-	SeasonExternalID      string  `json:"season_external_id"`
-	StageExternalID       string  `json:"stage_external_id"`
-	RoundExternalID       string  `json:"round_external_id,omitempty"`
-	RoundName             string  `json:"round_name,omitempty"`
-	RoundNumber           *int    `json:"round_number"`
-	HomeTeamExternalID    string  `json:"home_team_external_id"`
-	AwayTeamExternalID    string  `json:"away_team_external_id"`
-	KickoffAt             string  `json:"kickoff_at"`
-	Status                string  `json:"status"`
-	Period                *string `json:"period"`
-	HomeGoals             *int    `json:"home_goals"`
-	AwayGoals             *int    `json:"away_goals"`
-	HomeGoalsHT           *int    `json:"home_goals_ht"`
-	AwayGoalsHT           *int    `json:"away_goals_ht"`
-	HomeGoalsET           *int    `json:"home_goals_et"`
-	AwayGoalsET           *int    `json:"away_goals_et"`
-	HomePens              *int    `json:"home_pens"`
-	AwayPens              *int    `json:"away_pens"`
+	APIID              string            `json:"api_id"`
+	FlashID            string            `json:"flash_id,omitempty"`
+	SeasonExternalID   string            `json:"season_external_id,omitempty"`
+	SeasonAPIID        string            `json:"season_api_id,omitempty"`
+	StageExternalID    string            `json:"stage_external_id,omitempty"`
+	RoundExternalID    string            `json:"round_external_id,omitempty"`
+	RoundName          string            `json:"round_name,omitempty"`
+	RoundNumber        *int              `json:"round_number"`
+	HomeTeamExternalID string            `json:"home_team_external_id,omitempty"`
+	AwayTeamExternalID string            `json:"away_team_external_id,omitempty"`
+	HomeTeamAPIID      string            `json:"home_team_api_id"`
+	AwayTeamAPIID      string            `json:"away_team_api_id"`
+	HomeTeamName       string            `json:"home_team_name,omitempty"`
+	AwayTeamName       string            `json:"away_team_name,omitempty"`
+	KickoffAt          string            `json:"kickoff_at"`
+	Status             string            `json:"status"`
+	Period             *string           `json:"period"`
+	HomeGoals          *int              `json:"home_goals"`
+	AwayGoals          *int              `json:"away_goals"`
+	HomeGoalsHT        *int              `json:"home_goals_ht"`
+	AwayGoalsHT        *int              `json:"away_goals_ht"`
+	HomePens           *int              `json:"home_pens,omitempty"`
+	AwayPens           *int              `json:"away_pens,omitempty"`
+	Refs               map[string]string `json:"refs,omitempty"`
+	// Odds — доматчевые коэффициенты закрытия линии; пусто — Laravel сохранённые не трогает.
+	Odds []MatchOddData `json:"odds,omitempty"`
+}
+
+// MatchOddData — коэффициент исхода рынка SStats (marketId: 1 — 1X2, 5 — тотал 2.5 и т.д.; outcome — как в источнике).
+type MatchOddData struct {
+	MarketID   int     `json:"market_id"`
+	MarketName string  `json:"market_name,omitempty"`
+	Outcome    string  `json:"outcome"`
+	Value      float64 `json:"value"`
 }
 
 // FixturesPayload — payload sync_fixtures. Окно дат — включительно с обеих сторон (UTC, YYYY-MM-DD).
+// Сезон для /Games/list — SeasonAPIID (uuid) либо LeagueAPIID + SeasonYear. LsStages — сезон многоэтапный: этап и тур
+// матчей добрать из /Ls/List по SeasonExternalID (Ls-id). /Ls/List запрашивается и без LsStages, если у команды матча
+// в /Games/list нет flashId.
 type FixturesPayload struct {
 	Competition      CompetitionRef  `json:"competition"`
-	SeasonExternalID string          `json:"season_external_id"`
+	SeasonExternalID string          `json:"season_external_id,omitempty"`
+	SeasonAPIID      string          `json:"season_api_id,omitempty"`
+	LeagueAPIID      string          `json:"league_api_id,omitempty"`
+	SeasonYear       int             `json:"season_year,omitempty"`
 	StageExternalID  string          `json:"stage_external_id,omitempty"`
+	LsStages         bool            `json:"ls_stages,omitempty"`
 	Window           *FixturesWindow `json:"window,omitempty"`
 	Context          json.RawMessage `json:"context,omitempty"`
 }
