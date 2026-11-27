@@ -9,6 +9,8 @@ use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Exception\AMQPTimeoutException;
 use PhpAmqpLib\Message\AMQPMessage;
 use PhpAmqpLib\Wire\AMQPTable;
+use RuntimeException;
+use Throwable;
 
 /**
  * RabbitMQ-клиент ingest: публикация команд и чтение результатов.
@@ -20,20 +22,39 @@ class AmqpIngestionBroker implements CommandPublisher
 
     private ?AMQPChannel $channel = null;
 
+    private bool $confirming = false;
+
+    /**
+     * Брокер — singleton, канал общий для всех публикаций процесса (scheduler шлёт команды по соревнованиям подряд).
+     * confirm_select — только один раз на канал: повторный вызов сбрасывает локальный счётчик delivery_tag в php-amqplib,
+     * а RabbitMQ продолжает нумерацию, и ack второй команды приходит с «unknown delivery_tag».
+     */
     public function publish(CommandMessage $command): void
     {
-        $channel = $this->channel();
-        $channel->confirm_select();
+        $body = json_encode($command->toArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
-        $channel->basic_publish(
-            new AMQPMessage(
-                json_encode($command->toArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-                ['content_type' => 'application/json', 'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT],
-            ),
-            config('rabbitmq.ingest.exchange'),
-            config('rabbitmq.ingest.commands.routing_key'),
-        );
-        $channel->wait_for_pending_acks(10);
+        try {
+            $channel = $this->channel();
+            if (! $this->confirming) {
+                $channel->set_nack_handler(static function (): void {
+                    throw new RuntimeException('RabbitMQ не принял команду (nack).');
+                });
+                $channel->confirm_select();
+                $this->confirming = true;
+            }
+
+            $channel->basic_publish(
+                new AMQPMessage($body, ['content_type' => 'application/json', 'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT]),
+                config('rabbitmq.ingest.exchange'),
+                config('rabbitmq.ingest.commands.routing_key'),
+            );
+            $channel->wait_for_pending_acks(10);
+        } catch (Throwable $e) {
+            // Неподтверждённые сообщения остались бы в канале и сломали бы следующую публикацию.
+            $this->reset();
+
+            throw $e;
+        }
     }
 
     /**
@@ -112,6 +133,18 @@ class AmqpIngestionBroker implements CommandPublisher
         $this->connection?->close();
         $this->channel = null;
         $this->connection = null;
+        $this->confirming = false;
+    }
+
+    private function reset(): void
+    {
+        try {
+            $this->close();
+        } catch (Throwable) {
+            $this->channel = null;
+            $this->connection = null;
+            $this->confirming = false;
+        }
     }
 
     private function channel(): AMQPChannel
